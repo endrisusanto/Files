@@ -26,6 +26,11 @@ fs.writeFileSync("src-tauri/tauri.conf.json", JSON.stringify(tauri, null, 2) + "
 let cargo = fs.readFileSync("src-tauri/Cargo.toml", "utf8");
 cargo = cargo.replace(/^version = ".*"$/m, `version = "${pkg.version}"`);
 fs.writeFileSync("src-tauri/Cargo.toml", cargo);
+let android = fs.readFileSync("android/app/build.gradle", "utf8");
+android = android
+  .replace(/versionCode \d+/, `versionCode ${major * 10000 + minor * 100 + patch}`)
+  .replace(/versionName ".*"/, `versionName "${pkg.version}"`);
+fs.writeFileSync("android/app/build.gradle", android);
 console.log(pkg.version);
 JS
 )"
@@ -37,7 +42,7 @@ if git rev-parse "v${version}" >/dev/null 2>&1; then
   exit 1
 fi
 
-git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
+git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json android/app/build.gradle
 git commit -m "chore: release v${version}" || true
 git tag "v${version}"
 git push

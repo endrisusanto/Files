@@ -35,10 +35,12 @@ class BridgeService : Service() {
         Thread {
             val name = intent?.getStringExtra("file") ?: return@Thread stopSelf(startId)
             val file = File(localDir, name)
-            val pm = getSystemService(PowerManager::class.java)
-            val wm = applicationContext.getSystemService(WifiManager::class.java)
-            val wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "bridge:upload").apply { acquire(2 * 60 * 60 * 1000L) }
-            val wifi = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "bridge:wifi").apply { acquire() }
+            val wake = getSystemService(PowerManager::class.java)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "bridge:upload")
+                .apply { acquire(2 * 60 * 60 * 1000L) }
+            val wifi = applicationContext.getSystemService(WifiManager::class.java)
+                .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "bridge:wifi")
+                .apply { acquire() }
             try {
                 retry(3) { upload(file) }
                 if (!file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
@@ -67,9 +69,7 @@ class BridgeService : Service() {
                         EnumSet.of(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
                     ).use { remote ->
                         BufferedInputStream(file.inputStream(), 64 * 1024).use { input ->
-                            remote.outputStream.use { output ->
-                                input.copyTo(output, 64 * 1024)
-                            }
+                            remote.outputStream.use { output -> input.copyTo(output, 64 * 1024) }
                         }
                     }
                 }
