@@ -42,13 +42,20 @@ jobs:
         if: runner.os == 'Linux'
         run: npm run tauri -- build --bundles deb,rpm
 
+      - name: Rename desktop installers
+        shell: bash
+        run: |
+          mkdir -p release
+          for file in src-tauri/target/release/bundle/msi/*.msi src-tauri/target/release/bundle/deb/*.deb src-tauri/target/release/bundle/rpm/*.rpm; do
+            [ -e "$file" ] || continue
+            ext="${file##*.}"
+            cp "$file" "release/android-file-bridge-${GITHUB_REF_NAME}-${{ matrix.name }}.${ext}"
+          done
+
       - uses: actions/upload-artifact@v4
         with:
           name: android-file-bridge-${{ matrix.name }}
-          path: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/rpm/*.rpm
+          path: release/*
 
   apk:
     runs-on: ubuntu-22.04
@@ -71,12 +78,12 @@ jobs:
       - run: gradle :android:app:assembleRelease
 
       - name: Pack APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk android-file-bridge.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk "android-file-bridge-${GITHUB_REF_NAME}-android.apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: android-file-bridge-apk
-          path: android-file-bridge.apk
+          path: android-file-bridge-*-android.apk
 
   release:
     needs:
