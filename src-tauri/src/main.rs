@@ -21,8 +21,9 @@ use tauri::{
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-const SOURCE_DIR: &str = r"E:\SUBRO";
-const ANDROID_DIR: &str = "/sdcard/Download/SUBRO/";
+const DEFAULT_SOURCE_DIR: &str = r"E:\SUBRO";
+const ANDROID_DIR: &str = "/sdcard/Android/data/com.example.bridge/files/SUBRO/";
+const DEFAULT_SAMBA_DIR: &str = "/sambashare";
 const MIN_FREE_KB: u64 = 25 * 1024 * 1024;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -31,6 +32,8 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 struct Config {
     target_fingerprint: String,
     service: String,
+    source_dir: PathBuf,
+    samba_dir: PathBuf,
 }
 
 #[derive(Serialize, Clone)]
@@ -55,6 +58,14 @@ struct TransferProgress {
     file: String,
     percent: u8,
     message: String,
+}
+
+#[derive(Serialize, Clone)]
+struct AppInfo {
+    platform: String,
+    source_dir: String,
+    samba_dir: String,
+    target_fingerprint_set: bool,
 }
 
 fn command(program: &str) -> Command {
@@ -113,20 +124,21 @@ fn storage_kb(id: &str) -> u64 {
         .unwrap_or(0)
 }
 
-fn local_files() -> Vec<LocalFile> {
-    let Ok(entries) = fs::read_dir(SOURCE_DIR) else { return vec![] };
+fn bridge_files(dir: &Path) -> Vec<LocalFile> {
+    let Ok(entries) = fs::read_dir(dir) else { return vec![] };
     entries
         .flatten()
         .filter_map(|entry| {
             let path = entry.path();
             let name = path.file_name()?.to_string_lossy().to_string();
-            if !name.ends_with(".tar.md5") && !name.ends_with(".tar.md5.part") {
+            let lower = name.to_lowercase();
+            if !lower.ends_with(".tar.md5") && !lower.ends_with(".tar.md5.part") {
                 return None;
             }
             let meta = entry.metadata().ok()?;
-            let locked = name.ends_with(".tar.md5") && !file_is_available(&path);
+            let locked = lower.ends_with(".tar.md5") && !file_is_available(&path);
             Some(LocalFile {
-                status: if name.ends_with(".part") { "downloading" } else if locked { "locked" } else { "ready" }.into(),
+                status: if lower.ends_with(".part") { "downloading" } else if locked { "locked" } else { "ready" }.into(),
                 name,
                 size: meta.len(),
                 locked,
@@ -143,20 +155,36 @@ fn emit_loop(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
     thread::spawn(move || loop {
         let _ = app.emit("devices", list_devices(&config));
-        let _ = app.emit("files", local_files());
+        let _ = app.emit("files", bridge_files(&config.source_dir));
+        let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
         thread::sleep(Duration::from_secs(2));
     });
 }
 
 fn watch_source(app: AppHandle) {
+    let config = app.state::<Config>().inner().clone();
     thread::spawn(move || {
         let (tx, rx) = channel();
         let Ok(mut watcher) = recommended_watcher(tx) else { return };
-        if watcher.watch(Path::new(SOURCE_DIR), RecursiveMode::NonRecursive).is_err() {
+        if watcher.watch(&config.source_dir, RecursiveMode::NonRecursive).is_err() {
             return;
         }
         while rx.recv().is_ok() {
-            let _ = app.emit("files", local_files());
+            let _ = app.emit("files", bridge_files(&config.source_dir));
+        }
+    });
+}
+
+fn watch_samba(app: AppHandle) {
+    let config = app.state::<Config>().inner().clone();
+    thread::spawn(move || {
+        let (tx, rx) = channel();
+        let Ok(mut watcher) = recommended_watcher(tx) else { return };
+        if watcher.watch(&config.samba_dir, RecursiveMode::NonRecursive).is_err() {
+            return;
+        }
+        while rx.recv().is_ok() {
+            let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
         }
     });
 }
@@ -206,7 +234,7 @@ fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
         .into_iter()
         .find(|d| d.is_target_bridge)
         .ok_or("target bridge fingerprint not connected or lacks 25GB free storage")?;
-    let source = PathBuf::from(SOURCE_DIR).join(&file_name);
+    let source = config.source_dir.join(&file_name);
     if !source.is_file() || !file_name.ends_with(".tar.md5") || !file_is_available(&source) {
         return Err("file is not a ready .tar.md5".into());
     }
@@ -249,9 +277,13 @@ fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn minimize_to_tray(app: AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.hide();
+fn app_info(app: AppHandle) -> AppInfo {
+    let config = app.state::<Config>().inner();
+    AppInfo {
+        platform: std::env::consts::OS.into(),
+        source_dir: config.source_dir.display().to_string(),
+        samba_dir: config.samba_dir.display().to_string(),
+        target_fingerprint_set: config.target_fingerprint != "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE",
     }
 }
 
@@ -259,11 +291,13 @@ fn main() {
     let config = Config {
         target_fingerprint: std::env::var("TARGET_BRIDGE_FINGERPRINT").unwrap_or_else(|_| "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE".into()),
         service: std::env::var("ANDROID_BRIDGE_SERVICE").unwrap_or_else(|_| "com.example.bridge/.BridgeService".into()),
+        source_dir: PathBuf::from(std::env::var("SOURCE_DIR").unwrap_or_else(|_| DEFAULT_SOURCE_DIR.into())),
+        samba_dir: PathBuf::from(std::env::var("SAMBA_DIR").unwrap_or_else(|_| DEFAULT_SAMBA_DIR.into())),
     };
 
     tauri::Builder::default()
         .manage(config)
-        .invoke_handler(tauri::generate_handler![push_file, minimize_to_tray])
+        .invoke_handler(tauri::generate_handler![push_file, app_info])
         .setup(|app| {
             setup_tray(app)?;
             if let Some(window) = app.get_webview_window("main") {
@@ -277,6 +311,7 @@ fn main() {
             }
             emit_loop(app.handle().clone());
             watch_source(app.handle().clone());
+            watch_samba(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -15,18 +15,16 @@ import com.hierynomus.mssmb2.SMB2CreateDisposition
 import com.hierynomus.mssmb2.SMB2CreateOptions
 import com.hierynomus.mssmb2.SMB2ShareAccess
 import com.hierynomus.smbj.SMBClient
-import com.hierynomus.smbj.auth.AuthenticationContext
+import com.hierynomus.smbj.auth.AuthenticationContext.anonymous
 import com.hierynomus.smbj.share.DiskShare
 import java.io.BufferedInputStream
 import java.io.File
 import java.util.EnumSet
 
 class BridgeService : Service() {
-    private val localDir = File("/sdcard/Download/SUBRO")
+    private val localDir by lazy { File(getExternalFilesDir(null), "SUBRO") }
     private val smbHost = "192.168.10.221"
     private val smbShare = "sambashare"
-    private val smbUser = "bridge"
-    private val smbPass = "CHANGE_ME"
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -44,6 +42,8 @@ class BridgeService : Service() {
             try {
                 retry(3) { upload(file) }
                 if (!file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
+            } catch (t: Throwable) {
+                getSystemService(NotificationManager::class.java).notify(2, notification("Upload failed: ${t.message}"))
             } finally {
                 if (wifi.isHeld) wifi.release()
                 if (wake.isHeld) wake.release()
@@ -54,11 +54,11 @@ class BridgeService : Service() {
     }
 
     private fun upload(file: File) {
+        localDir.mkdirs()
         require(file.isFile) { "missing file: ${file.absolutePath}" }
         SMBClient().use { client ->
             client.connect(smbHost).use { connection ->
-                val auth = AuthenticationContext(smbUser, smbPass.toCharArray(), "")
-                connection.authenticate(auth).connectShare(smbShare).use { share ->
+                connection.authenticate(anonymous()).connectShare(smbShare).use { share ->
                     val disk = share as DiskShare
                     disk.openFile(
                         file.name,

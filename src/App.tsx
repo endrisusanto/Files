@@ -18,6 +18,7 @@ type LocalFile = {
 };
 
 type Transfer = { file: string; percent: number; message: string };
+type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean };
 
 const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
@@ -25,13 +26,17 @@ const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 export default function App() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [files, setFiles] = useState<LocalFile[]>([]);
+  const [sambaFiles, setSambaFiles] = useState<LocalFile[]>([]);
+  const [info, setInfo] = useState<AppInfo | null>(null);
   const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    invoke<AppInfo>("app_info").then(setInfo).catch((e) => setError(String(e)));
     const unsubs = [
       listen<Device[]>("devices", (e) => setDevices(e.payload)),
       listen<LocalFile[]>("files", (e) => setFiles(e.payload)),
+      listen<LocalFile[]>("samba-files", (e) => setSambaFiles(e.payload)),
       listen<Transfer>("transfer", (e) => setTransfer(e.payload)),
     ];
     return () => void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
@@ -47,22 +52,50 @@ export default function App() {
   }
 
   const active = devices.some((d) => d.is_target_bridge);
+  const isLinux = info?.platform === "linux";
+
+  if (isLinux) {
+    return (
+      <main className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
+        <section className="mb-4 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Samba Files</h1>
+          <p className="text-sm text-zinc-400">{info?.samba_dir}</p>
+        </section>
+        <table className="w-full border-collapse overflow-hidden rounded-lg border border-zinc-800 text-left">
+          <thead className="bg-zinc-900 text-sm text-zinc-400">
+            <tr>
+              <th className="p-3">File</th>
+              <th className="p-3">Size</th>
+              <th className="p-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sambaFiles.map((f) => (
+              <tr key={f.name} className="border-t border-zinc-800">
+                <td className="p-3">{f.name}</td>
+                <td className="p-3">{fileGb(f.size)}</td>
+                <td className="p-3">{f.status}</td>
+              </tr>
+            ))}
+            {!sambaFiles.length && (
+              <tr>
+                <td className="p-3 text-zinc-500" colSpan={3}>No .tar.md5 files found</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
       <section className="mb-6">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Cross-Network Android File Bridge</h1>
-          <div className="flex items-center gap-3">
-            <span className={active ? "text-green-400" : "text-red-400"}>{active ? "ADB bridge healthy" : "Waiting for target fingerprint"}</span>
-            <button
-              onClick={() => invoke("minimize_to_tray")}
-              className="rounded border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
-            >
-              Tray
-            </button>
-          </div>
+          <span className={active ? "text-green-400" : "text-red-400"}>{active ? "ADB bridge healthy" : "Waiting for target fingerprint"}</span>
         </div>
+        {!info?.target_fingerprint_set && <p className="mb-3 rounded border border-yellow-900 bg-yellow-950 p-3 text-sm text-yellow-100">TARGET_BRIDGE_FINGERPRINT is not configured. Copy the target device fingerprint shown below into the environment before running this app.</p>}
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {devices.map((d) => (
             <article
@@ -83,7 +116,7 @@ export default function App() {
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <h2 className="mb-3 text-lg font-semibold">E:\SUBRO</h2>
+          <h2 className="mb-3 text-lg font-semibold">{info?.source_dir ?? "E:\\SUBRO"}</h2>
           <div className="space-y-2">
             {files.map((f) => (
               <div key={f.name} className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-950 p-3">
@@ -100,6 +133,7 @@ export default function App() {
                 </button>
               </div>
             ))}
+            {!files.length && <p className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-500">No .tar.md5 files found</p>}
           </div>
         </div>
 

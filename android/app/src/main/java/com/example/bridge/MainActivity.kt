@@ -13,7 +13,7 @@ import android.widget.TextView
 import java.io.File
 
 class MainActivity : Activity() {
-    private val localDir = File("/sdcard/Download/SUBRO")
+    private val localDir by lazy { File(getExternalFilesDir(null), "SUBRO") }
     private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,6 +69,7 @@ class MainActivity : Activity() {
     }
 
     private fun refreshStatus(message: String? = null) {
+        localDir.mkdirs()
         val file = latestFile()
         status.text = listOfNotNull(
             message,
