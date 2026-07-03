@@ -53,7 +53,15 @@ export default function App() {
       <section className="mb-6">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Cross-Network Android File Bridge</h1>
-          <span className={active ? "text-green-400" : "text-red-400"}>{active ? "ADB bridge healthy" : "Waiting for target fingerprint"}</span>
+          <div className="flex items-center gap-3">
+            <span className={active ? "text-green-400" : "text-red-400"}>{active ? "ADB bridge healthy" : "Waiting for target fingerprint"}</span>
+            <button
+              onClick={() => invoke("minimize_to_tray")}
+              className="rounded border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+            >
+              Tray
+            </button>
+          </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {devices.map((d) => (

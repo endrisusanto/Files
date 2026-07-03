@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use notify::{recommended_watcher, RecursiveMode, Watcher};
 use regex::Regex;
 use serde::Serialize;
@@ -10,11 +12,20 @@ use std::{
     thread,
     time::Duration,
 };
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::TrayIconBuilder,
+    AppHandle, Emitter, Manager, WindowEvent,
+};
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 const SOURCE_DIR: &str = r"E:\SUBRO";
 const ANDROID_DIR: &str = "/sdcard/Download/SUBRO/";
 const MIN_FREE_KB: u64 = 25 * 1024 * 1024;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Clone)]
 struct Config {
@@ -46,8 +57,21 @@ struct TransferProgress {
     message: String,
 }
 
+fn command(program: &str) -> Command {
+    #[cfg(windows)]
+    {
+        let mut cmd = Command::new(program);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd
+    }
+    #[cfg(not(windows))]
+    {
+        Command::new(program)
+    }
+}
+
 fn adb(args: &[&str]) -> Result<String, String> {
-    let out = Command::new("adb").args(args).output().map_err(|e| e.to_string())?;
+    let out = command("adb").args(args).output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
     } else {
@@ -137,6 +161,34 @@ fn watch_source(app: AppHandle) {
     });
 }
 
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
+    let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+    let menu = MenuBuilder::new(app).item(&show).item(&quit).build()?;
+    let icon = app.default_window_icon().cloned().unwrap();
+
+    TrayIconBuilder::new()
+        .tooltip("Android File Bridge")
+        .icon(icon)
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "show" => show_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, _| show_main_window(tray.app_handle()))
+        .build(app)?;
+    Ok(())
+}
+
 fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream: R) {
     thread::spawn(move || {
         let re = Regex::new(r"(\d{1,3})%").unwrap();
@@ -160,7 +212,7 @@ fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
     }
 
     let _ = adb(&["-s", &device.id, "shell", "mkdir", "-p", ANDROID_DIR]);
-    let mut child = Command::new("adb")
+    let mut child = command("adb")
         .args(["-s", &device.id, "push"])
         .arg(&source)
         .arg(ANDROID_DIR)
@@ -196,6 +248,13 @@ fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn minimize_to_tray(app: AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+    }
+}
+
 fn main() {
     let config = Config {
         target_fingerprint: std::env::var("TARGET_BRIDGE_FINGERPRINT").unwrap_or_else(|_| "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE".into()),
@@ -204,8 +263,18 @@ fn main() {
 
     tauri::Builder::default()
         .manage(config)
-        .invoke_handler(tauri::generate_handler![push_file])
+        .invoke_handler(tauri::generate_handler![push_file, minimize_to_tray])
         .setup(|app| {
+            setup_tray(app)?;
+            if let Some(window) = app.get_webview_window("main") {
+                let window_for_close = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = window_for_close.hide();
+                    }
+                });
+            }
             emit_loop(app.handle().clone());
             watch_source(app.handle().clone());
             Ok(())
