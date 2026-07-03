@@ -1,0 +1,14 @@
+[package]
+name = "cross-network-android-file-bridge"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+notify = "6"
+regex = "1"
+
+[build-dependencies]
+tauri-build = "2"
