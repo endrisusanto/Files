@@ -73,6 +73,7 @@ jobs:
         with:
           gradle-version: 8.10.2
 
+      - run: yes | sdkmanager --licenses
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: gradle :android:app:assembleRelease
 
