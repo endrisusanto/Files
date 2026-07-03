@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="folder" x1="96" x2="420" y1="120" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="fire" x1="256" x2="256" y1="156" y2="386" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff7ad"/>
+      <stop offset=".45" stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#09090b"/>
+  <path fill="#0f172a" d="M84 174c0-25 20-45 45-45h86l42 39h126c25 0 45 20 45 45v34H84v-73Z"/>
+  <path fill="url(#folder)" d="M70 226c0-29 23-52 52-52h268c29 0 52 23 52 52v142c0 29-23 52-52 52H122c-29 0-52-23-52-52V226Z"/>
+  <path fill="#7dd3fc" fill-opacity=".35" d="M94 232c0-20 16-36 36-36h253c20 0 36 16 36 36v18H94v-18Z"/>
+  <path fill="url(#fire)" d="M270 389c-70 0-116-42-116-102 0-45 27-77 65-104 7 39 29 55 29 55 23-32 18-69 10-101 67 43 101 91 101 149 0 61-39 103-89 103Z"/>
+  <path fill="#fff7ad" d="M267 366c-35 0-59-22-59-53 0-24 13-42 33-57 5 22 18 32 18 32 14-19 12-39 8-57 34 25 52 50 52 81 0 32-22 54-52 54Z"/>
+</svg>
