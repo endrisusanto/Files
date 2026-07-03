@@ -78,7 +78,7 @@ jobs:
       - run: gradle :android:app:assembleRelease
 
       - name: Pack APK
-        run: cp android/app/build/outputs/apk/release/app-release-unsigned.apk android-file-bridge.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk android-file-bridge.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -91,6 +91,8 @@ jobs:
       - apk
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts

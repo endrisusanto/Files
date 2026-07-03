@@ -23,6 +23,12 @@ android {
         versionCode 105
         versionName "0.1.5"
     }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+        }
+    }
 }
 
 dependencies {
