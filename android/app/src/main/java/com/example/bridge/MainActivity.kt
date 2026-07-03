@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import java.io.File
 
@@ -23,7 +24,8 @@ class MainActivity : Activity() {
         }
 
         status = TextView(this).apply {
-            textSize = 15f
+            textSize = 16f
+            setLineSpacing(6f, 1.05f)
             setTextColor(0xffd4d4d8.toInt())
         }
         val upload = Button(this).apply {
@@ -35,19 +37,29 @@ class MainActivity : Activity() {
             setOnClickListener { refreshStatus() }
         }
 
-        setContentView(LinearLayout(this).apply {
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(36, 48, 36, 36)
+            setPadding(40, 56, 40, 56)
             setBackgroundColor(0xff09090b.toInt())
             addView(TextView(this@MainActivity).apply {
                 text = "Android File Bridge"
-                textSize = 24f
+                textSize = 26f
                 setTextColor(0xfffafafa.toInt())
+                setPadding(0, 0, 0, 32)
+            }, LinearLayout.LayoutParams(-1, -2))
+            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = 36
             })
-            addView(status)
-            addView(upload)
-            addView(refresh)
+            addView(upload, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = 18
+            })
+            addView(refresh, LinearLayout.LayoutParams(-1, -2))
+        }
+
+        setContentView(ScrollView(this).apply {
+            setBackgroundColor(0xff09090b.toInt())
+            addView(content)
         })
         refreshStatus()
     }

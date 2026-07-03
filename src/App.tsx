@@ -7,6 +7,9 @@ type Device = {
   model: string;
   fingerprint: string;
   available_storage: number;
+  battery_level?: number | null;
+  battery_temperature?: number | null;
+  ip_address: string;
   is_target_bridge: boolean;
 };
 
@@ -46,6 +49,15 @@ export default function App() {
     setError("");
     try {
       await invoke("push_file", { fileName: name });
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function selectBridge(fingerprint: string) {
+    setError("");
+    try {
+      await invoke("select_bridge", { fingerprint });
     } catch (e) {
       setError(String(e));
     }
@@ -95,22 +107,48 @@ export default function App() {
           <h1 className="text-2xl font-semibold">Cross-Network Android File Bridge</h1>
           <span className={active ? "text-green-400" : "text-red-400"}>{active ? "ADB bridge healthy" : "Waiting for target fingerprint"}</span>
         </div>
-        {!info?.target_fingerprint_set && <p className="mb-3 rounded border border-yellow-900 bg-yellow-950 p-3 text-sm text-yellow-100">TARGET_BRIDGE_FINGERPRINT is not configured. Copy the target device fingerprint shown below into the environment before running this app.</p>}
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {devices.map((d) => (
-            <article
-              key={d.id}
-              className={`rounded-lg border bg-zinc-900 p-4 ${d.is_target_bridge ? "border-green-500 ring-2 ring-green-500" : "border-zinc-800 opacity-50"}`}
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="font-medium">{d.model}</h2>
-                {d.is_target_bridge && <span className="rounded bg-green-500 px-2 py-1 text-xs font-bold text-zinc-950">Bridge Active</span>}
-              </div>
-              <p className="text-sm text-zinc-400">ID: {d.id}</p>
-              <p className="text-sm text-zinc-400">Storage: {gb(d.available_storage)}</p>
-              <p className="mt-2 break-all text-xs text-zinc-500">{d.fingerprint}</p>
-            </article>
-          ))}
+        {!info?.target_fingerprint_set && <p className="mb-3 rounded border border-yellow-900 bg-yellow-950 p-3 text-sm text-yellow-100">Pilih satu device di tabel sebagai bridge. Identitas tetap divalidasi memakai fingerprint.</p>}
+        <div className="overflow-x-auto rounded-lg border border-zinc-800">
+          <table className="w-full min-w-[980px] border-collapse text-left">
+            <thead className="bg-zinc-900 text-sm text-zinc-400">
+              <tr>
+                <th className="p-3">Bridge</th>
+                <th className="p-3">Model</th>
+                <th className="p-3">Device ID</th>
+                <th className="p-3">IP</th>
+                <th className="p-3">Battery</th>
+                <th className="p-3">Temp</th>
+                <th className="p-3">Storage</th>
+                <th className="p-3">Fingerprint</th>
+              </tr>
+            </thead>
+            <tbody>
+              {devices.map((d) => (
+                <tr key={d.id} className={`border-t border-zinc-800 ${d.is_target_bridge ? "bg-green-950/40" : "bg-zinc-950"}`}>
+                  <td className="p-3">
+                    <input
+                      type="checkbox"
+                      checked={d.is_target_bridge}
+                      onChange={() => selectBridge(d.fingerprint)}
+                      className="h-5 w-5 accent-green-500"
+                    />
+                  </td>
+                  <td className="p-3">{d.model}</td>
+                  <td className="p-3 text-zinc-400">{d.id}</td>
+                  <td className="p-3">{d.ip_address}</td>
+                  <td className="p-3">{d.battery_level == null ? "-" : `${d.battery_level}%`}</td>
+                  <td className="p-3">{d.battery_temperature == null ? "-" : `${d.battery_temperature.toFixed(1)} C`}</td>
+                  <td className="p-3">{gb(d.available_storage)}</td>
+                  <td className="max-w-[360px] break-all p-3 text-xs text-zinc-500">{d.fingerprint}</td>
+                </tr>
+              ))}
+              {!devices.length && (
+                <tr>
+                  <td className="p-3 text-zinc-500" colSpan={8}>No ADB devices detected. Check USB debugging and run `adb devices` once to authorize.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 

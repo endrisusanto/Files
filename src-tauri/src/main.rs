@@ -8,7 +8,7 @@ use std::{
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::mpsc::channel,
+    sync::{mpsc::channel, Arc, Mutex},
     thread,
     time::Duration,
 };
@@ -31,6 +31,7 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 #[derive(Clone)]
 struct Config {
     target_fingerprint: String,
+    selected_fingerprint: Arc<Mutex<Option<String>>>,
     service: String,
     source_dir: PathBuf,
     samba_dir: PathBuf,
@@ -42,6 +43,9 @@ struct DeviceInfo {
     model: String,
     fingerprint: String,
     available_storage: u64,
+    battery_level: Option<u8>,
+    battery_temperature: Option<f32>,
+    ip_address: String,
     is_target_bridge: bool,
 }
 
@@ -92,6 +96,7 @@ fn adb(args: &[&str]) -> Result<String, String> {
 
 fn list_devices(config: &Config) -> Vec<DeviceInfo> {
     let Ok(out) = adb(&["devices", "-l"]) else { return vec![] };
+    let selected = config.selected_fingerprint.lock().ok().and_then(|v| v.clone());
     out.lines()
         .skip(1)
         .filter(|line| line.contains(" device"))
@@ -104,12 +109,21 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
                 .to_string();
             let fingerprint = adb(&["-s", &id, "shell", "getprop", "ro.build.fingerprint"]).ok()?;
             let available_storage = storage_kb(&id);
+            let (battery_level, battery_temperature) = battery(&id);
+            let ip_address = ip_address(&id);
+            let is_target_bridge = selected
+                .as_deref()
+                .map(|target| target == fingerprint)
+                .unwrap_or_else(|| fingerprint == config.target_fingerprint);
             Some(DeviceInfo {
-                is_target_bridge: fingerprint == config.target_fingerprint && available_storage >= MIN_FREE_KB,
+                is_target_bridge: is_target_bridge && available_storage >= MIN_FREE_KB,
                 id,
                 model,
                 fingerprint,
                 available_storage,
+                battery_level,
+                battery_temperature,
+                ip_address,
             })
         })
         .collect()
@@ -122,6 +136,32 @@ fn storage_kb(id: &str) -> u64 {
         .filter_map(|line| line.split_whitespace().nth(3)?.parse().ok())
         .next()
         .unwrap_or(0)
+}
+
+fn battery(id: &str) -> (Option<u8>, Option<f32>) {
+    let Ok(out) = adb(&["-s", id, "shell", "dumpsys", "battery"]) else { return (None, None) };
+    let mut level = None;
+    let mut temp = None;
+    for line in out.lines() {
+        let line = line.trim();
+        if let Some(value) = line.strip_prefix("level:") {
+            level = value.trim().parse().ok();
+        }
+        if let Some(value) = line.strip_prefix("temperature:") {
+            temp = value.trim().parse::<f32>().ok().map(|v| v / 10.0);
+        }
+    }
+    (level, temp)
+}
+
+fn ip_address(id: &str) -> String {
+    adb(&["-s", id, "shell", "ip", "-f", "inet", "addr", "show", "wlan0"])
+        .ok()
+        .and_then(|out| {
+            out.lines()
+                .find_map(|line| line.trim().strip_prefix("inet ")?.split('/').next().map(str::to_string))
+        })
+        .unwrap_or_else(|| "-".into())
 }
 
 fn bridge_files(dir: &Path) -> Vec<LocalFile> {
@@ -277,6 +317,14 @@ fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String> {
+    let config = app.state::<Config>().inner();
+    *config.selected_fingerprint.lock().map_err(|e| e.to_string())? = Some(fingerprint);
+    let _ = app.emit("devices", list_devices(config));
+    Ok(())
+}
+
+#[tauri::command]
 fn app_info(app: AppHandle) -> AppInfo {
     let config = app.state::<Config>().inner();
     AppInfo {
@@ -290,6 +338,7 @@ fn app_info(app: AppHandle) -> AppInfo {
 fn main() {
     let config = Config {
         target_fingerprint: std::env::var("TARGET_BRIDGE_FINGERPRINT").unwrap_or_else(|_| "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE".into()),
+        selected_fingerprint: Arc::new(Mutex::new(None)),
         service: std::env::var("ANDROID_BRIDGE_SERVICE").unwrap_or_else(|_| "com.example.bridge/.BridgeService".into()),
         source_dir: PathBuf::from(std::env::var("SOURCE_DIR").unwrap_or_else(|_| DEFAULT_SOURCE_DIR.into())),
         samba_dir: PathBuf::from(std::env::var("SAMBA_DIR").unwrap_or_else(|_| DEFAULT_SAMBA_DIR.into())),
@@ -297,7 +346,7 @@ fn main() {
 
     tauri::Builder::default()
         .manage(config)
-        .invoke_handler(tauri::generate_handler![push_file, app_info])
+        .invoke_handler(tauri::generate_handler![push_file, app_info, select_bridge])
         .setup(|app| {
             setup_tray(app)?;
             if let Some(window) = app.get_webview_window("main") {

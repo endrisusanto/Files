@@ -13,6 +13,15 @@ setx SOURCE_DIR "E:\SUBRO"
 
 Restart app setelah `setx`.
 
+Kalau tidak mau pakai env fingerprint, buka app Windows lalu centang device di tabel `Bridge`.
+Kalau tabel kosong, unlock Android dan jalankan:
+
+```powershell
+adb devices
+```
+
+Terima prompt USB debugging di Android.
+
 Android staging sekarang:
 
 ```text
