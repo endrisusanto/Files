@@ -472,19 +472,31 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
+fn hide_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.hide();
+    }
+}
+
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
+    let close = MenuItemBuilder::with_id("close", "Close").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-    let menu = MenuBuilder::new(app).item(&show).item(&quit).build()?;
+    let menu = MenuBuilder::new(app)
+        .item(&show)
+        .item(&close)
+        .item(&quit)
+        .build()?;
     let icon = app.default_window_icon().cloned().unwrap();
 
     TrayIconBuilder::new()
-        .tooltip("Android File Bridge")
+        .tooltip("FireFiles")
         .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show" => show_main_window(app),
+            "close" => hide_main_window(app),
             "quit" => std::process::exit(0),
             _ => {}
         })
@@ -550,8 +562,8 @@ fn get_remote_file_size(device_id: &str, path: &str) -> Option<u64> {
     None
 }
 
-fn push_file_blocking(app: AppHandle, file_name: String, force: bool) -> Result<(), String> {
-    println!("[bridge-tauri] push_file start file={file_name} force={force}");
+fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_total: i32, queue_success: i32) -> Result<(), String> {
+    println!("[bridge-tauri] push_file start file={file_name} force={force} queue_total={queue_total} queue_success={queue_success}");
     let config = app.state::<Config>().inner().clone();
     let mut cached_devices = config.devices_cache.lock().ok().map(|c| c.clone()).unwrap_or_default();
     if cached_devices.is_empty() {
@@ -643,14 +655,20 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool) -> Result<
         "--es",
         "file",
         &file_name,
+        "--ei",
+        "queue_total",
+        &queue_total.to_string(),
+        "--ei",
+        "queue_success",
+        &queue_success.to_string(),
     ])?;
     println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
     Ok(())
 }
 
 #[tauri::command]
-async fn push_file(app: AppHandle, file_name: String, force: bool) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || push_file_blocking(app, file_name, force))
+async fn push_file(app: AppHandle, file_name: String, force: bool, queue_total: i32, queue_success: i32) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || push_file_blocking(app, file_name, force, queue_total, queue_success))
         .await
         .map_err(|e| e.to_string())?
 }

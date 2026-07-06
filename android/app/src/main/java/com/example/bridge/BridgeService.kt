@@ -90,10 +90,18 @@ class BridgeService : Service() {
                 Log.e(tag, "BridgeService missing file extra")
                 stopSelf(startId)
             }
-            val filesToUpload = localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".tar.md5") } ?: emptyList()
-            if (filesToUpload.size > queueTotal) {
-                queueTotal = filesToUpload.size
-                queueSuccess = 0
+            val qTotal = intent?.getIntExtra("queue_total", 0) ?: 0
+            val qSuccess = intent?.getIntExtra("queue_success", 0) ?: 0
+            
+            if (qTotal > 0) {
+                queueTotal = qTotal
+                queueSuccess = qSuccess
+            } else {
+                val filesToUpload = localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".tar.md5") } ?: emptyList()
+                if (filesToUpload.size > queueTotal) {
+                    queueTotal = filesToUpload.size
+                    queueSuccess = 0
+                }
             }
 
             val file = File(localDir, name)

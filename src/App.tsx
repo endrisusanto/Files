@@ -346,8 +346,21 @@ export default function App() {
     isPushingRef.current = true;
     setError("");
     console.info("[bridge-ui] push file", name);
+
+    const queueTotal = files.length;
+    const queueSuccess = files.filter(f => {
+      const inSamba = sambaFiles.some((sf) => sf.name === f.name);
+      const isPushed = pushedFiles.has(f.name);
+      return inSamba || (isPushed && f.name !== name);
+    }).length;
+
     try {
-      await invoke("push_file", { fileName: name, force: forceTransfer });
+      await invoke("push_file", { 
+        fileName: name, 
+        force: forceTransfer,
+        queueTotal,
+        queueSuccess
+      });
       console.info("[bridge-ui] push file ok", name);
       appendLog(`push ok ${name}`);
       setPushedFiles((prev) => {
@@ -736,7 +749,7 @@ export default function App() {
                         {displayStatus}
                       </span>
                     </div>
-                    <p className="text-sm text-zinc-500">{fileGb(f.size)} · {progress}%</p>
+                    <p className="text-sm text-zinc-500">{fileGb(f.size)}</p>
                   </div>
                   <button
                     disabled={(!forceTransfer && (!active || displayStatus !== "ready")) || (forceTransfer && !selectedDevice)}
@@ -746,9 +759,6 @@ export default function App() {
                     {forceTransfer ? "Force Transfer" : "Transfer"}
                   </button>
                 </div>
-                <div className="mt-3 h-2 overflow-hidden rounded bg-zinc-800">
-                  <div className="h-full bg-green-500 transition-all" style={{ width: `${progress}%` }} />
-                </div>
               </div>
               );
             })}
@@ -756,9 +766,6 @@ export default function App() {
           </div>
           <div className="mt-4 border-t border-zinc-800 pt-4">
             <p className="mb-3 text-sm text-zinc-400">Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
-            <div className="h-5 overflow-hidden rounded bg-zinc-800">
-              <div className="h-full bg-green-500 transition-all" style={{ width: `${transfer?.percent ?? 0}%` }} />
-            </div>
             <p className="mt-3 break-all text-sm text-zinc-300">{transfer ? `${transfer.file}: ${transfer.message}` : "No active transfer"}</p>
             {actionStatus && (
               <p className="mt-3 rounded border border-zinc-700 bg-zinc-950 p-3 text-sm text-zinc-300 break-all">
