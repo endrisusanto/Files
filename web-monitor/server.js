@@ -92,7 +92,12 @@ function attachBrowser(req, socket) {
     if (!text) return;
     try {
       const msg = JSON.parse(text);
-      if (msg.type === "command" && msg.target && msg.command) {
+      if (msg.type === "tauri_status") {
+        const id = msg.id || msg.host || "tauri";
+        socket.tauriId = id;
+        tauri.set(id, { ...msg, id, last_seen: Date.now() });
+        broadcast();
+      } else if (msg.type === "command" && msg.target && msg.command) {
         const androidSocket = androidSockets.get(msg.target);
         if (androidSocket) {
           send(androidSocket, msg);
@@ -101,7 +106,13 @@ function attachBrowser(req, socket) {
     } catch {}
   });
 
-  socket.on("close", () => clients.delete(socket));
+  socket.on("close", () => {
+    clients.delete(socket);
+    if (socket.tauriId) {
+      tauri.delete(socket.tauriId);
+    }
+    broadcast();
+  });
 }
 
 const app = http.createServer((req, res) => {

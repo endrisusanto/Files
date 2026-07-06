@@ -6,28 +6,153 @@
   <title>Bridge Monitor</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; background: #f5f5f5; color: #171717; font: 14px/1.45 system-ui, sans-serif; }
-    main { max-width: 1180px; margin: 0 auto; padding: 24px; }
-    header { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 18px; }
-    h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0; }
-    .muted { color: #666; }
-    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
-    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-    .panel { background: #fff; border: 1px solid #d4d4d4; border-radius: 4px; padding: 16px; }
-    .metric { font-size: 28px; font-weight: 600; }
-    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d4d4d4; }
-    th, td { padding: 10px 12px; border-bottom: 1px solid #e5e5e5; text-align: left; vertical-align: top; }
-    th { background: #eee; font-size: 12px; text-transform: uppercase; color: #555; font-weight: 600; }
-    canvas { width: 100%; height: 280px; display: block; background: #fff; border: 1px solid #d4d4d4; border-radius: 4px; }
-    .stack { display: grid; gap: 12px; }
-    .badge { display: inline-block; border: 1px solid #bbb; border-radius: 999px; padding: 3px 9px; background: #fafafa; color: #555; font-size: 12px; font-weight: 600; }
-    .ok { border-color: #111; color: #111; }
-    .bad { border-color: #bbb; color: #777; }
-    .card-title { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 10px; }
-    .kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; }
-    .value { overflow-wrap: anywhere; }
-    code { background: #eee; padding: 2px 5px; border-radius: 3px; }
-    @media (max-width: 800px) { .grid, .cards { grid-template-columns: 1fr; } header { display: block; } }
+    body { 
+      margin: 0; 
+      background: #09090b; 
+      color: #f4f4f5; 
+      font: 14px/1.5 system-ui, -apple-system, sans-serif; 
+    }
+    main { 
+      width: 100%; 
+      margin: 0; 
+      padding: 16px; 
+    }
+    header { 
+      display: flex; 
+      justify-content: space-between; 
+      gap: 16px; 
+      align-items: center; 
+      margin-bottom: 24px; 
+      border-bottom: 1px solid #27272a;
+      padding-bottom: 16px;
+    }
+    h1 { 
+      margin: 0; 
+      font-size: 24px; 
+      font-weight: 700; 
+      letter-spacing: -0.025em; 
+      color: #fafafa;
+    }
+    h2 {
+      margin: 24px 0 12px 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #f4f4f5;
+    }
+    .muted { color: #a1a1aa; }
+    .grid { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
+      gap: 16px; 
+      margin-bottom: 24px; 
+    }
+    .cards { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); 
+      gap: 16px; 
+      margin-bottom: 24px; 
+    }
+    .panel { 
+      background: #18181b; 
+      border: 1px solid #27272a; 
+      border-radius: 8px; 
+      padding: 20px; 
+    }
+    .metric { 
+      font-size: 32px; 
+      font-weight: 700; 
+      color: #fafafa;
+      margin-top: 4px;
+    }
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      background: #18181b;
+      margin-top: 12px;
+    }
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      text-align: left;
+    }
+    th, td { 
+      padding: 12px 16px; 
+      border-bottom: 1px solid #27272a; 
+      white-space: nowrap;
+    }
+    th { 
+      background: #27272a; 
+      font-size: 11px; 
+      text-transform: uppercase; 
+      color: #a1a1aa; 
+      font-weight: 700; 
+      letter-spacing: 0.05em;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    canvas { 
+      width: 100%; 
+      height: 200px; 
+      display: block; 
+      background: #18181b; 
+      border: 1px solid #27272a; 
+      border-radius: 8px; 
+      margin-top: 16px;
+    }
+    .badge { 
+      display: inline-block; 
+      border: 1px solid #3f3f46; 
+      border-radius: 999px; 
+      padding: 3px 10px; 
+      background: #27272a; 
+      color: #fafafa; 
+      font-size: 11px; 
+      font-weight: 600; 
+    }
+    .ok { 
+      border-color: #166534; 
+      color: #4ade80; 
+      background: #052e16; 
+    }
+    .bad { 
+      border-color: #991b1b; 
+      color: #f87171; 
+      background: #450a0a; 
+    }
+    .card-title { 
+      display: flex; 
+      justify-content: space-between; 
+      gap: 12px; 
+      align-items: center; 
+      margin-bottom: 16px; 
+      border-bottom: 1px solid #27272a;
+      padding-bottom: 8px;
+    }
+    .kv { 
+      display: grid; 
+      grid-template-columns: 110px 1fr; 
+      gap: 8px 16px; 
+      font-size: 13px;
+    }
+    .value { 
+      overflow-wrap: anywhere; 
+      color: #e4e4e7;
+    }
+    code { 
+      background: #27272a; 
+      padding: 2px 6px; 
+      border-radius: 4px; 
+      font-family: monospace;
+      color: #f4f4f5;
+    }
+    .empty-state {
+      padding: 24px;
+      text-align: center;
+      color: #71717a;
+    }
   </style>
 </head>
 <body>
@@ -35,56 +160,114 @@
     <header>
       <div>
         <h1>Bridge Monitor</h1>
-        <div class="muted">Realtime WebSocket dashboard</div>
+        <div class="muted" style="margin-top: 4px;">Realtime WebSocket Staging Dashboard</div>
       </div>
       <div id="socket" class="badge bad">web disconnected</div>
     </header>
 
     <section class="grid">
-      <div class="panel"><div class="muted">Android Devices</div><div id="devices" class="metric">0</div></div>
-      <div class="panel"><div class="muted">Tauri Hosts</div><div id="tauriCount" class="metric">0</div></div>
-      <div class="panel"><div class="muted">Down</div><div id="down" class="metric">0.00</div><div class="muted">MB/s</div></div>
-      <div class="panel"><div class="muted">Up</div><div id="up" class="metric">0.00</div><div class="muted">MB/s</div></div>
-    </section>
-
-    <section class="cards">
       <div class="panel">
-        <div class="card-title"><strong>Tauri Windows</strong><span id="tauriBadge" class="badge bad">offline</span></div>
-        <div id="tauriCard" class="kv muted"><div>Status</div><div class="value">Waiting for <code>POST /tauri</code></div></div>
+        <div class="muted">Android Devices</div>
+        <div id="devices" class="metric">0</div>
       </div>
       <div class="panel">
-        <div class="card-title"><strong>Android Device</strong><span id="androidBadge" class="badge bad">offline</span></div>
-        <div id="androidCard" class="kv muted"><div>Status</div><div class="value">Waiting for <code>/network</code></div></div>
+        <div class="muted">Tauri Hosts</div>
+        <div id="tauriCount" class="metric">0</div>
+      </div>
+      <div class="panel">
+        <div class="muted">Aggregated Down</div>
+        <div id="down" class="metric">0.00</div>
+        <div class="muted" style="font-size: 11px; margin-top: 4px;">MB/s</div>
+      </div>
+      <div class="panel">
+        <div class="muted">Aggregated Up</div>
+        <div id="up" class="metric">0.00</div>
+        <div class="muted" style="font-size: 11px; margin-top: 4px;">MB/s</div>
       </div>
     </section>
 
-    <section class="stack">
-      <canvas id="chart" width="1100" height="280"></canvas>
+    <h2>Tauri Staging Hosts</h2>
+    <section class="cards" id="tauriList">
+      <div class="panel empty-state" style="grid-column: 1 / -1;">Waiting for active Tauri hosts...</div>
+    </section>
+
+    <h2>Android Devices</h2>
+    <section class="cards" id="androidList">
+      <div class="panel empty-state" style="grid-column: 1 / -1;">Waiting for active Android devices...</div>
+    </section>
+
+    <h2>Realtime Chart (All Streams)</h2>
+    <canvas id="chart" width="1100" height="200"></canvas>
+
+    <h2>Active Connections Registry</h2>
+    <div class="table-container">
       <table>
-        <thead><tr><th>Device</th><th>Samba</th><th>WebSocket</th><th>Target</th><th>Latest</th><th>Samples</th></tr></thead>
-        <tbody id="rows"><tr><td colspan="6" class="muted">Waiting for Android data on <code>ws://host:1421/network</code></td></tr></tbody>
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Samba Status</th>
+            <th>WebSocket Status</th>
+            <th>Speed (Down / Up)</th>
+            <th>Upload Progress</th>
+            <th>Queue Progress</th>
+            <th>Target Directory</th>
+            <th>Latest File</th>
+            <th>Samples Count</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr>
+            <td colspan="9" class="empty-state">Waiting for Android data stream...</td>
+          </tr>
+        </tbody>
       </table>
-    </section>
+    </div>
   </main>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const mb = (v) => (v / 1024 / 1024).toFixed(2);
     let state = [];
     let tauri = [];
 
+    // Helper for generating progress rings
+    function getProgressRing(percent) {
+      const radius = 10;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference - (percent / 100) * circumference;
+      return `
+        <svg width="24" height="24" viewBox="0 0 28 28" style="transform: rotate(-90deg);">
+          <circle cx="14" cy="14" r="${radius}" stroke="#27272a" stroke-width="2.5" fill="none" />
+          <circle cx="14" cy="14" r="${radius}" stroke="#4ade80" stroke-width="2.5" fill="none"
+            stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" style="transition: stroke-dashoffset 0.35s;" />
+        </svg>
+      `;
+    }
+
     function draw() {
       const canvas = $("chart");
       const ctx = canvas.getContext("2d");
       const samples = state.flatMap((d) => d.samples || []).slice(-60);
       const max = Math.max(1, ...samples.flatMap((s) => [s.rx_bps, s.tx_bps]));
+      
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = "#e5e5e5";
+      
+      // Grid lines
+      ctx.strokeStyle = "#27272a";
+      ctx.lineWidth = 1;
       for (let i = 1; i < 5; i++) {
         const y = (canvas.height / 5) * i;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+        ctx.beginPath(); 
+        ctx.moveTo(0, y); 
+        ctx.lineTo(canvas.width, y); 
+        ctx.stroke();
       }
-      [["rx_bps", "#111"], ["tx_bps", "#777"]].forEach(([key, color]) => {
-        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+      
+      // Plot lines
+      [["rx_bps", "#4ade80"], ["tx_bps", "#60a5fa"]].forEach(([key, color]) => {
+        ctx.strokeStyle = color; 
+        ctx.lineWidth = 2.5; 
+        ctx.beginPath();
         samples.forEach((s, i) => {
           const x = samples.length < 2 ? 0 : i * canvas.width / (samples.length - 1);
           const y = canvas.height - (s[key] / max) * canvas.height;
@@ -95,54 +278,158 @@
     }
 
     function render() {
-      const latest = state.at(-1);
-      const host = tauri.at(-1);
-      const sample = latest?.samples?.at(-1) || { rx_bps: 0, tx_bps: 0 };
-      const androidLive = latest && Date.now() - latest.last_seen < 5000;
-      const tauriLive = host && Date.now() - host.last_seen < 15000;
+      // Calculate totals
+      let totalDown = 0;
+      let totalUp = 0;
+      
       $("devices").textContent = state.length;
       $("tauriCount").textContent = tauri.length;
-      $("down").textContent = mb(sample.rx_bps);
-      $("up").textContent = mb(sample.tx_bps);
-      $("androidBadge").textContent = androidLive ? "online" : "offline";
-      $("androidBadge").className = `badge ${androidLive ? "ok" : "bad"}`;
-      $("tauriBadge").textContent = tauriLive ? "online" : "offline";
-      $("tauriBadge").className = `badge ${tauriLive ? "ok" : "bad"}`;
-      $("androidCard").innerHTML = latest ? `
-        <div>Model</div><div class="value">${latest.model || "-"}</div>
-        <div>Samba</div><div class="value">${latest.samba || "-"}</div>
-        <div>WebSocket</div><div class="value">${androidLive ? "connected" : "stale"}</div>
-        <div>Target</div><div class="value">${latest.target || "-"}</div>
-        <div>Latest</div><div class="value">${latest.latest || "-"}</div>
-      ` : `<div>Status</div><div class="value">Waiting for <code>/network</code></div>`;
-      $("tauriCard").innerHTML = host ? `
-        <div>Host</div><div class="value">${host.host || host.id || "-"}</div>
-        <div>Platform</div><div class="value">${host.platform || "-"}</div>
-        <div>Source</div><div class="value">${host.source_dir || "-"}</div>
-        <div>Samba</div><div class="value">${host.samba_dir || "-"}</div>
-        <div>ADB Devices</div><div class="value">${host.devices?.length || 0}</div>
-      ` : `<div>Status</div><div class="value">Waiting for <code>POST /tauri</code></div>`;
-      $("rows").innerHTML = state.length ? state.map((d) => `
-        <tr>
-          <td>${d.model || d.id || "-"}</td>
-          <td>${d.samba || "-"}</td>
-          <td>${Date.now() - d.last_seen < 5000 ? "<span class='badge ok'>connected</span>" : "<span class='badge bad'>stale</span>"}</td>
-          <td>${d.target || "-"}</td>
-          <td>${d.latest || "-"}</td>
-          <td>${d.samples?.length || 0}</td>
-        </tr>
-      `).join("") : "<tr><td colspan='6' class='muted'>Waiting for Android data on <code>ws://host:1421/network</code></td></tr>";
+
+      // Render Tauri Host cards
+      if (tauri.length === 0) {
+        $("tauriList").innerHTML = `<div class="panel empty-state" style="grid-column: 1 / -1;">No active Tauri staging hosts.</div>`;
+      } else {
+        $("tauriList").innerHTML = tauri.map((host) => {
+          const isOnline = Date.now() - host.last_seen < 15000;
+          return `
+            <div class="panel">
+              <div class="card-title">
+                <strong>${host.host || host.id || "-"}</strong>
+                <span class="badge ${isOnline ? 'ok' : 'bad'}">${isOnline ? 'online' : 'offline'}</span>
+              </div>
+              <div class="kv">
+                <div class="muted">Platform</div><div class="value">${host.platform || "-"}</div>
+                <div class="muted">Source</div><div class="value"><code>${host.source_dir || "-"}</code></div>
+                <div class="muted">Samba</div><div class="value"><code>${host.samba_dir || "-"}</code></div>
+                <div class="muted">Local ADB</div><div class="value">${host.devices?.length || 0} devices</div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      // Render Android Device cards
+      if (state.length === 0) {
+        $("androidList").innerHTML = `<div class="panel empty-state" style="grid-column: 1 / -1;">No active Android bridge devices.</div>`;
+      } else {
+        $("androidList").innerHTML = state.map((d) => {
+          const isOnline = Date.now() - d.last_seen < 6000;
+          const lastSample = d.samples?.at(-1) || { rx_bps: 0, tx_bps: 0 };
+          if (isOnline) {
+            totalDown += lastSample.rx_bps;
+            totalUp += lastSample.tx_bps;
+          }
+          return `
+            <div class="panel">
+              <div class="card-title">
+                <strong>${d.model || d.id || "-"}</strong>
+                <span class="badge ${isOnline ? 'ok' : 'bad'}">${isOnline ? 'online' : 'offline'}</span>
+              </div>
+              <div class="kv">
+                <div class="muted">Samba Status</div>
+                <div class="value">
+                  <span class="badge ${d.samba === 'connected' ? 'ok' : 'bad'}">
+                    Samba ${d.samba || "disconnected"}
+                  </span>
+                </div>
+                <div class="muted">Samba Target</div><div class="value"><code>${d.target || "-"}</code></div>
+                <div class="muted">Latest File</div><div class="value"><code>${d.latest || "-"}</code></div>
+                <div class="muted">Live Speed</div>
+                <div class="value">
+                  <span style="color: #4ade80; font-weight: 700;">Down: ${mb(lastSample.rx_bps)} MB/s</span>
+                  <span class="muted" style="margin: 0 4px;">|</span>
+                  <span style="color: #60a5fa; font-weight: 700;">Up: ${mb(lastSample.tx_bps)} MB/s</span>
+                </div>
+                <div class="muted">Upload Queue</div>
+                <div class="value">
+                  ${d.queue_total > 0 ? `
+                    <span style="font-weight: 700; color: #4ade80;">${d.queue_success} / ${d.queue_total}</span>
+                    <span class="muted" style="font-size: 12px;"> (${Math.round(d.queue_success * 100 / d.queue_total)}%)</span>
+                    ${d.current_file ? `<div class="muted" style="font-size: 11px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Uploading: ${d.current_file} (${d.upload_percent}%)</div>` : ''}
+                  ` : '<span class="muted">Idle (Empty Queue)</span>'}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      $("down").textContent = mb(totalDown);
+      $("up").textContent = mb(totalUp);
+
+      // Render table rows
+      $("rows").innerHTML = state.length ? state.map((d) => {
+        const lastSample = d.samples?.at(-1) || { rx_bps: 0, tx_bps: 0 };
+        const isOnline = Date.now() - d.last_seen < 6000;
+        
+        const uploadPercent = d.upload_percent || 0;
+        const currentFile = d.current_file || "";
+        const queueSuccess = d.queue_success || 0;
+        const queueTotal = d.queue_total || 0;
+
+        const uploadProgressHtml = currentFile ? `
+          <div style="display: flex; align-items: center; gap: 8px;">
+            ${getProgressRing(uploadPercent)}
+            <span style="font-weight: 600;">${uploadPercent}% <span class="muted" style="font-size: 11px; font-weight: normal;">(${currentFile})</span></span>
+          </div>
+        ` : `<span class="muted">-</span>`;
+
+        const queueProgressHtml = queueTotal > 0 ? `
+          <div>
+            <span style="font-weight: 700; color: #4ade80;">${queueSuccess} / ${queueTotal}</span>
+            <span class="muted" style="font-size: 11px; font-weight: normal;"> (${Math.round(queueSuccess * 100 / queueTotal)}%)</span>
+          </div>
+        ` : `<span class="muted">-</span>`;
+
+        return `
+          <tr>
+            <td><strong>${d.model || d.id || "-"}</strong></td>
+            <td>
+              <span class="badge ${d.samba === 'connected' ? 'ok' : 'bad'}">
+                Samba ${d.samba || "disconnected"}
+              </span>
+            </td>
+            <td>
+              <span class="badge ${isOnline ? 'ok' : 'bad'}">
+                ${isOnline ? "connected" : "stale"}
+              </span>
+            </td>
+            <td>
+              <span style="color: #4ade80; font-weight: 700; font-family: monospace;">⬇ ${mb(lastSample.rx_bps)} MB/s</span>
+              <span class="muted" style="margin: 0 4px;">/</span>
+              <span style="color: #60a5fa; font-weight: 700; font-family: monospace;">⬆ ${mb(lastSample.tx_bps)} MB/s</span>
+            </td>
+            <td>${uploadProgressHtml}</td>
+            <td>${queueProgressHtml}</td>
+            <td><code>${d.target || "-"}</code></td>
+            <td><code>${d.latest || "-"}</code></td>
+            <td>${d.samples?.length || 0}</td>
+          </tr>
+        `;
+      }).join("") : `<tr><td colspan="9" class="empty-state">Waiting for Android data stream...</td></tr>`;
+
       draw();
     }
 
     function connect() {
       const scheme = location.protocol === "https:" ? "wss" : "ws";
       const ws = new WebSocket(`${scheme}://${location.host}/`);
-      ws.onopen = () => { $("socket").textContent = "web connected"; $("socket").className = "badge ok"; };
-      ws.onclose = () => { $("socket").textContent = "web disconnected"; $("socket").className = "badge bad"; setTimeout(connect, 1000); };
+      ws.onopen = () => { 
+        $("socket").textContent = "web connected"; 
+        $("socket").className = "badge ok"; 
+      };
+      ws.onclose = () => { 
+        $("socket").textContent = "web disconnected"; 
+        $("socket").className = "badge bad"; 
+        setTimeout(connect, 1000); 
+      };
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        if (msg.type === "state") { state = msg.devices; tauri = msg.tauri || []; render(); }
+        if (msg.type === "state") { 
+          state = msg.devices; 
+          tauri = msg.tauri || []; 
+          render(); 
+        }
       };
     }
     connect();

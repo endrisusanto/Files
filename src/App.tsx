@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
@@ -78,6 +78,8 @@ export default function App() {
   const [debugLog, setDebugLog] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [remoteDevices, setRemoteDevices] = useState<any[]>([]);
+  const [autoPush, setAutoPush] = useState(() => localStorage.getItem("auto_push") === "true");
+  const isPushingRef = useRef(false);
 
   // Wifi and APK Configuration
   const [wifiSsid, setWifiSsid] = useState(() => localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
@@ -132,6 +134,15 @@ export default function App() {
         console.info("[bridge-ui] files event", e.payload.length);
         appendLog(`files event count=${e.payload.length}`);
         setFiles(e.payload);
+        const isAuto = localStorage.getItem("auto_push") === "true";
+        if (isAuto && !isPushingRef.current) {
+          const readyFile = e.payload.find((f) => f.status === "ready");
+          if (readyFile) {
+            console.info("[bridge-ui] Auto-push triggering for:", readyFile.name);
+            appendLog(`Auto-push triggered: ${readyFile.name}`);
+            push(readyFile.name);
+          }
+        }
       }),
       listen<LocalFile[]>("samba-files", (e) => {
         console.info("[bridge-ui] samba-files event", e.payload.length);
@@ -207,6 +218,30 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!ws || !info) return;
+    
+    function sendStatus() {
+      if (ws.readyState === WebSocket.OPEN) {
+        const payload = {
+          type: "tauri_status",
+          id: info.hostname || "tauri",
+          host: info.hostname || "tauri",
+          platform: info.platform,
+          source_dir: info.source_dir,
+          samba_dir: info.samba_dir,
+          devices: devices
+        };
+        ws.send(JSON.stringify(payload));
+      }
+    }
+    
+    sendStatus();
+    const interval = setInterval(sendStatus, 5000);
+    
+    return () => clearInterval(interval);
+  }, [ws, info, devices]);
+
   async function refreshDevices() {
     setRefreshing(true);
     setError("");
@@ -246,6 +281,11 @@ export default function App() {
   }
 
   async function push(name: string) {
+    if (isPushingRef.current) {
+      console.warn("[bridge-ui] Transfer already in progress, skipping push");
+      return;
+    }
+    isPushingRef.current = true;
     setError("");
     console.info("[bridge-ui] push file", name);
     try {
@@ -256,6 +296,8 @@ export default function App() {
       console.error("[bridge-ui] push file failed", e);
       appendLog(`push failed ${name}: ${String(e)}`);
       setError(String(e));
+    } finally {
+      isPushingRef.current = false;
     }
   }
 
@@ -593,15 +635,30 @@ export default function App() {
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">{info?.source_dir ?? "E:\\SUBRO"}</h2>
-            <label className="flex items-center gap-2 text-sm text-zinc-300">
-              <input
-                type="checkbox"
-                checked={forceTransfer}
-                onChange={(e) => setForceTransfer(e.target.checked)}
-                className="h-4 w-4 accent-amber-500"
-              />
-              Force transfer
-            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={autoPush}
+                  onChange={(e) => {
+                    setAutoPush(e.target.checked);
+                    localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
+                    appendLog(`Auto push ${e.target.checked ? "enabled" : "disabled"}`);
+                  }}
+                  className="h-4 w-4 accent-green-500"
+                />
+                Auto Push
+              </label>
+              <label className="flex items-center gap-2 text-sm text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={forceTransfer}
+                  onChange={(e) => setForceTransfer(e.target.checked)}
+                  className="h-4 w-4 accent-amber-500"
+                />
+                Force transfer
+              </label>
+            </div>
           </div>
           <div className="space-y-2">
             {files.map((f) => {
@@ -623,7 +680,7 @@ export default function App() {
                     onClick={() => push(f.name)}
                     className={`rounded px-3 py-2 text-sm font-bold text-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 ${forceTransfer ? "bg-amber-500" : "bg-green-500"}`}
                   >
-                    {forceTransfer ? "Force Push" : "Push"}
+                    {forceTransfer ? "Force Transfer" : "Transfer"}
                   </button>
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded bg-zinc-800">

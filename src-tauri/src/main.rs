@@ -88,6 +88,7 @@ struct AppInfo {
     source_dir: String,
     samba_dir: String,
     target_fingerprint_set: bool,
+    hostname: String,
 }
 
 fn get_adb_path() -> String {
@@ -508,6 +509,20 @@ fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream:
     });
 }
 
+fn get_remote_file_size(device_id: &str, path: &str) -> Option<u64> {
+    let out = command("adb")
+        .args(["-s", device_id, "shell", "stat", "-c", "%s", path])
+        .output()
+        .ok()?;
+    if out.status.success() {
+        let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if let Ok(size) = text.parse::<u64>() {
+            return Some(size);
+        }
+    }
+    None
+}
+
 fn push_file_blocking(app: AppHandle, file_name: String, force: bool) -> Result<(), String> {
     println!("[bridge-tauri] push_file start file={file_name} force={force}");
     let config = app.state::<Config>().inner().clone();
@@ -529,6 +544,11 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool) -> Result<
         return Err(format!("Failed to create destination directory: {e}"));
     }
 
+    let total_size = match fs::metadata(&source) {
+        Ok(m) => m.len(),
+        Err(_) => 1,
+    };
+
     let mut child = command("adb")
         .args(["-s", &device.id, "push"])
         .arg(&source)
@@ -546,7 +566,32 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool) -> Result<
         pipe_progress(app.clone(), file_name.clone(), stream, Arc::new(Mutex::new(String::new())));
     }
 
+    // Spin up remote progress checker thread
+    let is_running = Arc::new(Mutex::new(true));
+    let ir_clone = is_running.clone();
+    let device_id = device.id.clone();
+    let remote_path = format!("{}{}", ANDROID_DIR, file_name);
+    let app_handle = app.clone();
+    let file_name_clone = file_name.clone();
+
+    thread::spawn(move || {
+        while *ir_clone.lock().unwrap() {
+            thread::sleep(Duration::from_millis(500));
+            if let Some(remote_size) = get_remote_file_size(&device_id, &remote_path) {
+                let percent = ((remote_size as f64 / total_size as f64) * 100.0) as u8;
+                let percent = std::cmp::min(99, percent);
+                let _ = app_handle.emit("transfer", TransferProgress {
+                    file: file_name_clone.clone(),
+                    percent,
+                    message: format!("Pushed {}/{} bytes ({}%)", remote_size, total_size, percent),
+                });
+            }
+        }
+    });
+
     let status = child.wait().map_err(|e| e.to_string())?;
+    *is_running.lock().unwrap() = false;
+
     if !status.success() {
         let err_msg = last_err_line.lock().map(|g| g.clone()).unwrap_or_default();
         eprintln!("[bridge-tauri] adb push failed file={file_name} error={err_msg}");
@@ -592,17 +637,22 @@ async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String
 #[tauri::command]
 fn app_info(app: AppHandle) -> AppInfo {
     let config = app.state::<Config>().inner();
+    let hostname = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_else(|_| "tauri".into());
     println!(
-        "[bridge-tauri] app_info platform={} source={} samba={}",
+        "[bridge-tauri] app_info platform={} source={} samba={} hostname={}",
         std::env::consts::OS,
         source_dir(config).display(),
-        config.samba_dir.display()
+        config.samba_dir.display(),
+        hostname
     );
     AppInfo {
         platform: std::env::consts::OS.into(),
         source_dir: source_dir(config).display().to_string(),
         samba_dir: config.samba_dir.display().to_string(),
         target_fingerprint_set: config.target_fingerprint != "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE",
+        hostname,
     }
 }
 

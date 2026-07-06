@@ -384,6 +384,10 @@ class MainActivity : Activity() {
                     put("samba", if (badge.text.contains("ready")) "connected" else "not connected")
                     put("target", BridgeService.target(this@MainActivity))
                     put("latest", latest)
+                    put("current_file", BridgeService.currentFile)
+                    put("upload_percent", BridgeService.currentProgress)
+                    put("queue_success", BridgeService.queueSuccess)
+                    put("queue_total", BridgeService.queueTotal)
                 }
                 socket.send(sampleObj.toString())
             } catch (t: Throwable) {

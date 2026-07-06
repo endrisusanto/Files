@@ -32,6 +32,11 @@ class BridgeService : Service() {
         const val SMB_HOST = "192.168.10.221"
         const val SMB_SHARE = "sambashare"
 
+        @Volatile var currentFile: String = ""
+        @Volatile var currentProgress: Int = 0
+        @Volatile var queueSuccess: Int = 0
+        @Volatile var queueTotal: Int = 0
+
         fun host(context: Context) = context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("smb_host", SMB_HOST) ?: SMB_HOST
         fun share(context: Context) = context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("smb_share", SMB_SHARE) ?: SMB_SHARE
         fun target(context: Context) = "smb://${host(context)}/${share(context)}/"
@@ -85,6 +90,12 @@ class BridgeService : Service() {
                 Log.e(tag, "BridgeService missing file extra")
                 stopSelf(startId)
             }
+            val filesToUpload = localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".tar.md5") } ?: emptyList()
+            if (filesToUpload.size > queueTotal) {
+                queueTotal = filesToUpload.size
+                queueSuccess = 0
+            }
+
             val file = File(localDir, name)
             Log.i(tag, "Upload worker started file=${file.absolutePath}")
             val wake = getSystemService(PowerManager::class.java)
@@ -97,10 +108,18 @@ class BridgeService : Service() {
                 retry(3) { upload(file) }
                 if (!file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
                 Log.i(tag, "Upload done and local file deleted: ${file.name}")
+                queueSuccess += 1
             } catch (t: Throwable) {
                 Log.e(tag, "Upload failed: ${file.absolutePath}", t)
                 getSystemService(NotificationManager::class.java).notify(2, notification("Upload failed: ${t.message}"))
             } finally {
+                currentFile = ""
+                currentProgress = 0
+                if (localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".tar.md5") }?.isEmpty() == true) {
+                    queueTotal = 0
+                    queueSuccess = 0
+                }
+
                 if (wifi.isHeld) wifi.release()
                 if (wake.isHeld) wake.release()
                 Log.i(tag, "BridgeService stop startId=$startId")
@@ -114,6 +133,11 @@ class BridgeService : Service() {
         Log.i(tag, "SMB upload start file=${file.name} target=${target(this)}")
         localDir.mkdirs()
         require(file.isFile) { "missing file: ${file.absolutePath}" }
+        
+        currentFile = file.name
+        currentProgress = 0
+        val fileSize = file.length()
+
         SMBClient().use { client ->
             client.connect(host(this)).use { connection ->
                 connection.authenticate(guestAuth()).connectShare(share(this)).use { smbShare ->
@@ -127,7 +151,19 @@ class BridgeService : Service() {
                         EnumSet.of(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
                     ).use { remote ->
                         BufferedInputStream(file.inputStream(), 64 * 1024).use { input ->
-                            remote.outputStream.use { output -> input.copyTo(output, 64 * 1024) }
+                            remote.outputStream.use { output ->
+                                val buffer = ByteArray(64 * 1024)
+                                var bytesCopied: Long = 0
+                                var bytes = input.read(buffer)
+                                while (bytes >= 0) {
+                                    output.write(buffer, 0, bytes)
+                                    bytesCopied += bytes
+                                    if (fileSize > 0) {
+                                        currentProgress = ((bytesCopied * 100) / fileSize).toInt()
+                                    }
+                                    bytes = input.read(buffer)
+                                }
+                            }
                         }
                     }
                 }
