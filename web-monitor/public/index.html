@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bridge Monitor</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f5f5; color: #171717; font: 14px/1.45 system-ui, sans-serif; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+    header { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0; }
+    .muted { color: #666; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .panel { background: #fff; border: 1px solid #d4d4d4; border-radius: 4px; padding: 16px; }
+    .metric { font-size: 28px; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d4d4d4; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #e5e5e5; text-align: left; vertical-align: top; }
+    th { background: #eee; font-size: 12px; text-transform: uppercase; color: #555; font-weight: 600; }
+    canvas { width: 100%; height: 280px; display: block; background: #fff; border: 1px solid #d4d4d4; border-radius: 4px; }
+    .stack { display: grid; gap: 12px; }
+    .badge { display: inline-block; border: 1px solid #bbb; border-radius: 999px; padding: 3px 9px; background: #fafafa; color: #555; font-size: 12px; font-weight: 600; }
+    .ok { border-color: #111; color: #111; }
+    .bad { border-color: #bbb; color: #777; }
+    .card-title { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 10px; }
+    .kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; }
+    .value { overflow-wrap: anywhere; }
+    code { background: #eee; padding: 2px 5px; border-radius: 3px; }
+    @media (max-width: 800px) { .grid, .cards { grid-template-columns: 1fr; } header { display: block; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Bridge Monitor</h1>
+        <div class="muted">Realtime WebSocket dashboard</div>
+      </div>
+      <div id="socket" class="badge bad">web disconnected</div>
+    </header>
+
+    <section class="grid">
+      <div class="panel"><div class="muted">Android Devices</div><div id="devices" class="metric">0</div></div>
+      <div class="panel"><div class="muted">Tauri Hosts</div><div id="tauriCount" class="metric">0</div></div>
+      <div class="panel"><div class="muted">Down</div><div id="down" class="metric">0.00</div><div class="muted">MB/s</div></div>
+      <div class="panel"><div class="muted">Up</div><div id="up" class="metric">0.00</div><div class="muted">MB/s</div></div>
+    </section>
+
+    <section class="cards">
+      <div class="panel">
+        <div class="card-title"><strong>Tauri Windows</strong><span id="tauriBadge" class="badge bad">offline</span></div>
+        <div id="tauriCard" class="kv muted"><div>Status</div><div class="value">Waiting for <code>POST /tauri</code></div></div>
+      </div>
+      <div class="panel">
+        <div class="card-title"><strong>Android Device</strong><span id="androidBadge" class="badge bad">offline</span></div>
+        <div id="androidCard" class="kv muted"><div>Status</div><div class="value">Waiting for <code>/network</code></div></div>
+      </div>
+    </section>
+
+    <section class="stack">
+      <canvas id="chart" width="1100" height="280"></canvas>
+      <table>
+        <thead><tr><th>Device</th><th>Samba</th><th>WebSocket</th><th>Target</th><th>Latest</th><th>Samples</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="muted">Waiting for Android data on <code>ws://host:1421/network</code></td></tr></tbody>
+      </table>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const mb = (v) => (v / 1024 / 1024).toFixed(2);
+    let state = [];
+    let tauri = [];
+
+    function draw() {
+      const canvas = $("chart");
+      const ctx = canvas.getContext("2d");
+      const samples = state.flatMap((d) => d.samples || []).slice(-60);
+      const max = Math.max(1, ...samples.flatMap((s) => [s.rx_bps, s.tx_bps]));
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#e5e5e5";
+      for (let i = 1; i < 5; i++) {
+        const y = (canvas.height / 5) * i;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+      }
+      [["rx_bps", "#111"], ["tx_bps", "#777"]].forEach(([key, color]) => {
+        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+        samples.forEach((s, i) => {
+          const x = samples.length < 2 ? 0 : i * canvas.width / (samples.length - 1);
+          const y = canvas.height - (s[key] / max) * canvas.height;
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        });
+        ctx.stroke();
+      });
+    }
+
+    function render() {
+      const latest = state.at(-1);
+      const host = tauri.at(-1);
+      const sample = latest?.samples?.at(-1) || { rx_bps: 0, tx_bps: 0 };
+      const androidLive = latest && Date.now() - latest.last_seen < 5000;
+      const tauriLive = host && Date.now() - host.last_seen < 15000;
+      $("devices").textContent = state.length;
+      $("tauriCount").textContent = tauri.length;
+      $("down").textContent = mb(sample.rx_bps);
+      $("up").textContent = mb(sample.tx_bps);
+      $("androidBadge").textContent = androidLive ? "online" : "offline";
+      $("androidBadge").className = `badge ${androidLive ? "ok" : "bad"}`;
+      $("tauriBadge").textContent = tauriLive ? "online" : "offline";
+      $("tauriBadge").className = `badge ${tauriLive ? "ok" : "bad"}`;
+      $("androidCard").innerHTML = latest ? `
+        <div>Model</div><div class="value">${latest.model || "-"}</div>
+        <div>Samba</div><div class="value">${latest.samba || "-"}</div>
+        <div>WebSocket</div><div class="value">${androidLive ? "connected" : "stale"}</div>
+        <div>Target</div><div class="value">${latest.target || "-"}</div>
+        <div>Latest</div><div class="value">${latest.latest || "-"}</div>
+      ` : `<div>Status</div><div class="value">Waiting for <code>/network</code></div>`;
+      $("tauriCard").innerHTML = host ? `
+        <div>Host</div><div class="value">${host.host || host.id || "-"}</div>
+        <div>Platform</div><div class="value">${host.platform || "-"}</div>
+        <div>Source</div><div class="value">${host.source_dir || "-"}</div>
+        <div>Samba</div><div class="value">${host.samba_dir || "-"}</div>
+        <div>ADB Devices</div><div class="value">${host.devices?.length || 0}</div>
+      ` : `<div>Status</div><div class="value">Waiting for <code>POST /tauri</code></div>`;
+      $("rows").innerHTML = state.length ? state.map((d) => `
+        <tr>
+          <td>${d.model || d.id || "-"}</td>
+          <td>${d.samba || "-"}</td>
+          <td>${Date.now() - d.last_seen < 5000 ? "<span class='badge ok'>connected</span>" : "<span class='badge bad'>stale</span>"}</td>
+          <td>${d.target || "-"}</td>
+          <td>${d.latest || "-"}</td>
+          <td>${d.samples?.length || 0}</td>
+        </tr>
+      `).join("") : "<tr><td colspan='6' class='muted'>Waiting for Android data on <code>ws://host:1421/network</code></td></tr>";
+      draw();
+    }
+
+    function connect() {
+      const scheme = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${scheme}://${location.host}/`);
+      ws.onopen = () => { $("socket").textContent = "web connected"; $("socket").className = "badge ok"; };
+      ws.onclose = () => { $("socket").textContent = "web disconnected"; $("socket").className = "badge bad"; setTimeout(connect, 1000); };
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "state") { state = msg.devices; tauri = msg.tauri || []; render(); }
+      };
+    }
+    connect();
+    setInterval(render, 1000);
+  </script>
+</body>
+</html>

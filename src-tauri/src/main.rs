@@ -2,16 +2,19 @@
 
 use notify::{recommended_watcher, RecursiveMode, Watcher};
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, OpenOptions},
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader, Read, Write},
+    net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{mpsc::channel, Arc, Mutex},
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
+use base64::{engine::general_purpose::STANDARD, Engine};
+use sha1::{Digest, Sha1};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::TrayIconBuilder,
@@ -69,6 +72,12 @@ struct TransferProgress {
 
 #[derive(Serialize, Clone)]
 struct NetworkSample {
+    rx_bps: u64,
+    tx_bps: u64,
+}
+
+#[derive(Deserialize)]
+struct WebSocketSample {
     rx_bps: u64,
     tx_bps: u64,
 }
@@ -155,89 +164,6 @@ fn adb(args: &[&str]) -> Result<String, String> {
 
 fn source_dir(config: &Config) -> PathBuf {
     config.source_dir.lock().map(|v| v.clone()).unwrap_or_else(|_| PathBuf::from(DEFAULT_SOURCE_DIR))
-}
-
-#[cfg(target_os = "linux")]
-fn network_bytes() -> Option<(u64, u64)> {
-    let text = fs::read_to_string("/proc/net/dev").ok()?;
-    let mut rx = 0;
-    let mut tx = 0;
-    for line in text.lines().skip(2) {
-        let (name, rest) = line.split_once(':')?;
-        if name.trim() == "lo" {
-            continue;
-        }
-        let fields: Vec<_> = rest.split_whitespace().collect();
-        rx += fields.first()?.parse::<u64>().ok()?;
-        tx += fields.get(8)?.parse::<u64>().ok()?;
-    }
-    Some((rx, tx))
-}
-
-#[cfg(target_os = "windows")]
-fn network_bytes() -> Option<(u64, u64)> {
-    let out = command("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            "(Get-NetAdapterStatistics | Measure-Object -Property ReceivedBytes -Sum).Sum; (Get-NetAdapterStatistics | Measure-Object -Property SentBytes -Sum).Sum",
-        ])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut lines = text.lines().filter_map(|v| v.trim().parse::<u64>().ok());
-    Some((lines.next()?, lines.next()?))
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "windows")))]
-fn network_bytes() -> Option<(u64, u64)> {
-    None
-}
-
-fn android_network_bytes(config: &Config) -> Option<(u64, u64)> {
-    let target = network_target(config)?;
-    if target == "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE" {
-        return None;
-    }
-    let out = adb(&["devices", "-l"]).ok()?;
-    let id = out
-        .lines()
-        .skip(1)
-        .filter_map(|line| {
-            let mut parts = line.split_whitespace();
-            let id = parts.next()?;
-            (parts.next()? == "device").then_some(id.to_string())
-        })
-        .find(|id| adb(&["-s", id, "shell", "getprop", "ro.build.fingerprint"]).ok().as_deref() == Some(target.as_str()))?;
-    let out = adb(&["-s", &id, "shell", "cat", "/proc/net/dev"]).ok()?;
-    let mut rx = 0;
-    let mut tx = 0;
-    for line in out.lines().skip(2) {
-        let (name, rest) = line.split_once(':')?;
-        if name.trim() == "lo" {
-            continue;
-        }
-        let fields: Vec<_> = rest.split_whitespace().collect();
-        rx += fields.first()?.parse::<u64>().ok()?;
-        tx += fields.get(8)?.parse::<u64>().ok()?;
-    }
-    Some((rx, tx))
-}
-
-fn network_target(config: &Config) -> Option<String> {
-    config
-        .selected_fingerprint
-        .lock()
-        .ok()
-        .and_then(|v| v.clone())
-        .filter(|v| !v.is_empty())
-        .or_else(|| {
-            (config.target_fingerprint != "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE")
-                .then(|| config.target_fingerprint.clone())
-        })
 }
 
 fn list_devices(config: &Config) -> Vec<DeviceInfo> {
@@ -371,26 +297,115 @@ fn emit_loop(app: AppHandle) {
     });
 }
 
-fn network_loop(app: AppHandle) {
-    let config = app.state::<Config>().inner().clone();
+fn websocket_loop(app: AppHandle) {
     thread::spawn(move || {
-        let mut last = if network_target(&config).is_some() { android_network_bytes(&config) } else { network_bytes() };
-        let mut last_at = Instant::now();
-        loop {
-            thread::sleep(Duration::from_secs(1));
-            let now = Instant::now();
-            let Some(current) = (if network_target(&config).is_some() { android_network_bytes(&config) } else { network_bytes() }) else { continue };
-            if let Some(previous) = last {
-                let secs = now.duration_since(last_at).as_secs().max(1);
-                let _ = app.emit("network", NetworkSample {
-                    rx_bps: current.0.saturating_sub(previous.0) / secs,
-                    tx_bps: current.1.saturating_sub(previous.1) / secs,
-                });
-            }
-            last = Some(current);
-            last_at = now;
+        let Ok(listener) = TcpListener::bind("0.0.0.0:1421") else {
+            eprintln!("[bridge-tauri] websocket bind failed on 1421");
+            return;
+        };
+        println!("[bridge-tauri] websocket listening on 0.0.0.0:1421");
+        for stream in listener.incoming().flatten() {
+            let app = app.clone();
+            thread::spawn(move || handle_websocket(app, stream));
         }
     });
+}
+
+fn monitor_loop(app: AppHandle) {
+    let config = app.state::<Config>().inner().clone();
+    let url = std::env::var("MONITOR_URL").unwrap_or_else(|_| "https://files.endrisusanto.my.id/tauri".into());
+    thread::spawn(move || loop {
+        let host = std::env::var("COMPUTERNAME")
+            .or_else(|_| std::env::var("HOSTNAME"))
+            .unwrap_or_else(|_| "tauri".into());
+        let body = serde_json::json!({
+            "id": host,
+            "host": host,
+            "platform": std::env::consts::OS,
+            "source_dir": source_dir(&config).display().to_string(),
+            "samba_dir": config.samba_dir.display().to_string(),
+            "devices": list_devices(&config),
+        })
+        .to_string();
+        let _ = command("curl")
+            .args(["-fsS", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, &url])
+            .output();
+        thread::sleep(Duration::from_secs(10));
+    });
+}
+
+fn handle_websocket(app: AppHandle, mut stream: TcpStream) {
+    if websocket_handshake(&mut stream).is_err() {
+        return;
+    }
+    while let Ok(Some(text)) = read_websocket_text(&mut stream) {
+        if let Ok(sample) = serde_json::from_str::<WebSocketSample>(&text) {
+            let _ = app.emit("network", NetworkSample { rx_bps: sample.rx_bps, tx_bps: sample.tx_bps });
+        }
+    }
+}
+
+fn websocket_handshake(stream: &mut TcpStream) -> Result<(), String> {
+    let mut req = Vec::new();
+    let mut buf = [0u8; 512];
+    while !req.windows(4).any(|v| v == b"\r\n\r\n") {
+        let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 || req.len() > 8192 {
+            return Err("bad websocket request".into());
+        }
+        req.extend_from_slice(&buf[..n]);
+    }
+    let text = String::from_utf8_lossy(&req);
+    let key = text
+        .lines()
+        .find_map(|line| line.strip_prefix("Sec-WebSocket-Key:").map(str::trim))
+        .ok_or_else(|| "missing websocket key".to_string())?;
+    let mut sha = Sha1::new();
+    sha.update(key.as_bytes());
+    sha.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+    let accept = STANDARD.encode(sha.finalize());
+    write!(
+        stream,
+        "HTTP/1.1 101 Switching Protocols\r\n\
+         Upgrade: websocket\r\n\
+         Connection: Upgrade\r\n\
+         Sec-WebSocket-Accept: {accept}\r\n\r\n"
+    ).map_err(|e| e.to_string())
+}
+
+fn read_websocket_text(stream: &mut TcpStream) -> Result<Option<String>, String> {
+    let mut header = [0u8; 2];
+    stream.read_exact(&mut header).map_err(|e| e.to_string())?;
+    let opcode = header[0] & 0x0f;
+    if opcode == 8 {
+        return Ok(None);
+    }
+    let masked = header[1] & 0x80 != 0;
+    let mut len = (header[1] & 0x7f) as u64;
+    if len == 126 {
+        let mut b = [0u8; 2];
+        stream.read_exact(&mut b).map_err(|e| e.to_string())?;
+        len = u16::from_be_bytes(b) as u64;
+    } else if len == 127 {
+        let mut b = [0u8; 8];
+        stream.read_exact(&mut b).map_err(|e| e.to_string())?;
+        len = u64::from_be_bytes(b);
+    }
+    if len > 4096 {
+        return Err("websocket message too large".into());
+    }
+    let mut mask = [0u8; 4];
+    if masked {
+        stream.read_exact(&mut mask).map_err(|e| e.to_string())?;
+    }
+    let mut data = vec![0u8; len as usize];
+    stream.read_exact(&mut data).map_err(|e| e.to_string())?;
+    if masked {
+        for (i, byte) in data.iter_mut().enumerate() {
+            *byte ^= mask[i % 4];
+        }
+    }
+    Ok(String::from_utf8(data).ok())
 }
 
 fn watch_source(app: AppHandle) {
@@ -759,7 +774,8 @@ fn main() {
                 });
             }
             emit_loop(app.handle().clone());
-            network_loop(app.handle().clone());
+            websocket_loop(app.handle().clone());
+            monitor_loop(app.handle().clone());
             watch_source(app.handle().clone());
             watch_samba(app.handle().clone());
             Ok(())

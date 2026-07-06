@@ -10,7 +10,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.net.TrafficStats
-import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -24,6 +23,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import java.io.File
+import java.net.Socket
+import java.security.SecureRandom
+import java.util.Base64
 import kotlin.math.max
 
 class MainActivity : Activity() {
@@ -38,6 +40,10 @@ class MainActivity : Activity() {
     private val debugLines = ArrayDeque<String>()
     private var lastRx = 0L
     private var lastTx = 0L
+    @Volatile private var wsSocket: Socket? = null
+    @Volatile private var wsConnected = false
+    private var lastWsAttempt = 0L
+    private val random = SecureRandom()
 
     private val sampleNetwork = object : Runnable {
         override fun run() {
@@ -45,9 +51,11 @@ class MainActivity : Activity() {
             val tx = TrafficStats.getTotalTxBytes()
             if (rx != TrafficStats.UNSUPPORTED.toLong() && tx != TrafficStats.UNSUPPORTED.toLong()) {
                 if (lastRx > 0 && lastTx > 0) {
-                    networkHistory.add(Pair(max(0L, rx - lastRx), max(0L, tx - lastTx)))
+                    val sample = Pair(max(0L, rx - lastRx), max(0L, tx - lastTx))
+                    networkHistory.add(sample)
                     if (networkHistory.size > 60) networkHistory.removeAt(0)
                     networkChart.invalidate()
+                    sendWebSocketSample(sample.first, sample.second)
                 }
                 lastRx = rx
                 lastTx = tx
@@ -226,11 +234,12 @@ class MainActivity : Activity() {
         Log.i(tag, "Refreshing status")
         localDir.mkdirs()
         val file = latestFile()
-        val wifi = getSystemService(WifiManager::class.java).connectionInfo
+        val sambaLine = "Samba: checking"
         status.text = listOfNotNull(
             message,
             "Tauri: staging ${if (localDir.canWrite()) "writable" else "not writable"} (${localDir.listFiles()?.size ?: 0} files)",
-            "Wi-Fi: ${wifi.ssid} ${ip(wifi.ipAddress)}",
+            sambaLine,
+            "WebSocket: ${if (wsConnected) "connected" else "not connected"}",
             "Staging: ${localDir.absolutePath}",
             "Latest: ${file?.name ?: "-"}",
             "Target: ${BridgeService.target(this)}"
@@ -252,9 +261,81 @@ class MainActivity : Activity() {
             runOnUiThread {
                 badge.text = if (ok) "APK: Samba ready" else "APK: Samba unreachable"
                 badge.setTextColor(if (ok) 0xff86efac.toInt() else 0xfffca5a5.toInt())
+                status.text = status.text.toString().replace(sambaLine, if (ok) "Samba: connected" else "Samba: not connected")
             }
         }.start()
     }
+
+    private fun sendWebSocketSample(rx: Long, tx: Long) {
+        Thread {
+            try {
+                val socket = wsSocket ?: connectWebSocket()
+                val latest = latestFile()?.name ?: "-"
+                val text = """{"id":"${json(Build.FINGERPRINT)}","model":"${json(Build.MODEL)}","rx_bps":$rx,"tx_bps":$tx,"samba":"${if (badge.text.contains("ready")) "connected" else "not connected"}","target":"${json(BridgeService.target(this))}","latest":"${json(latest)}"}"""
+                writeWebSocketText(socket, text)
+                setWebSocketConnected(true)
+            } catch (t: Throwable) {
+                closeWebSocket()
+                setWebSocketConnected(false)
+            }
+        }.start()
+    }
+
+    @Synchronized
+    private fun connectWebSocket(): Socket {
+        wsSocket?.let { if (it.isConnected && !it.isClosed) return it }
+        val now = System.currentTimeMillis()
+        check(now - lastWsAttempt > 5_000) { "websocket reconnect backoff" }
+        lastWsAttempt = now
+        val socket = Socket(BridgeService.host(this), 1421)
+        val keyBytes = ByteArray(16).also(random::nextBytes)
+        val key = Base64.getEncoder().encodeToString(keyBytes)
+        socket.getOutputStream().write(
+            "GET /network HTTP/1.1\r\nHost: ${BridgeService.host(this)}:1421\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: $key\r\nSec-WebSocket-Version: 13\r\n\r\n"
+                .toByteArray()
+        )
+        val header = StringBuilder()
+        while (!header.endsWith("\r\n\r\n")) header.append(socket.getInputStream().read().toChar())
+        check(header.startsWith("HTTP/1.1 101")) { "websocket handshake failed" }
+        wsSocket = socket
+        appendLog("WebSocket connected ws://${BridgeService.host(this)}:1421/network")
+        return socket
+    }
+
+    private fun writeWebSocketText(socket: Socket, text: String) {
+        val data = text.toByteArray()
+        val mask = ByteArray(4).also(random::nextBytes)
+        val out = socket.getOutputStream()
+        out.write(0x81)
+        when {
+            data.size < 126 -> out.write(0x80 or data.size)
+            data.size <= 65_535 -> {
+                out.write(0x80 or 126)
+                out.write(byteArrayOf((data.size shr 8).toByte(), data.size.toByte()))
+            }
+            else -> error("websocket payload too large")
+        }
+        out.write(mask)
+        out.write(data.mapIndexed { i, b -> (b.toInt() xor mask[i % 4].toInt()).toByte() }.toByteArray())
+        out.flush()
+    }
+
+    private fun closeWebSocket() {
+        wsSocket?.close()
+        wsSocket = null
+    }
+
+    private fun setWebSocketConnected(connected: Boolean) {
+        if (wsConnected == connected) return
+        wsConnected = connected
+        runOnUiThread {
+            status.text = status.text.toString()
+                .replace("WebSocket: connected", "WebSocket: ${if (connected) "connected" else "not connected"}")
+                .replace("WebSocket: not connected", "WebSocket: ${if (connected) "connected" else "not connected"}")
+        }
+    }
+
+    private fun json(value: String) = value.replace("\\", "\\\\").replace("\"", "\\\"")
 
     private fun appendLog(line: String) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
@@ -266,9 +347,6 @@ class MainActivity : Activity() {
         while (debugLines.size > 80) debugLines.removeLast()
         if (::debugLog.isInitialized) debugLog.text = debugLines.joinToString("\n")
     }
-
-    private fun ip(value: Int): String =
-        listOf(value and 255, value shr 8 and 255, value shr 16 and 255, value shr 24 and 255).joinToString(".")
 
     inner class NetworkChartView(context: Context) : View(context) {
         private val downPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

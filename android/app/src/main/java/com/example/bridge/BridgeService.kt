@@ -17,7 +17,7 @@ import com.hierynomus.mssmb2.SMB2CreateDisposition
 import com.hierynomus.mssmb2.SMB2CreateOptions
 import com.hierynomus.mssmb2.SMB2ShareAccess
 import com.hierynomus.smbj.SMBClient
-import com.hierynomus.smbj.auth.AuthenticationContext.anonymous
+import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.share.DiskShare
 import java.io.BufferedInputStream
 import java.io.File
@@ -45,7 +45,7 @@ class BridgeService : Service() {
         fun checkSamba(context: Context) {
             SMBClient().use { client ->
                 client.connect(host(context)).use { connection ->
-                    connection.authenticate(anonymous()).connectShare(share(context)).use {}
+                    connection.authenticate(guestAuth()).connectShare(share(context)).use {}
                 }
             }
         }
@@ -53,7 +53,7 @@ class BridgeService : Service() {
         fun uploadTestFile(context: Context) {
             SMBClient().use { client ->
                 client.connect(host(context)).use { connection ->
-                    connection.authenticate(anonymous()).connectShare(share(context)).use { smbShare ->
+                    connection.authenticate(guestAuth()).connectShare(share(context)).use { smbShare ->
                         val disk = smbShare as DiskShare
                         disk.openFile(
                             "test.txt",
@@ -71,6 +71,8 @@ class BridgeService : Service() {
                 }
             }
         }
+
+        private fun guestAuth() = AuthenticationContext("guest", CharArray(0), null)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -114,7 +116,7 @@ class BridgeService : Service() {
         require(file.isFile) { "missing file: ${file.absolutePath}" }
         SMBClient().use { client ->
             client.connect(host(this)).use { connection ->
-                connection.authenticate(anonymous()).connectShare(share(this)).use { smbShare ->
+                connection.authenticate(guestAuth()).connectShare(share(this)).use { smbShare ->
                     val disk = smbShare as DiskShare
                     disk.openFile(
                         file.name,

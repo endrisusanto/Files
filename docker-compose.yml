@@ -1,0 +1,7 @@
+services:
+  bridge-monitor:
+    build: ./web-monitor
+    ports:
+      - "8081:8080"
+      - "1421:1421"
+    restart: unless-stopped
