@@ -25,7 +25,7 @@ type LocalFile = {
 
 type Transfer = { file: string; percent: number; message: string };
 type NetworkSample = { rx_bps: number; tx_bps: number };
-type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean; cpu_usage: number; ram_usage: number; hostname: string };
+type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean; hostname: string };
 
 const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
@@ -266,8 +266,6 @@ export default function App() {
           platform: info.platform,
           source_dir: info.source_dir,
           samba_dir: info.samba_dir,
-          cpu_usage: info.cpu_usage,
-          ram_usage: info.ram_usage,
           devices: devices
         };
         ws.send(JSON.stringify(payload));

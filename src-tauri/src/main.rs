@@ -90,8 +90,6 @@ struct AppInfo {
     samba_dir: String,
     target_fingerprint_set: bool,
     hostname: String,
-    cpu_usage: f64,
-    ram_usage: f64,
 }
 
 fn get_adb_path() -> String {
@@ -639,96 +637,6 @@ async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String
     Ok(())
 }
 
-#[cfg(not(windows))]
-fn system_resources() -> (f64, f64) {
-    let mut ram_pct = 0.0;
-    if let Ok(mem) = fs::read_to_string("/proc/meminfo") {
-        let mut total = 0.0;
-        let mut avail = 0.0;
-        for line in mem.lines() {
-            if line.starts_with("MemTotal:") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    total = parts[1].parse::<f64>().unwrap_or(0.0);
-                }
-            } else if line.starts_with("MemAvailable:") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    avail = parts[1].parse::<f64>().unwrap_or(0.0);
-                }
-            }
-        }
-        if total > 0.0 {
-            ram_pct = (total - avail) * 100.0 / total;
-        }
-    }
-
-    let mut cpu_pct = 0.0;
-    if let Ok(s1) = fs::read_to_string("/proc/stat") {
-        thread::sleep(Duration::from_millis(150));
-        if let Ok(s2) = fs::read_to_string("/proc/stat") {
-            cpu_pct = calculate_cpu_usage(&s1, &s2);
-        }
-    }
-    (cpu_pct, ram_pct)
-}
-
-#[cfg(not(windows))]
-fn calculate_cpu_usage(s1: &str, s2: &str) -> f64 {
-    fn parse_stat(s: &str) -> Option<(u64, u64)> {
-        let line = s.lines().next()?;
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() >= 5 {
-            let user: u64 = parts[1].parse().ok()?;
-            let nice: u64 = parts[2].parse().ok()?;
-            let system: u64 = parts[3].parse().ok()?;
-            let idle: u64 = parts[4].parse().ok()?;
-            let iowait: u64 = parts[5].parse().ok()?;
-            let irq: u64 = parts[6].parse().ok()?;
-            let softirq: u64 = parts[7].parse().ok()?;
-            let steal: u64 = parts[8].parse().ok()?;
-            
-            let idle_time = idle + iowait;
-            let active_time = user + nice + system + irq + softirq + steal;
-            return Some((idle_time, active_time));
-        }
-        None
-    }
-    if let (Some((i1, a1)), Some((i2, a2))) = (parse_stat(s1), parse_stat(s2)) {
-        let total1 = i1 + a1;
-        let total2 = i2 + a2;
-        let total_diff = total2 as f64 - total1 as f64;
-        let active_diff = a2 as f64 - a1 as f64;
-        if total_diff > 0.0 {
-            return (active_diff * 100.0 / total_diff).min(100.0).max(0.0);
-        }
-    }
-    0.0
-}
-
-#[cfg(windows)]
-fn system_resources() -> (f64, f64) {
-    let mut cpu = 0.0;
-    let mut ram = 0.0;
-    if let Ok(out) = command("powershell")
-        .args(["-Command", "(Get-CimInstance Win32_Processor).LoadPercentage"])
-        .output() {
-        if out.status.success() {
-            let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            cpu = text.parse::<f64>().unwrap_or(0.0);
-        }
-    }
-    if let Ok(out) = command("powershell")
-        .args(["-Command", "$m = Get-CimInstance Win32_OperatingSystem; [Math]::Round(($m.TotalVisibleMemorySize - $m.FreePhysicalMemory) / $m.TotalVisibleMemorySize * 100, 1)"])
-        .output() {
-        if out.status.success() {
-            let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            ram = text.parse::<f64>().unwrap_or(0.0);
-        }
-    }
-    (cpu, ram)
-}
-
 #[tauri::command]
 async fn app_info(app: AppHandle) -> AppInfo {
     let config = app.state::<Config>().inner().clone();
@@ -738,16 +646,13 @@ async fn app_info(app: AppHandle) -> AppInfo {
             .unwrap_or_else(|_| "tauri".into());
         
         let path = source_dir(&config);
-        let (cpu_usage, ram_usage) = system_resources();
         
         println!(
-            "[bridge-tauri] app_info platform={} source={} samba={} hostname={} cpu={:.1}% ram={:.1}%",
+            "[bridge-tauri] app_info platform={} source={} samba={} hostname={}",
             std::env::consts::OS,
             path.display(),
             config.samba_dir.display(),
-            hostname,
-            cpu_usage,
-            ram_usage
+            hostname
         );
         AppInfo {
             platform: std::env::consts::OS.into(),
@@ -755,8 +660,6 @@ async fn app_info(app: AppHandle) -> AppInfo {
             samba_dir: config.samba_dir.display().to_string(),
             target_fingerprint_set: config.target_fingerprint != "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE",
             hostname,
-            cpu_usage,
-            ram_usage,
         }
     })
     .await
@@ -766,8 +669,6 @@ async fn app_info(app: AppHandle) -> AppInfo {
         samba_dir: "".into(),
         target_fingerprint_set: false,
         hostname: "tauri".into(),
-        cpu_usage: 0.0,
-        ram_usage: 0.0,
     })
 }
 

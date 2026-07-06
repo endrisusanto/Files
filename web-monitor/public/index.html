@@ -359,18 +359,6 @@
                 <div class="muted">Source</div><div class="value"><code>${host.source_dir || "-"}</code></div>
                 <div class="muted">Samba</div><div class="value"><code>${host.samba_dir || "-"}</code></div>
                 <div class="muted">Local ADB</div><div class="value">${host.devices?.length || 0} devices</div>
-                <div class="muted">CPU Status</div>
-                <div class="value">
-                  ${host.cpu_usage !== undefined ? `
-                    <span style="font-weight: 700; color: #f97316;">${host.cpu_usage.toFixed(1)}%</span>
-                  ` : '<span class="muted">-</span>'}
-                </div>
-                <div class="muted">RAM Status</div>
-                <div class="value">
-                  ${host.ram_usage !== undefined ? `
-                    <span style="font-weight: 700; color: #3b82f6;">${host.ram_usage.toFixed(1)}%</span>
-                  ` : '<span class="muted">-</span>'}
-                </div>
               </div>
             </div>
           `;
