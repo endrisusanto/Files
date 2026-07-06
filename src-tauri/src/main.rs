@@ -255,7 +255,8 @@ fn emit_loop(app: AppHandle) {
         let _ = app.emit("devices", list_devices(&config));
         let _ = app.emit("files", bridge_files(&config.source_dir));
         let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
-        thread::sleep(Duration::from_secs(2));
+        // ponytail: increase interval to 5s to drastically reduce background process spawning overhead
+        thread::sleep(Duration::from_secs(5));
     });
 }
 
@@ -375,10 +376,14 @@ fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String> {
-    let config = app.state::<Config>().inner();
+async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String> {
+    let config = app.state::<Config>().inner().clone();
     *config.selected_fingerprint.lock().map_err(|e| e.to_string())? = Some(fingerprint);
-    let _ = app.emit("devices", list_devices(config));
+    // ponytail: run list_devices asynchronously to return instantly and not block UI thread
+    tauri::async_runtime::spawn(async move {
+        let devices = list_devices(&config);
+        let _ = app.emit("devices", devices);
+    });
     Ok(())
 }
 
@@ -502,9 +507,13 @@ fn debug_adb() -> String {
 }
 
 #[tauri::command]
-fn get_devices(app: AppHandle) -> Vec<DeviceInfo> {
+async fn get_devices(app: AppHandle) -> Result<Vec<DeviceInfo>, String> {
     let config = app.state::<Config>().inner().clone();
-    list_devices(&config)
+    // ponytail: run list_devices on a tokio blocking thread pool to keep the main UI thread responsive
+    let devices = tauri::async_runtime::spawn_blocking(move || {
+        list_devices(&config)
+    }).await.map_err(|e| e.to_string())?;
+    Ok(devices)
 }
 
 fn main() {
