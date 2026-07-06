@@ -183,7 +183,8 @@ fn network_bytes() -> Option<(u64, u64)> {
     if !out.status.success() {
         return None;
     }
-    let mut lines = String::from_utf8_lossy(&out.stdout).lines().filter_map(|v| v.trim().parse::<u64>().ok());
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut lines = text.lines().filter_map(|v| v.trim().parse::<u64>().ok());
     Some((lines.next()?, lines.next()?))
 }
 

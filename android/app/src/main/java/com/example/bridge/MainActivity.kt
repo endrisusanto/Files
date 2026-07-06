@@ -2,6 +2,7 @@ package com.example.bridge
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
@@ -70,7 +71,7 @@ class MainActivity : Activity() {
             setLineSpacing(6f, 1.05f)
             setTextColor(0xffd4d4d8.toInt())
         }
-        networkChart = NetworkChartView()
+        networkChart = NetworkChartView(this)
         val upload = Button(this).apply {
             text = "Upload Latest File"
             setOnClickListener { startLatestUpload() }
@@ -165,7 +166,7 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    inner class NetworkChartView : View(this@MainActivity) {
+    inner class NetworkChartView(context: Context) : View(context) {
         private val downPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(134, 239, 172)
             strokeWidth = 4f
