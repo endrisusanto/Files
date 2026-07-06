@@ -20,6 +20,7 @@ import com.hierynomus.smbj.auth.AuthenticationContext.anonymous
 import com.hierynomus.smbj.share.DiskShare
 import java.io.BufferedInputStream
 import java.io.File
+import java.io.ByteArrayInputStream
 import java.util.EnumSet
 
 class BridgeService : Service() {
@@ -35,6 +36,28 @@ class BridgeService : Service() {
             SMBClient().use { client ->
                 client.connect(SMB_HOST).use { connection ->
                     connection.authenticate(anonymous()).connectShare(SMB_SHARE).use {}
+                }
+            }
+        }
+
+        fun uploadTestFile() {
+            SMBClient().use { client ->
+                client.connect(SMB_HOST).use { connection ->
+                    connection.authenticate(anonymous()).connectShare(SMB_SHARE).use { share ->
+                        val disk = share as DiskShare
+                        disk.openFile(
+                            "test.txt",
+                            EnumSet.of(AccessMask.GENERIC_WRITE),
+                            EnumSet.of(FileAttributes.FILE_ATTRIBUTE_NORMAL),
+                            SMB2ShareAccess.ALL,
+                            SMB2CreateDisposition.FILE_OVERWRITE_IF,
+                            EnumSet.of(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
+                        ).use { remote ->
+                            ByteArrayInputStream("bridge test\n".toByteArray()).use { input ->
+                                remote.outputStream.use { output -> input.copyTo(output) }
+                            }
+                        }
+                    }
                 }
             }
         }

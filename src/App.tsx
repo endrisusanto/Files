@@ -29,6 +29,12 @@ type AppInfo = { platform: string; source_dir: string; samba_dir: string; target
 const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 const speed = (b: number) => `${(b / 1024 / 1024).toFixed(2)} MB/s`;
+const statusClass = (status: LocalFile["status"]) =>
+  status === "ready"
+    ? "border-green-800 bg-green-950 text-green-300"
+    : status === "locked"
+      ? "border-amber-800 bg-amber-950 text-amber-300"
+      : "border-blue-800 bg-blue-950 text-blue-300";
 
 function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   const width = 600;
@@ -220,6 +226,8 @@ export default function App() {
       console.info("[bridge-ui] install apk ok", msg);
       appendLog(`install apk ok ${msg}`);
       setActionStatus(`Success: ${msg}`);
+      refreshDevices();
+      window.setTimeout(refreshDevices, 1500);
     } catch (err) {
       console.error("[bridge-ui] install apk failed", err);
       appendLog(`install apk failed ${String(err)}`);
@@ -238,6 +246,8 @@ export default function App() {
       console.info("[bridge-ui] connect wifi ok", msg);
       appendLog(`connect wifi ok ${msg}`);
       setActionStatus(`Success: ${msg}`);
+      refreshDevices();
+      window.setTimeout(refreshDevices, 1500);
     } catch (err) {
       console.error("[bridge-ui] connect wifi failed", err);
       appendLog(`connect wifi failed ${String(err)}`);
@@ -420,7 +430,7 @@ export default function App() {
 
       <NetworkChart samples={network} />
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="space-y-6">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">{info?.source_dir ?? "E:\\SUBRO"}</h2>
@@ -435,70 +445,58 @@ export default function App() {
             </label>
           </div>
           <div className="space-y-2">
-            {files.map((f) => (
-              <div key={f.name} className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-950 p-3">
-                <div>
-                  <p className="font-medium">{f.status === "downloading" ? "[...]" : f.status === "ready" ? "[ok]" : "[lock]"} {f.name}</p>
-                  <p className="text-sm text-zinc-500">{fileGb(f.size)} · {f.status}</p>
+            {files.map((f) => {
+              const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
+              return (
+              <div key={f.name} className="rounded border border-zinc-800 bg-zinc-950 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <p className="break-all font-medium">{f.name}</p>
+                      <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${statusClass(f.status)}`}>
+                        {f.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-zinc-500">{fileGb(f.size)} · {progress}%</p>
+                  </div>
+                  <button
+                    disabled={(!forceTransfer && (!active || f.status !== "ready")) || (forceTransfer && !selectedDevice)}
+                    onClick={() => push(f.name)}
+                    className={`rounded px-3 py-2 text-sm font-bold text-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 ${forceTransfer ? "bg-amber-500" : "bg-green-500"}`}
+                  >
+                    {forceTransfer ? "Force Push" : "Push"}
+                  </button>
                 </div>
-                <button
-                  disabled={(!forceTransfer && (!active || f.status !== "ready")) || (forceTransfer && !selectedDevice)}
-                  onClick={() => push(f.name)}
-                  className={`rounded px-3 py-2 text-sm font-bold text-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 ${forceTransfer ? "bg-amber-500" : "bg-green-500"}`}
-                >
-                  {forceTransfer ? "Force Push" : "Push"}
-                </button>
+                <div className="mt-3 h-2 overflow-hidden rounded bg-zinc-800">
+                  <div className="h-full bg-green-500 transition-all" style={{ width: `${progress}%` }} />
+                </div>
               </div>
-            ))}
+              );
+            })}
             {!files.length && <p className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-500">No .tar.md5 files found</p>}
           </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-            <h2 className="mb-3 text-lg font-semibold">Transfer Status</h2>
-            <p className="mb-4 text-sm text-zinc-400">Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
+          <div className="mt-4 border-t border-zinc-800 pt-4">
+            <p className="mb-3 text-sm text-zinc-400">Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
             <div className="h-5 overflow-hidden rounded bg-zinc-800">
               <div className="h-full bg-green-500 transition-all" style={{ width: `${transfer?.percent ?? 0}%` }} />
             </div>
             <p className="mt-3 break-all text-sm text-zinc-300">{transfer ? `${transfer.file}: ${transfer.message}` : "No active transfer"}</p>
-            {error && <p className="mt-3 rounded border border-red-900 bg-red-950 p-3 text-sm text-red-200">{error}</p>}
-          </div>
-
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-            <h2 className="mb-3 text-lg font-semibold">Device Actions</h2>
-            <p className="mb-4 text-sm text-zinc-400">Jalankan aksi pada perangkat Android jembatan aktif.</p>
-            <div className="flex flex-wrap gap-3">
-              <button
-                disabled={!deviceActionReady || actionLoading || !apkPath}
-                onClick={handleInstallApk}
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 transition"
-              >
-                Push Install APK
-              </button>
-              <button
-                disabled={!deviceActionReady || actionLoading}
-                onClick={handleConnectWifi}
-                className="rounded bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 transition"
-              >
-                Connect Wi-Fi
-              </button>
-            </div>
             {actionStatus && (
               <p className="mt-3 rounded border border-zinc-700 bg-zinc-950 p-3 text-sm text-zinc-300 break-all">
                 {actionStatus}
               </p>
             )}
+            {error && <p className="mt-3 rounded border border-red-900 bg-red-950 p-3 text-sm text-red-200">{error}</p>}
           </div>
+        </div>
 
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-            <h2 className="mb-3 text-lg font-semibold">Debug Log</h2>
-            <textarea
-              readOnly
-              value={debugLog}
-              className="h-56 w-full resize-none rounded border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-300 outline-none"
-            />
-          </div>
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+          <h2 className="mb-3 text-lg font-semibold">Debug Log</h2>
+          <textarea
+            readOnly
+            value={debugLog}
+            className="h-56 w-full resize-none rounded border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-300 outline-none"
+          />
         </div>
       </section>
 

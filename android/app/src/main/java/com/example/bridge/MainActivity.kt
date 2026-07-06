@@ -9,6 +9,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.net.TrafficStats
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -29,8 +30,10 @@ class MainActivity : Activity() {
     private val networkHistory = mutableListOf<Pair<Long, Long>>()
     private val localDir by lazy { File(getExternalFilesDir(null), "SUBRO") }
     private lateinit var badge: TextView
+    private lateinit var debugLog: TextView
     private lateinit var networkChart: NetworkChartView
     private lateinit var status: TextView
+    private val debugLines = ArrayDeque<String>()
     private var lastRx = 0L
     private var lastTx = 0L
 
@@ -71,10 +74,21 @@ class MainActivity : Activity() {
             setLineSpacing(6f, 1.05f)
             setTextColor(0xffd4d4d8.toInt())
         }
+        debugLog = TextView(this).apply {
+            textSize = 12f
+            setLineSpacing(4f, 1.0f)
+            setTextColor(0xffd4d4d8.toInt())
+            setBackgroundColor(0xff18181b.toInt())
+            setPadding(20, 20, 20, 20)
+        }
         networkChart = NetworkChartView(this)
         val upload = Button(this).apply {
             text = "Upload Latest File"
             setOnClickListener { startLatestUpload() }
+        }
+        val testSamba = Button(this).apply {
+            text = "Test Upload test.txt"
+            setOnClickListener { testUpload() }
         }
         val refresh = Button(this).apply {
             text = "Refresh"
@@ -104,7 +118,17 @@ class MainActivity : Activity() {
             addView(upload, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = 18
             })
+            addView(testSamba, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = 18
+            })
             addView(refresh, LinearLayout.LayoutParams(-1, -2))
+            addView(TextView(this@MainActivity).apply {
+                text = "Debug Log"
+                textSize = 18f
+                setTextColor(0xfffafafa.toInt())
+                setPadding(0, 32, 0, 12)
+            }, LinearLayout.LayoutParams(-1, -2))
+            addView(debugLog, LinearLayout.LayoutParams(-1, 320))
         }
 
         setContentView(ScrollView(this).apply {
@@ -112,6 +136,7 @@ class MainActivity : Activity() {
             addView(content)
         })
         handler.post(sampleNetwork)
+        appendLog("APK started")
         refreshStatus()
     }
 
@@ -129,34 +154,59 @@ class MainActivity : Activity() {
         val file = latestFile()
         if (file == null) {
             Log.w(tag, "Upload skipped: no .tar.md5 file")
+            appendLog("Upload skipped: no .tar.md5 file")
             refreshStatus("No .tar.md5 file found")
             return
         }
         Log.i(tag, "Starting upload for ${file.absolutePath}")
+        appendLog("Starting upload ${file.name}")
         val intent = Intent(this, BridgeService::class.java).putExtra("file", file.name)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
         refreshStatus("Uploading ${file.name}")
+    }
+
+    private fun testUpload() {
+        appendLog("Testing Samba upload test.txt")
+        Thread {
+            val message = try {
+                BridgeService.uploadTestFile()
+                "Test upload OK: ${BridgeService.TARGET}test.txt"
+            } catch (t: Throwable) {
+                Log.e(tag, "Test upload failed", t)
+                "Test upload failed: ${t.message}"
+            }
+            runOnUiThread {
+                appendLog(message)
+                refreshStatus(message)
+            }
+        }.start()
     }
 
     private fun refreshStatus(message: String? = null) {
         Log.i(tag, "Refreshing status")
         localDir.mkdirs()
         val file = latestFile()
+        val wifi = getSystemService(WifiManager::class.java).connectionInfo
         status.text = listOfNotNull(
             message,
+            "Tauri: staging ${if (localDir.canWrite()) "writable" else "not writable"} (${localDir.listFiles()?.size ?: 0} files)",
+            "Wi-Fi: ${wifi.ssid} ${ip(wifi.ipAddress)}",
             "Staging: ${localDir.absolutePath}",
             "Latest: ${file?.name ?: "-"}",
             "Target: ${BridgeService.TARGET}"
         ).joinToString("\n")
+        appendLog("Status refreshed")
         badge.text = "APK: checking Samba"
         badge.setTextColor(0xffd4d4d8.toInt())
         Thread {
             val ok = try {
                 BridgeService.checkSamba()
                 Log.i(tag, "Samba check ok: ${BridgeService.TARGET}")
+                appendLog("Samba check OK")
                 true
             } catch (t: Throwable) {
                 Log.e(tag, "Samba check failed: ${BridgeService.TARGET}", t)
+                appendLog("Samba check failed: ${t.message}")
                 false
             }
             runOnUiThread {
@@ -165,6 +215,20 @@ class MainActivity : Activity() {
             }
         }.start()
     }
+
+    private fun appendLog(line: String) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            runOnUiThread { appendLog(line) }
+            return
+        }
+        Log.i(tag, line)
+        debugLines.addFirst("${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date())} $line")
+        while (debugLines.size > 80) debugLines.removeLast()
+        if (::debugLog.isInitialized) debugLog.text = debugLines.joinToString("\n")
+    }
+
+    private fun ip(value: Int): String =
+        listOf(value and 255, value shr 8 and 255, value shr 16 and 255, value shr 24 and 255).joinToString(".")
 
     inner class NetworkChartView(context: Context) : View(context) {
         private val downPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

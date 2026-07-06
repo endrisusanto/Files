@@ -198,13 +198,7 @@ fn network_bytes() -> Option<(u64, u64)> {
 }
 
 fn android_network_bytes(config: &Config) -> Option<(u64, u64)> {
-    let target = config
-        .selected_fingerprint
-        .lock()
-        .ok()
-        .and_then(|v| v.clone())
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| config.target_fingerprint.clone());
+    let target = network_target(config)?;
     if target == "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE" {
         return None;
     }
@@ -231,6 +225,19 @@ fn android_network_bytes(config: &Config) -> Option<(u64, u64)> {
         tx += fields.get(8)?.parse::<u64>().ok()?;
     }
     Some((rx, tx))
+}
+
+fn network_target(config: &Config) -> Option<String> {
+    config
+        .selected_fingerprint
+        .lock()
+        .ok()
+        .and_then(|v| v.clone())
+        .filter(|v| !v.is_empty())
+        .or_else(|| {
+            (config.target_fingerprint != "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE")
+                .then(|| config.target_fingerprint.clone())
+        })
 }
 
 fn list_devices(config: &Config) -> Vec<DeviceInfo> {
@@ -367,12 +374,12 @@ fn emit_loop(app: AppHandle) {
 fn network_loop(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
     thread::spawn(move || {
-        let mut last = android_network_bytes(&config).or_else(network_bytes);
+        let mut last = if network_target(&config).is_some() { android_network_bytes(&config) } else { network_bytes() };
         let mut last_at = Instant::now();
         loop {
             thread::sleep(Duration::from_secs(1));
             let now = Instant::now();
-            let Some(current) = android_network_bytes(&config).or_else(network_bytes) else { continue };
+            let Some(current) = (if network_target(&config).is_some() { android_network_bytes(&config) } else { network_bytes() }) else { continue };
             if let Some(previous) = last {
                 let secs = now.duration_since(last_at).as_secs().max(1);
                 let _ = app.emit("network", NetworkSample {
@@ -453,8 +460,7 @@ fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream:
     });
 }
 
-#[tauri::command]
-fn push_file(app: AppHandle, file_name: String, force: bool) -> Result<(), String> {
+fn push_file_blocking(app: AppHandle, file_name: String, force: bool) -> Result<(), String> {
     println!("[bridge-tauri] push_file start file={file_name} force={force}");
     let config = app.state::<Config>().inner().clone();
     let device = list_devices(&config)
@@ -507,6 +513,13 @@ fn push_file(app: AppHandle, file_name: String, force: bool) -> Result<(), Strin
     ])?;
     println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
     Ok(())
+}
+
+#[tauri::command]
+async fn push_file(app: AppHandle, file_name: String, force: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || push_file_blocking(app, file_name, force))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -568,8 +581,7 @@ async fn pick_apk_file() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
-#[tauri::command]
-fn push_install_apk(app: AppHandle, apk_path: String) -> Result<String, String> {
+fn push_install_apk_blocking(app: AppHandle, apk_path: String) -> Result<String, String> {
     println!("[bridge-tauri] push_install_apk path={apk_path}");
     let config = app.state::<Config>().inner().clone();
     let device = list_devices(&config)
@@ -601,7 +613,13 @@ fn push_install_apk(app: AppHandle, apk_path: String) -> Result<String, String> 
 }
 
 #[tauri::command]
-fn connect_wifi(app: AppHandle, ssid: String, password: String) -> Result<String, String> {
+async fn push_install_apk(app: AppHandle, apk_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || push_install_apk_blocking(app, apk_path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn connect_wifi_blocking(app: AppHandle, ssid: String, password: String) -> Result<String, String> {
     println!("[bridge-tauri] connect_wifi ssid={ssid}");
     let config = app.state::<Config>().inner().clone();
     let device = list_devices(&config)
@@ -627,6 +645,13 @@ fn connect_wifi(app: AppHandle, ssid: String, password: String) -> Result<String
         eprintln!("[bridge-tauri] connect_wifi failed stdout={stdout} stderr={stderr}");
         Err(format!("Gagal menghubungkan ke Wi-Fi: {} {}", stdout, stderr))
     }
+}
+
+#[tauri::command]
+async fn connect_wifi(app: AppHandle, ssid: String, password: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || connect_wifi_blocking(app, ssid, password))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
