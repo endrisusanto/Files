@@ -29,12 +29,14 @@ type AppInfo = { platform: string; source_dir: string; samba_dir: string; target
 const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 const speed = (b: number) => `${(b / 1024 / 1024).toFixed(2)} MB/s`;
-const statusClass = (status: LocalFile["status"]) =>
+const statusClass = (status: string) =>
   status === "ready"
     ? "border-green-800 bg-green-950 text-green-300"
     : status === "locked"
       ? "border-amber-800 bg-amber-950 text-amber-300"
-      : "border-blue-800 bg-blue-950 text-blue-300";
+      : status === "uploaded"
+        ? "border-zinc-800 bg-zinc-950 text-zinc-500"
+        : "border-blue-800 bg-blue-950 text-blue-300";
 
 function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   const width = 600;
@@ -80,6 +82,10 @@ export default function App() {
   const [remoteDevices, setRemoteDevices] = useState<any[]>([]);
   const [autoPush, setAutoPush] = useState(() => localStorage.getItem("auto_push") === "true");
   const isPushingRef = useRef(false);
+  const sambaFilesRef = useRef<LocalFile[]>([]);
+  useEffect(() => {
+    sambaFilesRef.current = sambaFiles;
+  }, [sambaFiles]);
 
   // Wifi and APK Configuration
   const [wifiSsid, setWifiSsid] = useState(() => localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
@@ -136,7 +142,11 @@ export default function App() {
         setFiles(e.payload);
         const isAuto = localStorage.getItem("auto_push") === "true";
         if (isAuto && !isPushingRef.current) {
-          const readyFile = e.payload.find((f) => f.status === "ready");
+          const readyFile = e.payload.find((f) => {
+            if (f.status !== "ready") return false;
+            const inSamba = sambaFilesRef.current.some((sf) => sf.name === f.name);
+            return !inSamba;
+          });
           if (readyFile) {
             console.info("[bridge-ui] Auto-push triggering for:", readyFile.name);
             appendLog(`Auto-push triggered: ${readyFile.name}`);
@@ -662,6 +672,8 @@ export default function App() {
           </div>
           <div className="space-y-2">
             {files.map((f) => {
+              const inSamba = sambaFiles.some((sf) => sf.name === f.name);
+              const displayStatus = inSamba ? "uploaded" : f.status;
               const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
               return (
               <div key={f.name} className="rounded border border-zinc-800 bg-zinc-950 p-3">
@@ -669,14 +681,14 @@ export default function App() {
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <p className="break-all font-medium">{f.name}</p>
-                      <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${statusClass(f.status)}`}>
-                        {f.status}
+                      <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${statusClass(displayStatus)}`}>
+                        {displayStatus}
                       </span>
                     </div>
                     <p className="text-sm text-zinc-500">{fileGb(f.size)} · {progress}%</p>
                   </div>
                   <button
-                    disabled={(!forceTransfer && (!active || f.status !== "ready")) || (forceTransfer && !selectedDevice)}
+                    disabled={(!forceTransfer && (!active || displayStatus !== "ready")) || (forceTransfer && !selectedDevice)}
                     onClick={() => push(f.name)}
                     className={`rounded px-3 py-2 text-sm font-bold text-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 ${forceTransfer ? "bg-amber-500" : "bg-green-500"}`}
                   >
