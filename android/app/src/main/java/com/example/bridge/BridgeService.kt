@@ -9,6 +9,7 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.msfscc.FileAttributes
 import com.hierynomus.mssmb2.SMB2CreateDisposition
@@ -22,17 +23,35 @@ import java.io.File
 import java.util.EnumSet
 
 class BridgeService : Service() {
+    private val tag = "Bridge"
     private val localDir by lazy { File(getExternalFilesDir(null), "SUBRO") }
-    private val smbHost = "192.168.10.221"
-    private val smbShare = "sambashare"
+
+    companion object {
+        const val SMB_HOST = "192.168.10.221"
+        const val SMB_SHARE = "sambashare"
+        const val TARGET = "smb://192.168.10.221/sambashare/"
+
+        fun checkSamba() {
+            SMBClient().use { client ->
+                client.connect(SMB_HOST).use { connection ->
+                    connection.authenticate(anonymous()).connectShare(SMB_SHARE).use {}
+                }
+            }
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.i(tag, "BridgeService start startId=$startId")
         startForeground(1, notification("Uploading to Samba"))
         Thread {
-            val name = intent?.getStringExtra("file") ?: return@Thread stopSelf(startId)
+            val name = intent?.getStringExtra("file") ?: return@Thread run {
+                Log.e(tag, "BridgeService missing file extra")
+                stopSelf(startId)
+            }
             val file = File(localDir, name)
+            Log.i(tag, "Upload worker started file=${file.absolutePath}")
             val wake = getSystemService(PowerManager::class.java)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "bridge:upload")
                 .apply { acquire(2 * 60 * 60 * 1000L) }
@@ -42,11 +61,14 @@ class BridgeService : Service() {
             try {
                 retry(3) { upload(file) }
                 if (!file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
+                Log.i(tag, "Upload done and local file deleted: ${file.name}")
             } catch (t: Throwable) {
+                Log.e(tag, "Upload failed: ${file.absolutePath}", t)
                 getSystemService(NotificationManager::class.java).notify(2, notification("Upload failed: ${t.message}"))
             } finally {
                 if (wifi.isHeld) wifi.release()
                 if (wake.isHeld) wake.release()
+                Log.i(tag, "BridgeService stop startId=$startId")
                 stopSelf(startId)
             }
         }.start()
@@ -54,11 +76,12 @@ class BridgeService : Service() {
     }
 
     private fun upload(file: File) {
+        Log.i(tag, "SMB upload start file=${file.name} target=$TARGET")
         localDir.mkdirs()
         require(file.isFile) { "missing file: ${file.absolutePath}" }
         SMBClient().use { client ->
-            client.connect(smbHost).use { connection ->
-                connection.authenticate(anonymous()).connectShare(smbShare).use { share ->
+            client.connect(SMB_HOST).use { connection ->
+                connection.authenticate(anonymous()).connectShare(SMB_SHARE).use { share ->
                     val disk = share as DiskShare
                     disk.openFile(
                         file.name,
@@ -75,6 +98,7 @@ class BridgeService : Service() {
                 }
             }
         }
+        Log.i(tag, "SMB upload complete file=${file.name}")
     }
 
     private fun retry(times: Int, block: () -> Unit) {
@@ -85,6 +109,7 @@ class BridgeService : Service() {
                 return
             } catch (t: Throwable) {
                 last = t
+                Log.e(tag, "Retry ${attempt + 1}/$times failed", t)
                 Thread.sleep((attempt + 1) * 5_000L)
             }
         }

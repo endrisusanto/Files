@@ -10,7 +10,7 @@ use std::{
     process::{Command, Stdio},
     sync::{mpsc::channel, Arc, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
@@ -23,6 +23,7 @@ use std::os::windows::process::CommandExt;
 
 const DEFAULT_SOURCE_DIR: &str = r"E:\SUBRO";
 const ANDROID_DIR: &str = "/sdcard/Android/data/com.example.bridge/files/SUBRO/";
+const ANDROID_PACKAGE: &str = "com.example.bridge";
 const DEFAULT_SAMBA_DIR: &str = "/sambashare";
 const MIN_FREE_KB: u64 = 25 * 1024 * 1024;
 #[cfg(windows)]
@@ -46,6 +47,7 @@ struct DeviceInfo {
     battery_level: Option<u8>,
     battery_temperature: Option<f32>,
     ip_address: String,
+    apk_installed: bool,
     is_selected_bridge: bool,
     is_target_bridge: bool,
 }
@@ -63,6 +65,12 @@ struct TransferProgress {
     file: String,
     percent: u8,
     message: String,
+}
+
+#[derive(Serialize, Clone)]
+struct NetworkSample {
+    rx_bps: u64,
+    tx_bps: u64,
 }
 
 #[derive(Serialize, Clone)]
@@ -145,10 +153,52 @@ fn adb(args: &[&str]) -> Result<String, String> {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn network_bytes() -> Option<(u64, u64)> {
+    let text = fs::read_to_string("/proc/net/dev").ok()?;
+    let mut rx = 0;
+    let mut tx = 0;
+    for line in text.lines().skip(2) {
+        let (name, rest) = line.split_once(':')?;
+        if name.trim() == "lo" {
+            continue;
+        }
+        let fields: Vec<_> = rest.split_whitespace().collect();
+        rx += fields.first()?.parse::<u64>().ok()?;
+        tx += fields.get(8)?.parse::<u64>().ok()?;
+    }
+    Some((rx, tx))
+}
+
+#[cfg(target_os = "windows")]
+fn network_bytes() -> Option<(u64, u64)> {
+    let out = command("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            "(Get-NetAdapterStatistics | Measure-Object -Property ReceivedBytes -Sum).Sum; (Get-NetAdapterStatistics | Measure-Object -Property SentBytes -Sum).Sum",
+        ])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let mut lines = String::from_utf8_lossy(&out.stdout).lines().filter_map(|v| v.trim().parse::<u64>().ok());
+    Some((lines.next()?, lines.next()?))
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+fn network_bytes() -> Option<(u64, u64)> {
+    None
+}
+
 fn list_devices(config: &Config) -> Vec<DeviceInfo> {
-    let Ok(out) = adb(&["devices", "-l"]) else { return vec![] };
+    let Ok(out) = adb(&["devices", "-l"]) else {
+        eprintln!("[bridge-tauri] adb devices failed");
+        return vec![];
+    };
     let selected = config.selected_fingerprint.lock().ok().and_then(|v| v.clone());
-    out.lines()
+    let devices: Vec<_> = out.lines()
         .skip(1)
         .filter_map(|line| {
             let mut parts = line.split_whitespace();
@@ -170,6 +220,7 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
             let available_storage = storage_kb(&id);
             let (battery_level, battery_temperature) = battery(&id);
             let ip_address = ip_address(&id);
+            let apk_installed = adb(&["-s", &id, "shell", "pm", "path", ANDROID_PACKAGE]).is_ok();
             let is_selected_bridge = selected
                 .as_deref()
                 .map(|target| target == fingerprint)
@@ -183,10 +234,19 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
                 battery_level,
                 battery_temperature,
                 ip_address,
+                apk_installed,
                 is_selected_bridge,
             })
         })
-        .collect()
+        .collect();
+    println!(
+        "[bridge-tauri] devices scanned: total={} selected={} ready={} apk_installed={}",
+        devices.len(),
+        devices.iter().filter(|d| d.is_selected_bridge).count(),
+        devices.iter().filter(|d| d.is_target_bridge).count(),
+        devices.iter().filter(|d| d.apk_installed).count()
+    );
+    devices
 }
 
 fn storage_kb(id: &str) -> u64 {
@@ -254,11 +314,33 @@ fn file_is_available(path: &Path) -> bool {
 fn emit_loop(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
     thread::spawn(move || loop {
+        println!("[bridge-tauri] emit_loop tick");
         let _ = app.emit("devices", list_devices(&config));
         let _ = app.emit("files", bridge_files(&config.source_dir));
         let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
         // ponytail: increase interval to 5s to drastically reduce background process spawning overhead
         thread::sleep(Duration::from_secs(5));
+    });
+}
+
+fn network_loop(app: AppHandle) {
+    thread::spawn(move || {
+        let mut last = network_bytes();
+        let mut last_at = Instant::now();
+        loop {
+            thread::sleep(Duration::from_secs(1));
+            let now = Instant::now();
+            let Some(current) = network_bytes() else { continue };
+            if let Some(previous) = last {
+                let secs = now.duration_since(last_at).as_secs().max(1);
+                let _ = app.emit("network", NetworkSample {
+                    rx_bps: current.0.saturating_sub(previous.0) / secs,
+                    tx_bps: current.1.saturating_sub(previous.1) / secs,
+                });
+            }
+            last = Some(current);
+            last_at = now;
+        }
     });
 }
 
@@ -330,13 +412,18 @@ fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream:
 
 #[tauri::command]
 fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
+    println!("[bridge-tauri] push_file start file={file_name}");
     let config = app.state::<Config>().inner().clone();
     let device = list_devices(&config)
         .into_iter()
         .find(|d| d.is_target_bridge)
-        .ok_or("target bridge fingerprint not connected or lacks 25GB free storage")?;
+        .ok_or_else(|| {
+            eprintln!("[bridge-tauri] push_file no ready bridge");
+            "target bridge fingerprint not connected or lacks 25GB free storage"
+        })?;
     let source = config.source_dir.join(&file_name);
     if !source.is_file() || !file_name.ends_with(".tar.md5") || !file_is_available(&source) {
+        eprintln!("[bridge-tauri] push_file rejected source={}", source.display());
         return Err("file is not a ready .tar.md5".into());
     }
 
@@ -359,6 +446,7 @@ fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
 
     let status = child.wait().map_err(|e| e.to_string())?;
     if !status.success() {
+        eprintln!("[bridge-tauri] adb push failed file={file_name}");
         return Err("adb push failed".into());
     }
     let _ = app.emit("transfer", TransferProgress { file: file_name.clone(), percent: 100, message: "push complete".into() });
@@ -374,11 +462,13 @@ fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
         "file",
         &file_name,
     ])?;
+    println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
     Ok(())
 }
 
 #[tauri::command]
 async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String> {
+    println!("[bridge-tauri] select_bridge fingerprint={fingerprint}");
     let config = app.state::<Config>().inner().clone();
     *config.selected_fingerprint.lock().map_err(|e| e.to_string())? = Some(fingerprint);
     // ponytail: blocking adb scan, keep selection click from freezing the UI.
@@ -392,6 +482,12 @@ async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String
 #[tauri::command]
 fn app_info(app: AppHandle) -> AppInfo {
     let config = app.state::<Config>().inner();
+    println!(
+        "[bridge-tauri] app_info platform={} source={} samba={}",
+        std::env::consts::OS,
+        config.source_dir.display(),
+        config.samba_dir.display()
+    );
     AppInfo {
         platform: std::env::consts::OS.into(),
         source_dir: config.source_dir.display().to_string(),
@@ -410,13 +506,18 @@ async fn pick_apk_file() -> Option<String> {
 
 #[tauri::command]
 fn push_install_apk(app: AppHandle, apk_path: String) -> Result<String, String> {
+    println!("[bridge-tauri] push_install_apk path={apk_path}");
     let config = app.state::<Config>().inner().clone();
     let device = list_devices(&config)
         .into_iter()
         .find(|d| d.is_target_bridge)
-        .ok_or("No target bridge connected or selected")?;
+        .ok_or_else(|| {
+            eprintln!("[bridge-tauri] push_install_apk no ready bridge");
+            "No target bridge connected or selected"
+        })?;
     let path = PathBuf::from(&apk_path);
     if !path.is_file() {
+        eprintln!("[bridge-tauri] push_install_apk missing apk path={apk_path}");
         return Err("File APK tidak ditemukan atau path tidak valid".into());
     }
     let out = command("adb")
@@ -427,19 +528,25 @@ fn push_install_apk(app: AppHandle, apk_path: String) -> Result<String, String> 
     let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
     if out.status.success() {
+        println!("[bridge-tauri] push_install_apk done device={}", device.id);
         Ok("APK berhasil diinstall".into())
     } else {
+        eprintln!("[bridge-tauri] push_install_apk failed stdout={stdout} stderr={stderr}");
         Err(format!("Gagal menginstall APK: {} {}", stdout, stderr))
     }
 }
 
 #[tauri::command]
 fn connect_wifi(app: AppHandle, ssid: String, password: String) -> Result<String, String> {
+    println!("[bridge-tauri] connect_wifi ssid={ssid}");
     let config = app.state::<Config>().inner().clone();
     let device = list_devices(&config)
         .into_iter()
         .find(|d| d.is_target_bridge)
-        .ok_or("No target bridge connected or selected")?;
+        .ok_or_else(|| {
+            eprintln!("[bridge-tauri] connect_wifi no ready bridge");
+            "No target bridge connected or selected"
+        })?;
     
     let out = command("adb")
         .args(["-s", &device.id, "shell", "cmd", "wifi", "connect-network", &ssid, "wpa2", &password])
@@ -450,14 +557,17 @@ fn connect_wifi(app: AppHandle, ssid: String, password: String) -> Result<String
     let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
 
     if out.status.success() && !stdout.contains("Failed") && !stderr.contains("Failed") {
+        println!("[bridge-tauri] connect_wifi done ssid={ssid} device={}", device.id);
         Ok(format!("Berhasil menghubungkan ke Wi-Fi {}", ssid))
     } else {
+        eprintln!("[bridge-tauri] connect_wifi failed stdout={stdout} stderr={stderr}");
         Err(format!("Gagal menghubungkan ke Wi-Fi: {} {}", stdout, stderr))
     }
 }
 
 #[tauri::command]
 fn debug_adb() -> String {
+    println!("[bridge-tauri] debug_adb");
     let adb_path = get_adb_path();
     let mut result = format!("=== ADB DIAGNOSTICS ===\n");
     result.push_str(&format!("Resolved path: {}\n", adb_path));
@@ -510,6 +620,7 @@ fn debug_adb() -> String {
 
 #[tauri::command]
 async fn get_devices(app: AppHandle) -> Result<Vec<DeviceInfo>, String> {
+    println!("[bridge-tauri] get_devices");
     let config = app.state::<Config>().inner().clone();
     // ponytail: run list_devices on a tokio blocking thread pool to keep the main UI thread responsive
     let devices = tauri::async_runtime::spawn_blocking(move || {
@@ -526,6 +637,12 @@ fn main() {
         source_dir: PathBuf::from(std::env::var("SOURCE_DIR").unwrap_or_else(|_| DEFAULT_SOURCE_DIR.into())),
         samba_dir: PathBuf::from(std::env::var("SAMBA_DIR").unwrap_or_else(|_| DEFAULT_SAMBA_DIR.into())),
     };
+    println!(
+        "[bridge-tauri] startup source={} samba={} service={}",
+        config.source_dir.display(),
+        config.samba_dir.display(),
+        config.service
+    );
 
     tauri::Builder::default()
         .manage(config)
@@ -551,6 +668,7 @@ fn main() {
                 });
             }
             emit_loop(app.handle().clone());
+            network_loop(app.handle().clone());
             watch_source(app.handle().clone());
             watch_samba(app.handle().clone());
             Ok(())

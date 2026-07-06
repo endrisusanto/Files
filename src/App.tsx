@@ -10,6 +10,7 @@ type Device = {
   battery_level?: number | null;
   battery_temperature?: number | null;
   ip_address: string;
+  apk_installed: boolean;
   is_selected_bridge: boolean;
   is_target_bridge: boolean;
 };
@@ -22,10 +23,43 @@ type LocalFile = {
 };
 
 type Transfer = { file: string; percent: number; message: string };
+type NetworkSample = { rx_bps: number; tx_bps: number };
 type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean };
 
 const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+const speed = (b: number) => `${(b / 1024 / 1024).toFixed(2)} MB/s`;
+
+function NetworkChart({ samples }: { samples: NetworkSample[] }) {
+  const width = 600;
+  const height = 140;
+  const points = samples.slice(-60);
+  const max = Math.max(1, ...points.flatMap((p) => [p.rx_bps, p.tx_bps]));
+  const path = (key: keyof NetworkSample) =>
+    points.map((p, i) => {
+      const x = points.length <= 1 ? 0 : (i / (points.length - 1)) * width;
+      const y = height - (p[key] / max) * height;
+      return `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+  const last = points[points.length - 1] ?? { rx_bps: 0, tx_bps: 0 };
+
+  return (
+    <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Network 1m</h2>
+        <div className="flex gap-4 text-sm">
+          <span className="text-green-300">Down {speed(last.rx_bps)}</span>
+          <span className="text-blue-300">Up {speed(last.tx_bps)}</span>
+        </div>
+      </div>
+      <svg className="h-40 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        <rect width={width} height={height} fill="#09090b" />
+        <path d={path("rx_bps")} fill="none" stroke="#86efac" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        <path d={path("tx_bps")} fill="none" stroke="#93c5fd" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </section>
+  );
+}
 
 export default function App() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -33,6 +67,7 @@ export default function App() {
   const [sambaFiles, setSambaFiles] = useState<LocalFile[]>([]);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [transfer, setTransfer] = useState<Transfer | null>(null);
+  const [network, setNetwork] = useState<NetworkSample[]>([]);
   const [error, setError] = useState("");
 
   // Wifi and APK Configuration
@@ -47,12 +82,36 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    invoke<AppInfo>("app_info").then(setInfo).catch((e) => setError(String(e)));
+    console.info("[bridge-ui] startup");
+    invoke<AppInfo>("app_info")
+      .then((value) => {
+        console.info("[bridge-ui] app_info", value);
+        setInfo(value);
+      })
+      .catch((e) => {
+        console.error("[bridge-ui] app_info failed", e);
+        setError(String(e));
+      });
     const unsubs = [
-      listen<Device[]>("devices", (e) => setDevices(e.payload)),
-      listen<LocalFile[]>("files", (e) => setFiles(e.payload)),
-      listen<LocalFile[]>("samba-files", (e) => setSambaFiles(e.payload)),
-      listen<Transfer>("transfer", (e) => setTransfer(e.payload)),
+      listen<Device[]>("devices", (e) => {
+        console.info("[bridge-ui] devices event", e.payload.length);
+        setDevices(e.payload);
+      }),
+      listen<LocalFile[]>("files", (e) => {
+        console.info("[bridge-ui] files event", e.payload.length);
+        setFiles(e.payload);
+      }),
+      listen<LocalFile[]>("samba-files", (e) => {
+        console.info("[bridge-ui] samba-files event", e.payload.length);
+        setSambaFiles(e.payload);
+      }),
+      listen<Transfer>("transfer", (e) => {
+        console.info("[bridge-ui] transfer event", e.payload);
+        setTransfer(e.payload);
+      }),
+      listen<NetworkSample>("network", (e) => {
+        setNetwork((list) => [...list.slice(-59), e.payload]);
+      }),
     ];
     refreshDevices();
     return () => void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
@@ -61,10 +120,13 @@ export default function App() {
   async function refreshDevices() {
     setRefreshing(true);
     setError("");
+    console.info("[bridge-ui] refresh devices");
     try {
       const list = await invoke<Device[]>("get_devices");
+      console.info("[bridge-ui] refresh devices ok", list.length);
       setDevices(list);
     } catch (e) {
+      console.error("[bridge-ui] refresh devices failed", e);
       setError(String(e));
     } finally {
       setRefreshing(false);
@@ -74,10 +136,13 @@ export default function App() {
   async function handleDiagnose() {
     setDiagLoading(true);
     setDiagnostics("Running ADB diagnostics...");
+    console.info("[bridge-ui] diagnose adb");
     try {
       const log = await invoke<string>("debug_adb");
+      console.info("[bridge-ui] diagnose adb ok");
       setDiagnostics(log);
     } catch (err) {
+      console.error("[bridge-ui] diagnose adb failed", err);
       setDiagnostics(`Diagnostics failed: ${err}`);
     } finally {
       setDiagLoading(false);
@@ -86,9 +151,12 @@ export default function App() {
 
   async function push(name: string) {
     setError("");
+    console.info("[bridge-ui] push file", name);
     try {
       await invoke("push_file", { fileName: name });
+      console.info("[bridge-ui] push file ok", name);
     } catch (e) {
+      console.error("[bridge-ui] push file failed", e);
       setError(String(e));
     }
   }
@@ -96,9 +164,12 @@ export default function App() {
   async function selectBridge(fingerprint: string) {
     setError("");
     setDevices((list) => list.map((d) => ({ ...d, is_selected_bridge: d.fingerprint === fingerprint })));
+    console.info("[bridge-ui] select bridge", fingerprint);
     try {
       await invoke("select_bridge", { fingerprint });
+      console.info("[bridge-ui] select bridge ok");
     } catch (e) {
+      console.error("[bridge-ui] select bridge failed", e);
       setError(String(e));
     }
   }
@@ -106,10 +177,13 @@ export default function App() {
   async function handleInstallApk() {
     setActionStatus("Menginstall APK...");
     setActionLoading(true);
+    console.info("[bridge-ui] install apk", apkPath);
     try {
       const msg = await invoke<string>("push_install_apk", { apkPath });
+      console.info("[bridge-ui] install apk ok", msg);
       setActionStatus(`Success: ${msg}`);
     } catch (err) {
+      console.error("[bridge-ui] install apk failed", err);
       setActionStatus(`Error: ${err}`);
     } finally {
       setActionLoading(false);
@@ -119,10 +193,13 @@ export default function App() {
   async function handleConnectWifi() {
     setActionStatus(`Menghubungkan ke Wi-Fi ${wifiSsid}...`);
     setActionLoading(true);
+    console.info("[bridge-ui] connect wifi", wifiSsid);
     try {
       const msg = await invoke<string>("connect_wifi", { ssid: wifiSsid, password: wifiPassword });
+      console.info("[bridge-ui] connect wifi ok", msg);
       setActionStatus(`Success: ${msg}`);
     } catch (err) {
+      console.error("[bridge-ui] connect wifi failed", err);
       setActionStatus(`Error: ${err}`);
     } finally {
       setActionLoading(false);
@@ -130,18 +207,22 @@ export default function App() {
   }
 
   async function browseApk() {
+    console.info("[bridge-ui] browse apk");
     try {
       const path = await invoke<string | null>("pick_apk_file");
       if (path) {
+        console.info("[bridge-ui] browse apk picked", path);
         setApkPath(path);
       }
     } catch (err) {
+      console.error("[bridge-ui] browse apk failed", err);
       setError(String(err));
     }
   }
 
   const active = devices.some((d) => d.is_target_bridge);
   const selected = devices.some((d) => d.is_selected_bridge);
+  const selectedDevice = devices.find((d) => d.is_selected_bridge);
   const isLinux = info?.platform === "linux";
 
   if (isLinux) {
@@ -151,6 +232,7 @@ export default function App() {
           <h1 className="text-2xl font-semibold">Samba Files</h1>
           <p className="text-sm text-zinc-400">{info?.samba_dir}</p>
         </section>
+        <NetworkChart samples={network} />
         <table className="w-full border-collapse overflow-hidden rounded-lg border border-zinc-800 text-left">
           <thead className="bg-zinc-900 text-sm text-zinc-400">
             <tr>
@@ -184,6 +266,12 @@ export default function App() {
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Cross-Network Android File Bridge</h1>
           <div className="flex items-center gap-4">
+            <span className={`rounded border px-2 py-1 text-xs font-semibold ${active ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
+              Tauri: {active ? "ready" : selected ? "storage low" : "select device"}
+            </span>
+            <span className={`rounded border px-2 py-1 text-xs font-semibold ${selectedDevice?.apk_installed ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
+              APK: {selectedDevice?.apk_installed ? "installed" : "missing"}
+            </span>
             <span className={active ? "text-green-400" : "text-zinc-400"}>
               {active ? "ADB bridge healthy" : selected ? "Bridge selected, storage low" : "No bridge selected"}
             </span>
@@ -219,6 +307,7 @@ export default function App() {
                 <th className="p-3">Battery</th>
                 <th className="p-3">Temp</th>
                 <th className="p-3">Storage</th>
+                <th className="p-3">Status</th>
                 <th className="p-3">Fingerprint</th>
               </tr>
             </thead>
@@ -239,18 +328,25 @@ export default function App() {
                   <td className="p-3">{d.battery_level == null ? "-" : `${d.battery_level}%`}</td>
                   <td className="p-3">{d.battery_temperature == null ? "-" : `${d.battery_temperature.toFixed(1)} C`}</td>
                   <td className="p-3">{gb(d.available_storage)}</td>
+                  <td className="p-3">
+                    <span className={`rounded border px-2 py-1 text-xs ${d.apk_installed ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
+                      APK {d.apk_installed ? "ok" : "missing"}
+                    </span>
+                  </td>
                   <td className="max-w-[360px] break-all p-3 text-xs text-zinc-500">{d.fingerprint}</td>
                 </tr>
               ))}
               {!devices.length && (
                 <tr>
-                  <td className="p-3 text-zinc-500" colSpan={8}>No ADB devices detected. Check USB debugging and run `adb devices` once to authorize.</td>
+                  <td className="p-3 text-zinc-500" colSpan={9}>No ADB devices detected. Check USB debugging and run `adb devices` once to authorize.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
+
+      <NetworkChart samples={network} />
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
