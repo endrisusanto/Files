@@ -72,16 +72,66 @@ struct AppInfo {
     target_fingerprint_set: bool,
 }
 
-fn command(program: &str) -> Command {
+fn get_adb_path() -> String {
+    if let Ok(p) = std::env::var("ADB_PATH") {
+        if Path::new(&p).exists() {
+            return p;
+        }
+    }
+
     #[cfg(windows)]
     {
-        let mut cmd = Command::new(program);
+        let paths = [
+            r"C:\platform-tools\adb.exe",
+            r"C:\ATM-environment\adb.exe",
+            r"C:\scrcpy\adb.exe",
+        ];
+        for path in &paths {
+            if Path::new(path).exists() {
+                return path.to_string();
+            }
+        }
+
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let p = PathBuf::from(local_app_data)
+                .join("Android")
+                .join("Sdk")
+                .join("platform-tools")
+                .join("adb.exe");
+            if p.exists() {
+                return p.to_string_lossy().into_owned();
+            }
+        }
+
+        if let Ok(current_exe) = std::env::current_exe() {
+            if let Some(parent) = current_exe.parent() {
+                let local_adb = parent.join("adb.exe");
+                if local_adb.exists() {
+                    return local_adb.to_string_lossy().into_owned();
+                }
+            }
+        }
+    }
+
+    "adb".to_string()
+}
+
+fn command(program: &str) -> Command {
+    let resolved = if program == "adb" {
+        get_adb_path()
+    } else {
+        program.to_string()
+    };
+
+    #[cfg(windows)]
+    {
+        let mut cmd = Command::new(&resolved);
         cmd.creation_flags(CREATE_NO_WINDOW);
         cmd
     }
     #[cfg(not(windows))]
     {
-        Command::new(program)
+        Command::new(&resolved)
     }
 }
 
