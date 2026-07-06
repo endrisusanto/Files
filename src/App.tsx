@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import logo from "./logo.svg";
 
 type Device = {
   id: string;
@@ -24,7 +25,7 @@ type LocalFile = {
 
 type Transfer = { file: string; percent: number; message: string };
 type NetworkSample = { rx_bps: number; tx_bps: number };
-type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean; storage_free_gb: number; hostname: string };
+type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean; cpu_usage: number; ram_usage: number; hostname: string };
 
 const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
@@ -265,7 +266,8 @@ export default function App() {
           platform: info.platform,
           source_dir: info.source_dir,
           samba_dir: info.samba_dir,
-          storage_free_gb: info.storage_free_gb,
+          cpu_usage: info.cpu_usage,
+          ram_usage: info.ram_usage,
           devices: devices
         };
         ws.send(JSON.stringify(payload));
@@ -482,7 +484,10 @@ export default function App() {
     <main className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
       <section className="mb-6">
         <div className="mb-3 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Cross-Network Android File Bridge</h1>
+          <div className="flex items-center gap-3">
+            <img src={logo} alt="FireFiles Logo" className="h-9 w-9" />
+            <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">FireFiles</h1>
+          </div>
           <div className="flex items-center gap-4">
             <span className={`rounded border px-2 py-1 text-xs font-semibold ${active ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
               Tauri: {active ? "ready" : selected ? "storage low" : "select device"}
