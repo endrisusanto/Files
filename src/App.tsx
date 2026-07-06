@@ -43,6 +43,7 @@ export default function App() {
   const [actionLoading, setActionLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState("");
   const [diagLoading, setDiagLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     invoke<AppInfo>("app_info").then(setInfo).catch((e) => setError(String(e)));
@@ -54,6 +55,19 @@ export default function App() {
     ];
     return () => void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
   }, []);
+
+  async function refreshDevices() {
+    setRefreshing(true);
+    setError("");
+    try {
+      const list = await invoke<Device[]>("get_devices");
+      setDevices(list);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   async function handleDiagnose() {
     setDiagLoading(true);
@@ -169,6 +183,16 @@ export default function App() {
             <span className={active ? "text-green-400" : "text-red-400"}>
               {active ? "ADB bridge healthy" : "Waiting for target fingerprint"}
             </span>
+            <button
+              disabled={refreshing}
+              onClick={refreshDevices}
+              className="rounded bg-zinc-900 p-2 text-zinc-400 hover:bg-zinc-300 hover:text-zinc-950 border border-zinc-800 transition disabled:opacity-50"
+              title="Refresh Device List"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12" />
+              </svg>
+            </button>
             <button
               onClick={() => setShowSettings(true)}
               className="rounded bg-zinc-900 p-2 text-zinc-400 hover:bg-zinc-800 border border-zinc-800 transition"

@@ -493,6 +493,12 @@ fn debug_adb() -> String {
     result
 }
 
+#[tauri::command]
+fn get_devices(app: AppHandle) -> Vec<DeviceInfo> {
+    let config = app.state::<Config>().inner().clone();
+    list_devices(&config)
+}
+
 fn main() {
     let config = Config {
         target_fingerprint: std::env::var("TARGET_BRIDGE_FINGERPRINT").unwrap_or_else(|_| "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE".into()),
@@ -511,7 +517,8 @@ fn main() {
             pick_apk_file,
             push_install_apk,
             connect_wifi,
-            debug_adb
+            debug_adb,
+            get_devices
         ])
         .setup(|app| {
             setup_tray(app)?;
