@@ -34,7 +34,7 @@ struct Config {
     target_fingerprint: String,
     selected_fingerprint: Arc<Mutex<Option<String>>>,
     service: String,
-    source_dir: PathBuf,
+    source_dir: Arc<Mutex<PathBuf>>,
     samba_dir: PathBuf,
 }
 
@@ -153,6 +153,10 @@ fn adb(args: &[&str]) -> Result<String, String> {
     }
 }
 
+fn source_dir(config: &Config) -> PathBuf {
+    config.source_dir.lock().map(|v| v.clone()).unwrap_or_else(|_| PathBuf::from(DEFAULT_SOURCE_DIR))
+}
+
 #[cfg(target_os = "linux")]
 fn network_bytes() -> Option<(u64, u64)> {
     let text = fs::read_to_string("/proc/net/dev").ok()?;
@@ -191,6 +195,42 @@ fn network_bytes() -> Option<(u64, u64)> {
 #[cfg(not(any(target_os = "linux", target_os = "windows")))]
 fn network_bytes() -> Option<(u64, u64)> {
     None
+}
+
+fn android_network_bytes(config: &Config) -> Option<(u64, u64)> {
+    let target = config
+        .selected_fingerprint
+        .lock()
+        .ok()
+        .and_then(|v| v.clone())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| config.target_fingerprint.clone());
+    if target == "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE" {
+        return None;
+    }
+    let out = adb(&["devices", "-l"]).ok()?;
+    let id = out
+        .lines()
+        .skip(1)
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            let id = parts.next()?;
+            (parts.next()? == "device").then_some(id.to_string())
+        })
+        .find(|id| adb(&["-s", id, "shell", "getprop", "ro.build.fingerprint"]).ok().as_deref() == Some(target.as_str()))?;
+    let out = adb(&["-s", &id, "shell", "cat", "/proc/net/dev"]).ok()?;
+    let mut rx = 0;
+    let mut tx = 0;
+    for line in out.lines().skip(2) {
+        let (name, rest) = line.split_once(':')?;
+        if name.trim() == "lo" {
+            continue;
+        }
+        let fields: Vec<_> = rest.split_whitespace().collect();
+        rx += fields.first()?.parse::<u64>().ok()?;
+        tx += fields.get(8)?.parse::<u64>().ok()?;
+    }
+    Some((rx, tx))
 }
 
 fn list_devices(config: &Config) -> Vec<DeviceInfo> {
@@ -317,7 +357,7 @@ fn emit_loop(app: AppHandle) {
     thread::spawn(move || loop {
         println!("[bridge-tauri] emit_loop tick");
         let _ = app.emit("devices", list_devices(&config));
-        let _ = app.emit("files", bridge_files(&config.source_dir));
+        let _ = app.emit("files", bridge_files(&source_dir(&config)));
         let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
         // ponytail: increase interval to 5s to drastically reduce background process spawning overhead
         thread::sleep(Duration::from_secs(5));
@@ -325,13 +365,14 @@ fn emit_loop(app: AppHandle) {
 }
 
 fn network_loop(app: AppHandle) {
+    let config = app.state::<Config>().inner().clone();
     thread::spawn(move || {
-        let mut last = network_bytes();
+        let mut last = android_network_bytes(&config).or_else(network_bytes);
         let mut last_at = Instant::now();
         loop {
             thread::sleep(Duration::from_secs(1));
             let now = Instant::now();
-            let Some(current) = network_bytes() else { continue };
+            let Some(current) = android_network_bytes(&config).or_else(network_bytes) else { continue };
             if let Some(previous) = last {
                 let secs = now.duration_since(last_at).as_secs().max(1);
                 let _ = app.emit("network", NetworkSample {
@@ -350,11 +391,12 @@ fn watch_source(app: AppHandle) {
     thread::spawn(move || {
         let (tx, rx) = channel();
         let Ok(mut watcher) = recommended_watcher(tx) else { return };
-        if watcher.watch(&config.source_dir, RecursiveMode::NonRecursive).is_err() {
+        let dir = source_dir(&config);
+        if watcher.watch(&dir, RecursiveMode::NonRecursive).is_err() {
             return;
         }
         while rx.recv().is_ok() {
-            let _ = app.emit("files", bridge_files(&config.source_dir));
+            let _ = app.emit("files", bridge_files(&source_dir(&config)));
         }
     });
 }
@@ -412,18 +454,18 @@ fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream:
 }
 
 #[tauri::command]
-fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
-    println!("[bridge-tauri] push_file start file={file_name}");
+fn push_file(app: AppHandle, file_name: String, force: bool) -> Result<(), String> {
+    println!("[bridge-tauri] push_file start file={file_name} force={force}");
     let config = app.state::<Config>().inner().clone();
     let device = list_devices(&config)
         .into_iter()
-        .find(|d| d.is_target_bridge)
+        .find(|d| if force { d.is_selected_bridge } else { d.is_target_bridge })
         .ok_or_else(|| {
             eprintln!("[bridge-tauri] push_file no ready bridge");
             "target bridge fingerprint not connected or lacks 25GB free storage"
         })?;
-    let source = config.source_dir.join(&file_name);
-    if !source.is_file() || !file_name.ends_with(".tar.md5") || !file_is_available(&source) {
+    let source = source_dir(&config).join(&file_name);
+    if !source.is_file() || !file_name.ends_with(".tar.md5") || (!force && !file_is_available(&source)) {
         eprintln!("[bridge-tauri] push_file rejected source={}", source.display());
         return Err("file is not a ready .tar.md5".into());
     }
@@ -486,15 +528,36 @@ fn app_info(app: AppHandle) -> AppInfo {
     println!(
         "[bridge-tauri] app_info platform={} source={} samba={}",
         std::env::consts::OS,
-        config.source_dir.display(),
+        source_dir(config).display(),
         config.samba_dir.display()
     );
     AppInfo {
         platform: std::env::consts::OS.into(),
-        source_dir: config.source_dir.display().to_string(),
+        source_dir: source_dir(config).display().to_string(),
         samba_dir: config.samba_dir.display().to_string(),
         target_fingerprint_set: config.target_fingerprint != "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE",
     }
+}
+
+#[tauri::command]
+fn set_source_dir(app: AppHandle, path: String) -> Result<Vec<LocalFile>, String> {
+    let config = app.state::<Config>().inner().clone();
+    let dir = PathBuf::from(path);
+    if !dir.is_dir() {
+        return Err(format!("source folder not found: {}", dir.display()));
+    }
+    *config.source_dir.lock().map_err(|e| e.to_string())? = dir.clone();
+    let files = bridge_files(&dir);
+    println!("[bridge-tauri] source_dir set {} files={}", dir.display(), files.len());
+    let _ = app.emit("files", files.clone());
+    Ok(files)
+}
+
+#[tauri::command]
+async fn pick_source_dir() -> Option<String> {
+    rfd::FileDialog::new()
+        .pick_folder()
+        .map(|p| p.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -511,9 +574,9 @@ fn push_install_apk(app: AppHandle, apk_path: String) -> Result<String, String> 
     let config = app.state::<Config>().inner().clone();
     let device = list_devices(&config)
         .into_iter()
-        .find(|d| d.is_target_bridge)
+        .find(|d| d.is_selected_bridge)
         .ok_or_else(|| {
-            eprintln!("[bridge-tauri] push_install_apk no ready bridge");
+            eprintln!("[bridge-tauri] push_install_apk no selected bridge");
             "No target bridge connected or selected"
         })?;
     let path = PathBuf::from(&apk_path);
@@ -543,9 +606,9 @@ fn connect_wifi(app: AppHandle, ssid: String, password: String) -> Result<String
     let config = app.state::<Config>().inner().clone();
     let device = list_devices(&config)
         .into_iter()
-        .find(|d| d.is_target_bridge)
+        .find(|d| d.is_selected_bridge)
         .ok_or_else(|| {
-            eprintln!("[bridge-tauri] connect_wifi no ready bridge");
+            eprintln!("[bridge-tauri] connect_wifi no selected bridge");
             "No target bridge connected or selected"
         })?;
     
@@ -635,12 +698,12 @@ fn main() {
         target_fingerprint: std::env::var("TARGET_BRIDGE_FINGERPRINT").unwrap_or_else(|_| "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE".into()),
         selected_fingerprint: Arc::new(Mutex::new(None)),
         service: std::env::var("ANDROID_BRIDGE_SERVICE").unwrap_or_else(|_| "com.example.bridge/.BridgeService".into()),
-        source_dir: PathBuf::from(std::env::var("SOURCE_DIR").unwrap_or_else(|_| DEFAULT_SOURCE_DIR.into())),
+        source_dir: Arc::new(Mutex::new(PathBuf::from(std::env::var("SOURCE_DIR").unwrap_or_else(|_| DEFAULT_SOURCE_DIR.into())))),
         samba_dir: PathBuf::from(std::env::var("SAMBA_DIR").unwrap_or_else(|_| DEFAULT_SAMBA_DIR.into())),
     };
     println!(
         "[bridge-tauri] startup source={} samba={} service={}",
-        config.source_dir.display(),
+        source_dir(&config).display(),
         config.samba_dir.display(),
         config.service
     );
@@ -651,6 +714,8 @@ fn main() {
             push_file,
             app_info,
             select_bridge,
+            set_source_dir,
+            pick_source_dir,
             pick_apk_file,
             push_install_apk,
             connect_wifi,

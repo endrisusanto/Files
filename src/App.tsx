@@ -69,11 +69,14 @@ export default function App() {
   const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [network, setNetwork] = useState<NetworkSample[]>([]);
   const [error, setError] = useState("");
+  const [debugLog, setDebugLog] = useState("");
 
   // Wifi and APK Configuration
   const [wifiSsid, setWifiSsid] = useState(() => localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
   const [wifiPassword, setWifiPassword] = useState(() => localStorage.getItem("wifi_password") || "1234qwer");
   const [apkPath, setApkPath] = useState(() => localStorage.getItem("apk_path") || "");
+  const [sourcePath, setSourcePath] = useState(() => localStorage.getItem("source_path") || "");
+  const [forceTransfer, setForceTransfer] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [actionStatus, setActionStatus] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -81,32 +84,55 @@ export default function App() {
   const [diagLoading, setDiagLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  function appendLog(line: string) {
+    const text = `${new Date().toLocaleTimeString()} ${line}`;
+    setDebugLog((value) => `${text}\n${value}`.slice(0, 12000));
+  }
+
   useEffect(() => {
     console.info("[bridge-ui] startup");
+    appendLog("startup");
     invoke<AppInfo>("app_info")
       .then((value) => {
         console.info("[bridge-ui] app_info", value);
+        const savedSource = localStorage.getItem("source_path");
         setInfo(value);
+        setSourcePath(savedSource || value.source_dir);
+        appendLog(`app_info source=${value.source_dir} samba=${value.samba_dir}`);
+        if (savedSource && savedSource !== value.source_dir) {
+          invoke<LocalFile[]>("set_source_dir", { path: savedSource })
+            .then((list) => {
+              setFiles(list);
+              setInfo((current) => current && { ...current, source_dir: savedSource });
+              appendLog(`restore source ok files=${list.length}`);
+            })
+            .catch((err) => appendLog(`restore source failed ${String(err)}`));
+        }
       })
       .catch((e) => {
         console.error("[bridge-ui] app_info failed", e);
+        appendLog(`app_info failed ${String(e)}`);
         setError(String(e));
       });
     const unsubs = [
       listen<Device[]>("devices", (e) => {
         console.info("[bridge-ui] devices event", e.payload.length);
+        appendLog(`devices event count=${e.payload.length}`);
         setDevices(e.payload);
       }),
       listen<LocalFile[]>("files", (e) => {
         console.info("[bridge-ui] files event", e.payload.length);
+        appendLog(`files event count=${e.payload.length}`);
         setFiles(e.payload);
       }),
       listen<LocalFile[]>("samba-files", (e) => {
         console.info("[bridge-ui] samba-files event", e.payload.length);
+        appendLog(`samba-files event count=${e.payload.length}`);
         setSambaFiles(e.payload);
       }),
       listen<Transfer>("transfer", (e) => {
         console.info("[bridge-ui] transfer event", e.payload);
+        appendLog(`transfer ${e.payload.file}: ${e.payload.message}`);
         setTransfer(e.payload);
       }),
       listen<NetworkSample>("network", (e) => {
@@ -121,12 +147,15 @@ export default function App() {
     setRefreshing(true);
     setError("");
     console.info("[bridge-ui] refresh devices");
+    appendLog("refresh devices");
     try {
       const list = await invoke<Device[]>("get_devices");
       console.info("[bridge-ui] refresh devices ok", list.length);
+      appendLog(`refresh devices ok count=${list.length}`);
       setDevices(list);
     } catch (e) {
       console.error("[bridge-ui] refresh devices failed", e);
+      appendLog(`refresh devices failed ${String(e)}`);
       setError(String(e));
     } finally {
       setRefreshing(false);
@@ -137,12 +166,15 @@ export default function App() {
     setDiagLoading(true);
     setDiagnostics("Running ADB diagnostics...");
     console.info("[bridge-ui] diagnose adb");
+    appendLog("diagnose adb");
     try {
       const log = await invoke<string>("debug_adb");
       console.info("[bridge-ui] diagnose adb ok");
+      appendLog("diagnose adb ok");
       setDiagnostics(log);
     } catch (err) {
       console.error("[bridge-ui] diagnose adb failed", err);
+      appendLog(`diagnose adb failed ${String(err)}`);
       setDiagnostics(`Diagnostics failed: ${err}`);
     } finally {
       setDiagLoading(false);
@@ -153,10 +185,12 @@ export default function App() {
     setError("");
     console.info("[bridge-ui] push file", name);
     try {
-      await invoke("push_file", { fileName: name });
+      await invoke("push_file", { fileName: name, force: forceTransfer });
       console.info("[bridge-ui] push file ok", name);
+      appendLog(`push ok ${name}`);
     } catch (e) {
       console.error("[bridge-ui] push file failed", e);
+      appendLog(`push failed ${name}: ${String(e)}`);
       setError(String(e));
     }
   }
@@ -165,11 +199,14 @@ export default function App() {
     setError("");
     setDevices((list) => list.map((d) => ({ ...d, is_selected_bridge: d.fingerprint === fingerprint })));
     console.info("[bridge-ui] select bridge", fingerprint);
+    appendLog(`select bridge ${fingerprint}`);
     try {
       await invoke("select_bridge", { fingerprint });
       console.info("[bridge-ui] select bridge ok");
+      appendLog("select bridge ok");
     } catch (e) {
       console.error("[bridge-ui] select bridge failed", e);
+      appendLog(`select bridge failed ${String(e)}`);
       setError(String(e));
     }
   }
@@ -181,9 +218,11 @@ export default function App() {
     try {
       const msg = await invoke<string>("push_install_apk", { apkPath });
       console.info("[bridge-ui] install apk ok", msg);
+      appendLog(`install apk ok ${msg}`);
       setActionStatus(`Success: ${msg}`);
     } catch (err) {
       console.error("[bridge-ui] install apk failed", err);
+      appendLog(`install apk failed ${String(err)}`);
       setActionStatus(`Error: ${err}`);
     } finally {
       setActionLoading(false);
@@ -197,9 +236,11 @@ export default function App() {
     try {
       const msg = await invoke<string>("connect_wifi", { ssid: wifiSsid, password: wifiPassword });
       console.info("[bridge-ui] connect wifi ok", msg);
+      appendLog(`connect wifi ok ${msg}`);
       setActionStatus(`Success: ${msg}`);
     } catch (err) {
       console.error("[bridge-ui] connect wifi failed", err);
+      appendLog(`connect wifi failed ${String(err)}`);
       setActionStatus(`Error: ${err}`);
     } finally {
       setActionLoading(false);
@@ -212,10 +253,40 @@ export default function App() {
       const path = await invoke<string | null>("pick_apk_file");
       if (path) {
         console.info("[bridge-ui] browse apk picked", path);
+        appendLog(`browse apk picked ${path}`);
         setApkPath(path);
       }
     } catch (err) {
       console.error("[bridge-ui] browse apk failed", err);
+      appendLog(`browse apk failed ${String(err)}`);
+      setError(String(err));
+    }
+  }
+
+  async function browseSource() {
+    appendLog("browse source folder");
+    try {
+      const path = await invoke<string | null>("pick_source_dir");
+      if (path) {
+        setSourcePath(path);
+        appendLog(`source picked ${path}`);
+      }
+    } catch (err) {
+      appendLog(`browse source failed ${String(err)}`);
+      setError(String(err));
+    }
+  }
+
+  async function applySource(path = sourcePath) {
+    appendLog(`set source ${path}`);
+    try {
+      const list = await invoke<LocalFile[]>("set_source_dir", { path });
+      setFiles(list);
+      setInfo((value) => value && { ...value, source_dir: path });
+      localStorage.setItem("source_path", path);
+      appendLog(`set source ok files=${list.length}`);
+    } catch (err) {
+      appendLog(`set source failed ${String(err)}`);
       setError(String(err));
     }
   }
@@ -223,6 +294,7 @@ export default function App() {
   const active = devices.some((d) => d.is_target_bridge);
   const selected = devices.some((d) => d.is_selected_bridge);
   const selectedDevice = devices.find((d) => d.is_selected_bridge);
+  const deviceActionReady = Boolean(selectedDevice);
   const isLinux = info?.platform === "linux";
 
   if (isLinux) {
@@ -350,7 +422,18 @@ export default function App() {
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <h2 className="mb-3 text-lg font-semibold">{info?.source_dir ?? "E:\\SUBRO"}</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">{info?.source_dir ?? "E:\\SUBRO"}</h2>
+            <label className="flex items-center gap-2 text-sm text-zinc-300">
+              <input
+                type="checkbox"
+                checked={forceTransfer}
+                onChange={(e) => setForceTransfer(e.target.checked)}
+                className="h-4 w-4 accent-amber-500"
+              />
+              Force transfer
+            </label>
+          </div>
           <div className="space-y-2">
             {files.map((f) => (
               <div key={f.name} className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-950 p-3">
@@ -359,11 +442,11 @@ export default function App() {
                   <p className="text-sm text-zinc-500">{fileGb(f.size)} · {f.status}</p>
                 </div>
                 <button
-                  disabled={!active || f.status !== "ready"}
+                  disabled={(!forceTransfer && (!active || f.status !== "ready")) || (forceTransfer && !selectedDevice)}
                   onClick={() => push(f.name)}
-                  className="rounded bg-green-500 px-3 py-2 text-sm font-bold text-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+                  className={`rounded px-3 py-2 text-sm font-bold text-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 ${forceTransfer ? "bg-amber-500" : "bg-green-500"}`}
                 >
-                  Push
+                  {forceTransfer ? "Force Push" : "Push"}
                 </button>
               </div>
             ))}
@@ -387,14 +470,14 @@ export default function App() {
             <p className="mb-4 text-sm text-zinc-400">Jalankan aksi pada perangkat Android jembatan aktif.</p>
             <div className="flex flex-wrap gap-3">
               <button
-                disabled={!active || actionLoading || !apkPath}
+                disabled={!deviceActionReady || actionLoading || !apkPath}
                 onClick={handleInstallApk}
                 className="rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 transition"
               >
                 Push Install APK
               </button>
               <button
-                disabled={!active || actionLoading}
+                disabled={!deviceActionReady || actionLoading}
                 onClick={handleConnectWifi}
                 className="rounded bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 transition"
               >
@@ -406,6 +489,15 @@ export default function App() {
                 {actionStatus}
               </p>
             )}
+          </div>
+
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+            <h2 className="mb-3 text-lg font-semibold">Debug Log</h2>
+            <textarea
+              readOnly
+              value={debugLog}
+              className="h-56 w-full resize-none rounded border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-300 outline-none"
+            />
           </div>
         </div>
       </section>
@@ -421,6 +513,7 @@ export default function App() {
                   setWifiSsid(localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
                   setWifiPassword(localStorage.getItem("wifi_password") || "1234qwer");
                   setApkPath(localStorage.getItem("apk_path") || "");
+                  setSourcePath(info?.source_dir || "");
                   setShowSettings(false);
                 }}
                 className="text-zinc-400 hover:text-zinc-200"
@@ -432,6 +525,25 @@ export default function App() {
             </div>
             
             <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Source Folder</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={sourcePath}
+                    onChange={(e) => setSourcePath(e.target.value)}
+                    placeholder="E:\SUBRO"
+                    className="flex-1 rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
+                  />
+                  <button
+                    onClick={browseSource}
+                    className="rounded bg-zinc-800 px-3 py-2 text-sm font-semibold hover:bg-zinc-700 transition"
+                  >
+                    Browse
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">APK File Path</label>
                 <div className="flex gap-2">
@@ -488,6 +600,7 @@ export default function App() {
                     setWifiSsid(localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
                     setWifiPassword(localStorage.getItem("wifi_password") || "1234qwer");
                     setApkPath(localStorage.getItem("apk_path") || "");
+                    setSourcePath(info?.source_dir || "");
                     setDiagnostics("");
                     setShowSettings(false);
                   }}
@@ -500,6 +613,8 @@ export default function App() {
                     localStorage.setItem("wifi_ssid", wifiSsid);
                     localStorage.setItem("wifi_password", wifiPassword);
                     localStorage.setItem("apk_path", apkPath);
+                    localStorage.setItem("source_path", sourcePath);
+                    applySource();
                     setDiagnostics("");
                     setShowSettings(false);
                   }}
