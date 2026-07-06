@@ -23,9 +23,12 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import java.io.File
-import java.net.Socket
-import java.security.SecureRandom
-import java.util.Base64
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import org.json.JSONObject
 import kotlin.math.max
 
 class MainActivity : Activity() {
@@ -40,10 +43,10 @@ class MainActivity : Activity() {
     private val debugLines = ArrayDeque<String>()
     private var lastRx = 0L
     private var lastTx = 0L
-    @Volatile private var wsSocket: Socket? = null
+    private val okHttpClient = OkHttpClient()
+    @Volatile private var okWebSocket: WebSocket? = null
     @Volatile private var wsConnected = false
     private var lastWsAttempt = 0L
-    private val random = SecureRandom()
 
     private val sampleNetwork = object : Runnable {
         override fun run() {
@@ -162,6 +165,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(sampleNetwork)
+        closeWebSocket()
         super.onDestroy()
     }
 
@@ -211,20 +215,32 @@ class MainActivity : Activity() {
             hint = "Share"
             setText(BridgeService.share(this@MainActivity))
         }
+        val wsUrl = EditText(this).apply {
+            hint = "WebSocket URL"
+            setText(getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("ws_url", "wss://files.endrisusanto.my.id/network"))
+        }
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(48, 12, 48, 0)
             addView(host)
             addView(share)
+            addView(wsUrl)
         }
         AlertDialog.Builder(this)
-            .setTitle("Samba Target")
+            .setTitle("Samba & WebSocket Target")
             .setView(form)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Save & Test") { _, _ ->
                 BridgeService.saveTarget(this, host.text.toString(), share.text.toString())
-                appendLog("Samba target saved: ${BridgeService.target(this)}")
-                refreshStatus("Samba target saved")
+                getSharedPreferences("bridge", Context.MODE_PRIVATE).edit()
+                    .putString("ws_url", wsUrl.text.toString().trim())
+                    .apply()
+                appendLog("Settings saved. Samba: ${BridgeService.target(this)}, WS: ${wsUrl.text}")
+                refreshStatus("Settings saved")
+                Thread {
+                    closeWebSocket()
+                    connectWebSocketOk()
+                }.start()
                 testUpload()
             }
             .show()
@@ -266,76 +282,123 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    @Synchronized
+    private fun connectWebSocketOk(): WebSocket {
+        okWebSocket?.let { if (wsConnected) return it }
+        val now = System.currentTimeMillis()
+        if (now - lastWsAttempt < 5000) {
+            throw IllegalStateException("websocket reconnect backoff")
+        }
+        lastWsAttempt = now
+
+        val wsUrl = getSharedPreferences("bridge", Context.MODE_PRIVATE)
+            .getString("ws_url", "wss://files.endrisusanto.my.id/network") ?: "wss://files.endrisusanto.my.id/network"
+
+        appendLog("Connecting to WebSocket: $wsUrl")
+        val request = Request.Builder().url(wsUrl).build()
+        val socket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                wsConnected = true
+                runOnUiThread {
+                    status.text = status.text.toString()
+                        .replace("WebSocket: not connected", "WebSocket: connected")
+                        .replace("WebSocket: connected", "WebSocket: connected")
+                }
+                appendLog("WebSocket connected to $wsUrl")
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                appendLog("WS Received: $text")
+                try {
+                    val json = JSONObject(text)
+                    if (json.has("command")) {
+                        val command = json.getString("command")
+                        runOnUiThread {
+                            when (command) {
+                                "upload" -> {
+                                    appendLog("Remote command: upload latest file")
+                                    startLatestUpload()
+                                }
+                                "refresh" -> {
+                                    appendLog("Remote command: refresh")
+                                    refreshStatus("Remote refresh triggered")
+                                }
+                                "settings" -> {
+                                    val host = json.optString("host")
+                                    val share = json.optString("share")
+                                    if (host.isNotEmpty() && share.isNotEmpty()) {
+                                        BridgeService.saveTarget(this@MainActivity, host, share)
+                                        appendLog("Remote settings saved: Host=$host, Share=$share")
+                                        refreshStatus("Remote settings applied")
+                                        testUpload()
+                                    }
+                                }
+                                else -> appendLog("Unknown remote command: $command")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    appendLog("Error parsing WS message: ${e.message}")
+                }
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                wsConnected = false
+                okWebSocket = null
+                runOnUiThread {
+                    status.text = status.text.toString()
+                        .replace("WebSocket: connected", "WebSocket: not connected")
+                        .replace("WebSocket: not connected", "WebSocket: not connected")
+                }
+                appendLog("WebSocket failure: ${t.message}")
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                wsConnected = false
+                okWebSocket = null
+                runOnUiThread {
+                    status.text = status.text.toString()
+                        .replace("WebSocket: connected", "WebSocket: not connected")
+                        .replace("WebSocket: not connected", "WebSocket: not connected")
+                }
+                appendLog("WebSocket closed: $reason")
+            }
+        })
+        okWebSocket = socket
+        return socket
+    }
+
     private fun sendWebSocketSample(rx: Long, tx: Long) {
         Thread {
             try {
-                val socket = wsSocket ?: connectWebSocket()
+                val socket = okWebSocket ?: connectWebSocketOk()
+                if (!wsConnected) {
+                    return@Thread
+                }
                 val latest = latestFile()?.name ?: "-"
-                val text = """{"id":"${json(Build.FINGERPRINT)}","model":"${json(Build.MODEL)}","rx_bps":$rx,"tx_bps":$tx,"samba":"${if (badge.text.contains("ready")) "connected" else "not connected"}","target":"${json(BridgeService.target(this))}","latest":"${json(latest)}"}"""
-                writeWebSocketText(socket, text)
-                setWebSocketConnected(true)
+                val sampleObj = JSONObject().apply {
+                    put("id", Build.FINGERPRINT)
+                    put("model", Build.MODEL)
+                    put("rx_bps", rx)
+                    put("tx_bps", tx)
+                    put("samba", if (badge.text.contains("ready")) "connected" else "not connected")
+                    put("target", BridgeService.target(this@MainActivity))
+                    put("latest", latest)
+                }
+                socket.send(sampleObj.toString())
             } catch (t: Throwable) {
                 closeWebSocket()
-                setWebSocketConnected(false)
+                wsConnected = false
+                appendLog("WS send failed: ${t.message}")
             }
         }.start()
     }
 
-    @Synchronized
-    private fun connectWebSocket(): Socket {
-        wsSocket?.let { if (it.isConnected && !it.isClosed) return it }
-        val now = System.currentTimeMillis()
-        check(now - lastWsAttempt > 5_000) { "websocket reconnect backoff" }
-        lastWsAttempt = now
-        val socket = Socket(BridgeService.host(this), 1421)
-        val keyBytes = ByteArray(16).also(random::nextBytes)
-        val key = Base64.getEncoder().encodeToString(keyBytes)
-        socket.getOutputStream().write(
-            "GET /network HTTP/1.1\r\nHost: ${BridgeService.host(this)}:1421\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: $key\r\nSec-WebSocket-Version: 13\r\n\r\n"
-                .toByteArray()
-        )
-        val header = StringBuilder()
-        while (!header.endsWith("\r\n\r\n")) header.append(socket.getInputStream().read().toChar())
-        check(header.startsWith("HTTP/1.1 101")) { "websocket handshake failed" }
-        wsSocket = socket
-        appendLog("WebSocket connected ws://${BridgeService.host(this)}:1421/network")
-        return socket
-    }
-
-    private fun writeWebSocketText(socket: Socket, text: String) {
-        val data = text.toByteArray()
-        val mask = ByteArray(4).also(random::nextBytes)
-        val out = socket.getOutputStream()
-        out.write(0x81)
-        when {
-            data.size < 126 -> out.write(0x80 or data.size)
-            data.size <= 65_535 -> {
-                out.write(0x80 or 126)
-                out.write(byteArrayOf((data.size shr 8).toByte(), data.size.toByte()))
-            }
-            else -> error("websocket payload too large")
-        }
-        out.write(mask)
-        out.write(data.mapIndexed { i, b -> (b.toInt() xor mask[i % 4].toInt()).toByte() }.toByteArray())
-        out.flush()
-    }
-
     private fun closeWebSocket() {
-        wsSocket?.close()
-        wsSocket = null
+        okWebSocket?.close(1000, "App closed/changed")
+        okWebSocket = null
+        wsConnected = false
     }
-
-    private fun setWebSocketConnected(connected: Boolean) {
-        if (wsConnected == connected) return
-        wsConnected = connected
-        runOnUiThread {
-            status.text = status.text.toString()
-                .replace("WebSocket: connected", "WebSocket: ${if (connected) "connected" else "not connected"}")
-                .replace("WebSocket: not connected", "WebSocket: ${if (connected) "connected" else "not connected"}")
-        }
-    }
-
-    private fun json(value: String) = value.replace("\\", "\\\\").replace("\"", "\\\"")
 
     private fun appendLog(line: String) {
         if (Looper.myLooper() != Looper.getMainLooper()) {

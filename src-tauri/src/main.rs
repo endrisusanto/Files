@@ -5,7 +5,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, OpenOptions},
-    io::{BufRead, BufReader, Read, Write},
+    io::{BufReader, Read, Write},
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -465,12 +465,45 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
-fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream: R) {
+fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream: R, last_line: Arc<Mutex<String>>) {
     thread::spawn(move || {
         let re = Regex::new(r"(\d{1,3})%").unwrap();
-        for line in BufReader::new(stream).lines().flatten() {
-            let percent = re.captures(&line).and_then(|c| c[1].parse().ok()).unwrap_or(0);
-            let _ = app.emit("transfer", TransferProgress { file: file.clone(), percent, message: line });
+        let mut reader = BufReader::new(stream);
+        let mut line_buf = Vec::new();
+        loop {
+            let mut byte_buf = [0u8; 1];
+            match reader.read(&mut byte_buf) {
+                Ok(0) => break, // EOF
+                Ok(_) => {
+                    let b = byte_buf[0];
+                    if b == b'\n' || b == b'\r' {
+                        if !line_buf.is_empty() {
+                            if let Ok(line) = String::from_utf8(line_buf.clone()) {
+                                let trimmed = line.trim();
+                                if !trimmed.is_empty() {
+                                    let percent = re.captures(trimmed)
+                                        .and_then(|c| c[1].parse().ok())
+                                        .unwrap_or(0);
+                                    if percent > 0 {
+                                        let _ = app.emit("transfer", TransferProgress {
+                                            file: file.clone(),
+                                            percent,
+                                            message: trimmed.to_string(),
+                                        });
+                                    }
+                                    if let Ok(mut guard) = last_line.lock() {
+                                        *guard = trimmed.to_string();
+                                    }
+                                }
+                            }
+                            line_buf.clear();
+                        }
+                    } else {
+                        line_buf.push(b);
+                    }
+                }
+                Err(_) => break,
+            }
         }
     });
 }
@@ -491,7 +524,11 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool) -> Result<
         return Err("file is not a ready .tar.md5".into());
     }
 
-    let _ = adb(&["-s", &device.id, "shell", "mkdir", "-p", ANDROID_DIR]);
+    if let Err(e) = adb(&["-s", &device.id, "shell", "mkdir", "-p", ANDROID_DIR]) {
+        eprintln!("[bridge-tauri] mkdir failed: {e}");
+        return Err(format!("Failed to create destination directory: {e}"));
+    }
+
     let mut child = command("adb")
         .args(["-s", &device.id, "push"])
         .arg(&source)
@@ -501,17 +538,19 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool) -> Result<
         .spawn()
         .map_err(|e| e.to_string())?;
 
+    let last_err_line = Arc::new(Mutex::new(String::new()));
     if let Some(stream) = child.stderr.take() {
-        pipe_progress(app.clone(), file_name.clone(), stream);
+        pipe_progress(app.clone(), file_name.clone(), stream, last_err_line.clone());
     }
     if let Some(stream) = child.stdout.take() {
-        pipe_progress(app.clone(), file_name.clone(), stream);
+        pipe_progress(app.clone(), file_name.clone(), stream, Arc::new(Mutex::new(String::new())));
     }
 
     let status = child.wait().map_err(|e| e.to_string())?;
     if !status.success() {
-        eprintln!("[bridge-tauri] adb push failed file={file_name}");
-        return Err("adb push failed".into());
+        let err_msg = last_err_line.lock().map(|g| g.clone()).unwrap_or_default();
+        eprintln!("[bridge-tauri] adb push failed file={file_name} error={err_msg}");
+        return Err(format!("adb push failed: {}", err_msg));
     }
     let _ = app.emit("transfer", TransferProgress { file: file_name.clone(), percent: 100, message: "push complete".into() });
     adb(&[

@@ -76,6 +76,8 @@ export default function App() {
   const [network, setNetwork] = useState<NetworkSample[]>([]);
   const [error, setError] = useState("");
   const [debugLog, setDebugLog] = useState("");
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [remoteDevices, setRemoteDevices] = useState<any[]>([]);
 
   // Wifi and APK Configuration
   const [wifiSsid, setWifiSsid] = useState(() => localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
@@ -147,6 +149,62 @@ export default function App() {
     ];
     refreshDevices();
     return () => void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
+  }, []);
+
+  useEffect(() => {
+    const wsUrl = "wss://files.endrisusanto.my.id/";
+    console.info(`[bridge-ui] Connecting to public WebSocket: ${wsUrl}`);
+    appendLog(`Connecting to public WebSocket: ${wsUrl}`);
+    
+    let socket: WebSocket;
+    let reconnectTimeout: number;
+    
+    function connect() {
+      socket = new WebSocket(wsUrl);
+      
+      socket.onopen = () => {
+        console.info(`[bridge-ui] Connected to public WebSocket: ${wsUrl}`);
+        appendLog(`Connected to public WebSocket: ${wsUrl}`);
+        setWs(socket);
+      };
+      
+      socket.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "state") {
+            setRemoteDevices(msg.devices || []);
+            const selectedRemoteId = localStorage.getItem("selected_remote_id");
+            const selectedRemote = (msg.devices || []).find((d: any) => d.id === selectedRemoteId);
+            if (selectedRemote && selectedRemote.samples && selectedRemote.samples.length > 0) {
+              const lastSample = selectedRemote.samples[selectedRemote.samples.length - 1];
+              setNetwork((list) => [...list.slice(-59), { rx_bps: lastSample.rx_bps, tx_bps: lastSample.tx_bps }]);
+            }
+          }
+        } catch (err) {
+          console.error("Error parsing ws message", err);
+        }
+      };
+      
+      socket.onclose = () => {
+        console.warn(`[bridge-ui] Public WebSocket disconnected, retrying in 3s...`);
+        appendLog(`Public WebSocket disconnected, retrying in 3s...`);
+        setWs(null);
+        reconnectTimeout = window.setTimeout(connect, 3000);
+      };
+      
+      socket.onerror = (err) => {
+        console.error("WS error", err);
+      };
+    }
+    
+    connect();
+    
+    return () => {
+      if (socket) {
+        socket.close();
+      }
+      clearTimeout(reconnectTimeout);
+    };
   }, []);
 
   async function refreshDevices() {
@@ -421,6 +479,107 @@ export default function App() {
               {!devices.length && (
                 <tr>
                   <td className="p-3 text-zinc-500" colSpan={9}>No ADB devices detected. Check USB debugging and run `adb devices` once to authorize.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Remote WebSocket Devices */}
+      <section className="mb-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Remote WebSocket Devices</h1>
+          <span className={`rounded border px-2 py-1 text-xs font-semibold ${ws ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
+            Server: {ws ? "Connected" : "Disconnected"}
+          </span>
+        </div>
+        <div className="overflow-x-auto rounded-lg border border-zinc-800">
+          <table className="w-full min-w-[980px] border-collapse text-left">
+            <thead className="bg-zinc-900 text-sm text-zinc-400">
+              <tr>
+                <th className="p-3">Model</th>
+                <th className="p-3">Device ID</th>
+                <th className="p-3">Samba Target</th>
+                <th className="p-3">Samba Status</th>
+                <th className="p-3">Latest File</th>
+                <th className="p-3">WebSocket Status</th>
+                <th className="p-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {remoteDevices.map((d) => {
+                const isOnline = Date.now() - d.last_seen < 10000;
+                const isSelected = localStorage.getItem("selected_remote_id") === d.id;
+                return (
+                  <tr key={d.id} className={`border-t border-zinc-800 ${isSelected ? "bg-green-950/20" : "bg-zinc-950 hover:bg-zinc-900/50"}`}>
+                    <td className="p-3 font-medium">{d.model || "-"}</td>
+                    <td className="p-3 text-zinc-400 text-xs max-w-[200px] truncate" title={d.id}>{d.id}</td>
+                    <td className="p-3 text-zinc-300 text-xs">{d.target || "-"}</td>
+                    <td className="p-3">
+                      <span className={`rounded border px-2 py-0.5 text-xs ${d.samba === "connected" ? "border-green-800 bg-green-950 text-green-300" : "border-red-800 bg-red-950 text-red-300"}`}>
+                        Samba {d.samba || "not connected"}
+                      </span>
+                    </td>
+                    <td className="p-3 text-xs text-zinc-400 max-w-[200px] truncate" title={d.latest}>{d.latest || "-"}</td>
+                    <td className="p-3">
+                      <span className={`rounded border px-2 py-0.5 text-xs ${isOnline ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-500"}`}>
+                        {isOnline ? "Online" : "Offline"}
+                      </span>
+                    </td>
+                    <td className="p-3 flex gap-2">
+                      <button
+                        onClick={() => {
+                          localStorage.setItem("selected_remote_id", d.id);
+                          appendLog(`Selected remote device for monitoring: ${d.model} (${d.id})`);
+                        }}
+                        className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
+                      >
+                        Monitor
+                      </button>
+                      <button
+                        disabled={!isOnline || !ws}
+                        onClick={() => {
+                          if (ws) {
+                            ws.send(JSON.stringify({
+                              type: "command",
+                              target: d.id,
+                              command: "upload"
+                            }));
+                            appendLog(`Sent remote upload command to device ${d.id}`);
+                          }
+                        }}
+                        className="rounded bg-green-600 px-2 py-1 text-xs font-bold text-white hover:bg-green-500 disabled:opacity-50"
+                      >
+                        Remote Upload
+                      </button>
+                      <button
+                        disabled={!isOnline || !ws}
+                        onClick={() => {
+                          const host = window.prompt("Enter Samba Host IP:", d.target?.split("//")[1]?.split("/")[0] || "192.168.10.221");
+                          const share = window.prompt("Enter Samba Share Name:", d.target?.split("//")[1]?.split("/")[1] || "sambashare");
+                          if (host && share && ws) {
+                            ws.send(JSON.stringify({
+                              type: "command",
+                              target: d.id,
+                              command: "settings",
+                              host: host,
+                              share: share
+                            }));
+                            appendLog(`Sent remote settings command to device ${d.id}`);
+                          }
+                        }}
+                        className="rounded bg-blue-600 px-2 py-1 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50"
+                      >
+                        Remote Settings
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!remoteDevices.length && (
+                <tr>
+                  <td className="p-3 text-zinc-500" colSpan={7}>No remote WebSocket devices registered on server.</td>
                 </tr>
               )}
             </tbody>

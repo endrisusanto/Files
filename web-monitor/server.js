@@ -8,6 +8,7 @@ const WS_PORT = Number(process.env.WS_PORT || 1421);
 const clients = new Set();
 const devices = new Map();
 const tauri = new Map();
+const androidSockets = new Map();
 
 function send(socket, value) {
   const data = Buffer.from(JSON.stringify(value));
@@ -68,16 +69,38 @@ function attachAndroid(req, socket) {
         last_seen: Date.now(),
         samples: [...current.samples.slice(-59), { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 }],
       });
+      socket.deviceId = id;
+      androidSockets.set(id, socket);
       broadcast();
     } catch {}
   });
-  socket.on("close", broadcast);
+  socket.on("close", () => {
+    if (socket.deviceId) {
+      androidSockets.delete(socket.deviceId);
+    }
+    broadcast();
+  });
 }
 
 function attachBrowser(req, socket) {
   handshake(req, socket);
   clients.add(socket);
-  send(socket, { type: "state", devices: [...devices.values()] });
+  send(socket, { type: "state", devices: [...devices.values()], tauri: [...tauri.values()] });
+  
+  socket.on("data", (chunk) => {
+    const text = readFrame(chunk);
+    if (!text) return;
+    try {
+      const msg = JSON.parse(text);
+      if (msg.type === "command" && msg.target && msg.command) {
+        const androidSocket = androidSockets.get(msg.target);
+        if (androidSocket) {
+          send(androidSocket, msg);
+        }
+      }
+    } catch {}
+  });
+
   socket.on("close", () => clients.delete(socket));
 }
 
