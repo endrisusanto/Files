@@ -24,7 +24,7 @@ type LocalFile = {
 
 type Transfer = { file: string; percent: number; message: string };
 type NetworkSample = { rx_bps: number; tx_bps: number };
-type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean };
+type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean; storage_free_gb: number; hostname: string };
 
 const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
@@ -80,7 +80,14 @@ export default function App() {
   const [debugLog, setDebugLog] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [remoteDevices, setRemoteDevices] = useState<any[]>([]);
-  const [autoPush, setAutoPush] = useState(() => localStorage.getItem("auto_push") === "true");
+  const [autoPush, setAutoPush] = useState(() => {
+    const val = localStorage.getItem("auto_push");
+    if (val === null) {
+      localStorage.setItem("auto_push", "true");
+      return true;
+    }
+    return val === "true";
+  });
   const isPushingRef = useRef(false);
   const sambaFilesRef = useRef<LocalFile[]>([]);
   useEffect(() => {
@@ -130,6 +137,21 @@ export default function App() {
         appendLog(`app_info failed ${String(e)}`);
         setError(String(e));
       });
+
+    const interval = setInterval(() => {
+      invoke<AppInfo>("app_info")
+        .then((value) => {
+          setInfo((current) => {
+            if (!current) return value;
+            return {
+              ...value,
+              source_dir: current.source_dir,
+            };
+          });
+        })
+        .catch((e) => console.error("periodic app_info fetch failed", e));
+    }, 10000);
+
     const unsubs = [
       listen<Device[]>("devices", (e) => {
         console.info("[bridge-ui] devices event", e.payload.length);
@@ -169,7 +191,10 @@ export default function App() {
       }),
     ];
     refreshDevices();
-    return () => void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
+    return () => {
+      clearInterval(interval);
+      void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
+    };
   }, []);
 
   useEffect(() => {
@@ -240,6 +265,7 @@ export default function App() {
           platform: info.platform,
           source_dir: info.source_dir,
           samba_dir: info.samba_dir,
+          storage_free_gb: info.storage_free_gb,
           devices: devices
         };
         ws.send(JSON.stringify(payload));

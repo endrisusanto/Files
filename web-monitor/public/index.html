@@ -66,15 +66,22 @@
       margin-bottom: 24px;
     }
 
-    .android-cards {
+    .flex-cards {
       display: flex;
       flex-wrap: wrap;
       gap: 16px;
       margin-bottom: 24px;
     }
 
-    .android-cards .panel {
+    .flex-cards .panel {
       flex: 1 1 365px;
+    }
+
+    .bottom-split {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+      gap: 24px;
+      margin-top: 24px;
     }
 
     .panel {
@@ -228,16 +235,6 @@
       </div>
     </section>
 
-    <h2>Tauri Staging Hosts</h2>
-    <section class="cards" id="tauriList">
-      <div class="panel empty-state" style="grid-column: 1 / -1;">Waiting for active Tauri hosts...</div>
-    </section>
-
-    <h2>Android Devices</h2>
-    <section class="android-cards" id="androidList">
-      <div class="panel empty-state" style="grid-column: 1 / -1;">Waiting for active Android devices...</div>
-    </section>
-
     <h2>Realtime Chart (All Streams)</h2>
     <canvas id="chart" width="1100" height="200"></canvas>
 
@@ -263,6 +260,21 @@
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div class="bottom-split">
+      <div>
+        <h2>Tauri Staging Hosts</h2>
+        <section class="flex-cards" id="tauriList">
+          <div class="panel empty-state" style="grid-column: 1 / -1;">Waiting for active Tauri hosts...</div>
+        </section>
+      </div>
+      <div>
+        <h2>Android Devices</h2>
+        <section class="flex-cards" id="androidList">
+          <div class="panel empty-state" style="grid-column: 1 / -1;">Waiting for active Android devices...</div>
+        </section>
+      </div>
     </div>
   </main>
 
@@ -344,6 +356,12 @@
                 <div class="muted">Source</div><div class="value"><code>${host.source_dir || "-"}</code></div>
                 <div class="muted">Samba</div><div class="value"><code>${host.samba_dir || "-"}</code></div>
                 <div class="muted">Local ADB</div><div class="value">${host.devices?.length || 0} devices</div>
+                <div class="muted">Free Storage</div>
+                <div class="value">
+                  ${host.storage_free_gb !== undefined ? `
+                    <span style="font-weight: 700; color: #4ade80;">${host.storage_free_gb.toFixed(2)} GB</span> remaining
+                  ` : '<span class="muted">-</span>'}
+                </div>
               </div>
             </div>
           `;

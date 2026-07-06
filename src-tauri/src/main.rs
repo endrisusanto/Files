@@ -89,6 +89,7 @@ struct AppInfo {
     samba_dir: String,
     target_fingerprint_set: bool,
     hostname: String,
+    storage_free_gb: f64,
 }
 
 fn get_adb_path() -> String {
@@ -634,25 +635,72 @@ async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String
     Ok(())
 }
 
+#[cfg(not(windows))]
+fn local_storage_kb(path: &Path) -> u64 {
+    if let Ok(out) = command("df").arg("-Pk").arg(path).output() {
+        if out.status.success() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let lines: Vec<&str> = text.lines().collect();
+            if lines.len() >= 2 {
+                let parts: Vec<&str> = lines[1].split_whitespace().collect();
+                if parts.len() >= 4 {
+                    if let Ok(kb) = parts[3].parse::<u64>() {
+                        return kb;
+                    }
+                }
+            }
+        }
+    }
+    0
+}
+
+#[cfg(windows)]
+fn local_storage_kb(path: &Path) -> u64 {
+    let path_str = path.to_string_lossy();
+    let drive = if path_str.len() >= 2 && path_str.as_bytes()[1] == b':' {
+        &path_str[0..2]
+    } else {
+        "C:"
+    };
+    if let Ok(out) = command("powershell")
+        .args(["-Command", &format!("[Math]::Floor((Get-PSDrive {}).Free / 1024)", drive.trim_end_matches('\\'))])
+        .output() {
+        if out.status.success() {
+            let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if let Ok(kb) = text.parse::<u64>() {
+                return kb;
+            }
+        }
+    }
+    0
+}
+
 #[tauri::command]
 fn app_info(app: AppHandle) -> AppInfo {
     let config = app.state::<Config>().inner();
     let hostname = std::env::var("COMPUTERNAME")
         .or_else(|_| std::env::var("HOSTNAME"))
         .unwrap_or_else(|_| "tauri".into());
+    
+    let path = source_dir(config);
+    let free_kb = local_storage_kb(&path);
+    let storage_free_gb = free_kb as f64 / 1024.0 / 1024.0;
+    
     println!(
-        "[bridge-tauri] app_info platform={} source={} samba={} hostname={}",
+        "[bridge-tauri] app_info platform={} source={} samba={} hostname={} storage_free_gb={:.2}",
         std::env::consts::OS,
-        source_dir(config).display(),
+        path.display(),
         config.samba_dir.display(),
-        hostname
+        hostname,
+        storage_free_gb
     );
     AppInfo {
         platform: std::env::consts::OS.into(),
-        source_dir: source_dir(config).display().to_string(),
+        source_dir: path.display().to_string(),
         samba_dir: config.samba_dir.display().to_string(),
         target_fingerprint_set: config.target_fingerprint != "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE",
         hostname,
+        storage_free_gb,
     }
 }
 
