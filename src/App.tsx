@@ -10,6 +10,7 @@ type Device = {
   battery_level?: number | null;
   battery_temperature?: number | null;
   ip_address: string;
+  is_selected_bridge: boolean;
   is_target_bridge: boolean;
 };
 
@@ -53,6 +54,7 @@ export default function App() {
       listen<LocalFile[]>("samba-files", (e) => setSambaFiles(e.payload)),
       listen<Transfer>("transfer", (e) => setTransfer(e.payload)),
     ];
+    refreshDevices();
     return () => void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
   }, []);
 
@@ -93,6 +95,7 @@ export default function App() {
 
   async function selectBridge(fingerprint: string) {
     setError("");
+    setDevices((list) => list.map((d) => ({ ...d, is_selected_bridge: d.fingerprint === fingerprint })));
     try {
       await invoke("select_bridge", { fingerprint });
     } catch (e) {
@@ -138,6 +141,7 @@ export default function App() {
   }
 
   const active = devices.some((d) => d.is_target_bridge);
+  const selected = devices.some((d) => d.is_selected_bridge);
   const isLinux = info?.platform === "linux";
 
   if (isLinux) {
@@ -180,8 +184,8 @@ export default function App() {
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Cross-Network Android File Bridge</h1>
           <div className="flex items-center gap-4">
-            <span className={active ? "text-green-400" : "text-red-400"}>
-              {active ? "ADB bridge healthy" : "Waiting for target fingerprint"}
+            <span className={active ? "text-green-400" : "text-zinc-400"}>
+              {active ? "ADB bridge healthy" : selected ? "Bridge selected, storage low" : "No bridge selected"}
             </span>
             <button
               disabled={refreshing}
@@ -204,7 +208,6 @@ export default function App() {
             </button>
           </div>
         </div>
-        {!info?.target_fingerprint_set && <p className="mb-3 rounded border border-yellow-900 bg-yellow-950 p-3 text-sm text-yellow-100">Pilih satu device di tabel sebagai bridge. Identitas tetap divalidasi memakai fingerprint.</p>}
         <div className="overflow-x-auto rounded-lg border border-zinc-800">
           <table className="w-full min-w-[980px] border-collapse text-left">
             <thead className="bg-zinc-900 text-sm text-zinc-400">
@@ -221,11 +224,11 @@ export default function App() {
             </thead>
             <tbody>
               {devices.map((d) => (
-                <tr key={d.id} className={`border-t border-zinc-800 ${d.is_target_bridge ? "bg-green-950/40" : "bg-zinc-950"}`}>
+                <tr key={d.id} className={`border-t border-zinc-800 ${d.is_selected_bridge ? "bg-green-950/40" : "bg-zinc-950"}`}>
                   <td className="p-3">
                     <input
                       type="checkbox"
-                      checked={d.is_target_bridge}
+                      checked={d.is_selected_bridge}
                       onChange={() => selectBridge(d.fingerprint)}
                       className="h-5 w-5 accent-green-500"
                     />
@@ -403,7 +406,6 @@ export default function App() {
                     localStorage.setItem("apk_path", apkPath);
                     setDiagnostics("");
                     setShowSettings(false);
-                    setActionStatus("Konfigurasi disimpan.");
                   }}
                   className="rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 transition"
                 >

@@ -46,6 +46,7 @@ struct DeviceInfo {
     battery_level: Option<u8>,
     battery_temperature: Option<f32>,
     ip_address: String,
+    is_selected_bridge: bool,
     is_target_bridge: bool,
 }
 
@@ -169,12 +170,12 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
             let available_storage = storage_kb(&id);
             let (battery_level, battery_temperature) = battery(&id);
             let ip_address = ip_address(&id);
-            let is_target_bridge = selected
+            let is_selected_bridge = selected
                 .as_deref()
                 .map(|target| target == fingerprint)
                 .unwrap_or_else(|| fingerprint == config.target_fingerprint);
             Some(DeviceInfo {
-                is_target_bridge: is_target_bridge && available_storage >= MIN_FREE_KB,
+                is_target_bridge: is_selected_bridge && available_storage >= MIN_FREE_KB,
                 id,
                 model,
                 fingerprint,
@@ -182,6 +183,7 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
                 battery_level,
                 battery_temperature,
                 ip_address,
+                is_selected_bridge,
             })
         })
         .collect()
@@ -379,8 +381,8 @@ fn push_file(app: AppHandle, file_name: String) -> Result<(), String> {
 async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String> {
     let config = app.state::<Config>().inner().clone();
     *config.selected_fingerprint.lock().map_err(|e| e.to_string())? = Some(fingerprint);
-    // ponytail: run list_devices asynchronously to return instantly and not block UI thread
-    tauri::async_runtime::spawn(async move {
+    // ponytail: blocking adb scan, keep selection click from freezing the UI.
+    tauri::async_runtime::spawn_blocking(move || {
         let devices = list_devices(&config);
         let _ = app.emit("devices", devices);
     });
