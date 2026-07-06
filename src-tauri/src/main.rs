@@ -39,6 +39,7 @@ struct Config {
     service: String,
     source_dir: Arc<Mutex<PathBuf>>,
     samba_dir: PathBuf,
+    devices_cache: Arc<Mutex<Vec<DeviceInfo>>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -291,7 +292,8 @@ fn emit_loop(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
     thread::spawn(move || loop {
         println!("[bridge-tauri] emit_loop tick");
-        let _ = app.emit("devices", list_devices(&config));
+        let cached = config.devices_cache.lock().ok().map(|c| c.clone()).unwrap_or_default();
+        let _ = app.emit("devices", cached);
         let _ = app.emit("files", bridge_files(&source_dir(&config)));
         let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
         // ponytail: increase interval to 5s to drastically reduce background process spawning overhead
@@ -320,13 +322,14 @@ fn monitor_loop(app: AppHandle) {
         let host = std::env::var("COMPUTERNAME")
             .or_else(|_| std::env::var("HOSTNAME"))
             .unwrap_or_else(|_| "tauri".into());
+        let cached = config.devices_cache.lock().ok().map(|c| c.clone()).unwrap_or_default();
         let body = serde_json::json!({
             "id": host,
             "host": host,
             "platform": std::env::consts::OS,
             "source_dir": source_dir(&config).display().to_string(),
             "samba_dir": config.samba_dir.display().to_string(),
-            "devices": list_devices(&config),
+            "devices": cached,
         })
         .to_string();
         let _ = command("curl")
@@ -865,7 +868,11 @@ async fn get_devices(app: AppHandle) -> Result<Vec<DeviceInfo>, String> {
     let config = app.state::<Config>().inner().clone();
     // ponytail: run list_devices on a tokio blocking thread pool to keep the main UI thread responsive
     let devices = tauri::async_runtime::spawn_blocking(move || {
-        list_devices(&config)
+        let list = list_devices(&config);
+        if let Ok(mut cache) = config.devices_cache.lock() {
+            *cache = list.clone();
+        }
+        list
     }).await.map_err(|e| e.to_string())?;
     Ok(devices)
 }
@@ -877,6 +884,7 @@ fn main() {
         service: std::env::var("ANDROID_BRIDGE_SERVICE").unwrap_or_else(|_| "com.example.bridge/.BridgeService".into()),
         source_dir: Arc::new(Mutex::new(PathBuf::from(std::env::var("SOURCE_DIR").unwrap_or_else(|_| DEFAULT_SOURCE_DIR.into())))),
         samba_dir: PathBuf::from(std::env::var("SAMBA_DIR").unwrap_or_else(|_| DEFAULT_SAMBA_DIR.into())),
+        devices_cache: Arc::new(Mutex::new(vec![])),
     };
     println!(
         "[bridge-tauri] startup source={} samba={} service={}",
