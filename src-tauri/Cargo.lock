@@ -606,15 +606,13 @@ dependencies = [
 
 [[package]]
 name = "cross-network-android-file-bridge"
-version = "0.1.38"
+version = "0.1.39"
 dependencies = [
- "base64 0.22.1",
  "notify",
  "regex",
  "rfd",
  "serde",
  "serde_json",
- "sha1",
  "tauri",
  "tauri-build",
 ]

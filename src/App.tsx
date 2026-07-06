@@ -300,7 +300,8 @@ export default function App() {
           platform: info.platform,
           source_dir: info.source_dir,
           samba_dir: info.samba_dir,
-          devices: devices
+          devices: devices,
+          files: files
         };
         ws.send(JSON.stringify(payload));
       }
@@ -310,7 +311,7 @@ export default function App() {
     const interval = setInterval(sendStatus, 5000);
     
     return () => clearInterval(interval);
-  }, [ws, info, devices]);
+  }, [ws, info, devices, files]);
 
   async function refreshDevices() {
     setRefreshing(true);

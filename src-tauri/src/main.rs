@@ -2,19 +2,16 @@
 
 use notify::{recommended_watcher, RecursiveMode, Watcher};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{
     fs::{self, OpenOptions},
-    io::{BufReader, Read, Write},
-    net::{TcpListener, TcpStream},
+    io::{BufReader, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{mpsc::channel, Arc, Mutex},
     thread,
     time::Duration,
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
-use sha1::{Digest, Sha1};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::TrayIconBuilder,
@@ -71,17 +68,7 @@ struct TransferProgress {
     message: String,
 }
 
-#[derive(Serialize, Clone)]
-struct NetworkSample {
-    rx_bps: u64,
-    tx_bps: u64,
-}
 
-#[derive(Deserialize)]
-struct WebSocketSample {
-    rx_bps: u64,
-    tx_bps: u64,
-}
 
 #[derive(Serialize, Clone)]
 struct AppInfo {
@@ -382,19 +369,7 @@ fn emit_loop(app: AppHandle) {
     });
 }
 
-fn websocket_loop(app: AppHandle) {
-    thread::spawn(move || {
-        let Ok(listener) = TcpListener::bind("0.0.0.0:1421") else {
-            eprintln!("[bridge-tauri] websocket bind failed on 1421");
-            return;
-        };
-        println!("[bridge-tauri] websocket listening on 0.0.0.0:1421");
-        for stream in listener.incoming().flatten() {
-            let app = app.clone();
-            thread::spawn(move || handle_websocket(app, stream));
-        }
-    });
-}
+
 
 fn monitor_loop(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
@@ -420,79 +395,7 @@ fn monitor_loop(app: AppHandle) {
     });
 }
 
-fn handle_websocket(app: AppHandle, mut stream: TcpStream) {
-    if websocket_handshake(&mut stream).is_err() {
-        return;
-    }
-    while let Ok(Some(text)) = read_websocket_text(&mut stream) {
-        if let Ok(sample) = serde_json::from_str::<WebSocketSample>(&text) {
-            let _ = app.emit("network", NetworkSample { rx_bps: sample.rx_bps, tx_bps: sample.tx_bps });
-        }
-    }
-}
 
-fn websocket_handshake(stream: &mut TcpStream) -> Result<(), String> {
-    let mut req = Vec::new();
-    let mut buf = [0u8; 512];
-    while !req.windows(4).any(|v| v == b"\r\n\r\n") {
-        let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
-        if n == 0 || req.len() > 8192 {
-            return Err("bad websocket request".into());
-        }
-        req.extend_from_slice(&buf[..n]);
-    }
-    let text = String::from_utf8_lossy(&req);
-    let key = text
-        .lines()
-        .find_map(|line| line.strip_prefix("Sec-WebSocket-Key:").map(str::trim))
-        .ok_or_else(|| "missing websocket key".to_string())?;
-    let mut sha = Sha1::new();
-    sha.update(key.as_bytes());
-    sha.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
-    let accept = STANDARD.encode(sha.finalize());
-    write!(
-        stream,
-        "HTTP/1.1 101 Switching Protocols\r\n\
-         Upgrade: websocket\r\n\
-         Connection: Upgrade\r\n\
-         Sec-WebSocket-Accept: {accept}\r\n\r\n"
-    ).map_err(|e| e.to_string())
-}
-
-fn read_websocket_text(stream: &mut TcpStream) -> Result<Option<String>, String> {
-    let mut header = [0u8; 2];
-    stream.read_exact(&mut header).map_err(|e| e.to_string())?;
-    let opcode = header[0] & 0x0f;
-    if opcode == 8 {
-        return Ok(None);
-    }
-    let masked = header[1] & 0x80 != 0;
-    let mut len = (header[1] & 0x7f) as u64;
-    if len == 126 {
-        let mut b = [0u8; 2];
-        stream.read_exact(&mut b).map_err(|e| e.to_string())?;
-        len = u16::from_be_bytes(b) as u64;
-    } else if len == 127 {
-        let mut b = [0u8; 8];
-        stream.read_exact(&mut b).map_err(|e| e.to_string())?;
-        len = u64::from_be_bytes(b);
-    }
-    if len > 4096 {
-        return Err("websocket message too large".into());
-    }
-    let mut mask = [0u8; 4];
-    if masked {
-        stream.read_exact(&mut mask).map_err(|e| e.to_string())?;
-    }
-    let mut data = vec![0u8; len as usize];
-    stream.read_exact(&mut data).map_err(|e| e.to_string())?;
-    if masked {
-        for (i, byte) in data.iter_mut().enumerate() {
-            *byte ^= mask[i % 4];
-        }
-    }
-    Ok(String::from_utf8(data).ok())
-}
 
 fn watch_source(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
@@ -998,8 +901,8 @@ fn main() {
                     }
                 });
             }
+            // ponytail: removed legacy local websocket_loop to stay clean and secure
             emit_loop(app.handle().clone());
-            websocket_loop(app.handle().clone());
             monitor_loop(app.handle().clone());
             watch_source(app.handle().clone());
             watch_samba(app.handle().clone());

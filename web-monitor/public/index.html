@@ -166,6 +166,18 @@
       background: #450a0a;
     }
 
+    .warn {
+      border-color: #854d0e;
+      color: #fde047;
+      background: #422006;
+    }
+
+    .info {
+      border-color: #1e3a8a;
+      color: #60a5fa;
+      background: #172554;
+    }
+
     .card-title {
       display: flex;
       justify-content: space-between;
@@ -419,6 +431,44 @@
       } else {
         $("tauriList").innerHTML = tauri.map((host) => {
           const isOnline = Date.now() - host.last_seen < 15000;
+          const files = host.files || [];
+          const filesTable = files.length > 0 ? `
+            <div style="margin-top: 16px; border-top: 1px solid #27272a; padding-top: 12px;">
+              <div class="muted" style="font-size: 11px; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Staging Files (${files.length})</div>
+              <div style="max-height: 150px; overflow-y: auto; border: 1px solid #1f1f23; border-radius: 6px; padding: 4px 8px; background: #0c0c0e;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid #1f1f23; text-align: left; color: #71717a;">
+                      <th style="padding: 4px 0;">Name</th>
+                      <th style="padding: 4px 0; text-align: right;">Size</th>
+                      <th style="padding: 4px 0; text-align: right; width: 70px;">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${files.map(f => {
+                      const statusClass = f.status === 'uploaded' ? 'ok' : f.status === 'pushed' ? 'info' : 'warn';
+                      const fileGbSize = (f.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+                      return `
+                        <tr style="border-bottom: 1px solid #1f1f23;">
+                          <td style="padding: 4px 0; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; color: #fafafa;" title="${f.name}">${f.name}</td>
+                          <td style="padding: 4px 0; text-align: right; color: #a1a1aa;">${fileGbSize}</td>
+                          <td style="padding: 4px 0; text-align: right;">
+                            <span class="badge ${statusClass}" style="font-size: 8px; padding: 1px 5px; line-height: 1;">${f.status}</span>
+                          </td>
+                        </tr>
+                      `;
+                    }).join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ` : `
+            <div style="margin-top: 16px; border-top: 1px solid #27272a; padding-top: 12px;">
+              <div class="muted" style="font-size: 11px; font-weight: 600; margin-bottom: 8px; text-transform: uppercase;">Staging Files (0)</div>
+              <div class="muted text-xs" style="font-style: italic;">No files in staging folder.</div>
+            </div>
+          `;
+
           return `
             <div class="panel">
               <div class="card-title">
@@ -431,6 +481,7 @@
                 <div class="muted">Samba</div><div class="value"><code>${host.samba_dir || "-"}</code></div>
                 <div class="muted">Local ADB</div><div class="value">${host.devices?.length || 0} devices</div>
               </div>
+              ${filesTable}
             </div>
           `;
         }).join("");
