@@ -335,6 +335,62 @@ fn app_info(app: AppHandle) -> AppInfo {
     }
 }
 
+#[tauri::command]
+async fn pick_apk_file() -> Option<String> {
+    rfd::FileDialog::new()
+        .add_filter("Android APK", &["apk"])
+        .pick_file()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn push_install_apk(app: AppHandle, apk_path: String) -> Result<String, String> {
+    let config = app.state::<Config>().inner().clone();
+    let device = list_devices(&config)
+        .into_iter()
+        .find(|d| d.is_target_bridge)
+        .ok_or("No target bridge connected or selected")?;
+    let path = PathBuf::from(&apk_path);
+    if !path.is_file() {
+        return Err("File APK tidak ditemukan atau path tidak valid".into());
+    }
+    let out = command("adb")
+        .args(["-s", &device.id, "install", "-r", path.to_str().unwrap()])
+        .output()
+        .map_err(|e| e.to_string())?;
+    
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    if out.status.success() {
+        Ok("APK berhasil diinstall".into())
+    } else {
+        Err(format!("Gagal menginstall APK: {} {}", stdout, stderr))
+    }
+}
+
+#[tauri::command]
+fn connect_wifi(app: AppHandle, ssid: String, password: String) -> Result<String, String> {
+    let config = app.state::<Config>().inner().clone();
+    let device = list_devices(&config)
+        .into_iter()
+        .find(|d| d.is_target_bridge)
+        .ok_or("No target bridge connected or selected")?;
+    
+    let out = command("adb")
+        .args(["-s", &device.id, "shell", "cmd", "wifi", "connect-network", &ssid, "wpa2", &password])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+
+    if out.status.success() && !stdout.contains("Failed") && !stderr.contains("Failed") {
+        Ok(format!("Berhasil menghubungkan ke Wi-Fi {}", ssid))
+    } else {
+        Err(format!("Gagal menghubungkan ke Wi-Fi: {} {}", stdout, stderr))
+    }
+}
+
 fn main() {
     let config = Config {
         target_fingerprint: std::env::var("TARGET_BRIDGE_FINGERPRINT").unwrap_or_else(|_| "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE".into()),
@@ -346,7 +402,14 @@ fn main() {
 
     tauri::Builder::default()
         .manage(config)
-        .invoke_handler(tauri::generate_handler![push_file, app_info, select_bridge])
+        .invoke_handler(tauri::generate_handler![
+            push_file,
+            app_info,
+            select_bridge,
+            pick_apk_file,
+            push_install_apk,
+            connect_wifi
+        ])
         .setup(|app| {
             setup_tray(app)?;
             if let Some(window) = app.get_webview_window("main") {

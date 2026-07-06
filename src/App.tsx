@@ -34,6 +34,14 @@ export default function App() {
   const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [error, setError] = useState("");
 
+  // Wifi and APK Configuration
+  const [wifiSsid, setWifiSsid] = useState(() => localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
+  const [wifiPassword, setWifiPassword] = useState(() => localStorage.getItem("wifi_password") || "1234qwer");
+  const [apkPath, setApkPath] = useState(() => localStorage.getItem("apk_path") || "");
+  const [showSettings, setShowSettings] = useState(false);
+  const [actionStatus, setActionStatus] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+
   useEffect(() => {
     invoke<AppInfo>("app_info").then(setInfo).catch((e) => setError(String(e)));
     const unsubs = [
@@ -60,6 +68,43 @@ export default function App() {
       await invoke("select_bridge", { fingerprint });
     } catch (e) {
       setError(String(e));
+    }
+  }
+
+  async function handleInstallApk() {
+    setActionStatus("Menginstall APK...");
+    setActionLoading(true);
+    try {
+      const msg = await invoke<string>("push_install_apk", { apkPath });
+      setActionStatus(`Success: ${msg}`);
+    } catch (err) {
+      setActionStatus(`Error: ${err}`);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleConnectWifi() {
+    setActionStatus(`Menghubungkan ke Wi-Fi ${wifiSsid}...`);
+    setActionLoading(true);
+    try {
+      const msg = await invoke<string>("connect_wifi", { ssid: wifiSsid, password: wifiPassword });
+      setActionStatus(`Success: ${msg}`);
+    } catch (err) {
+      setActionStatus(`Error: ${err}`);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function browseApk() {
+    try {
+      const path = await invoke<string | null>("pick_apk_file");
+      if (path) {
+        setApkPath(path);
+      }
+    } catch (err) {
+      setError(String(err));
     }
   }
 
@@ -105,7 +150,20 @@ export default function App() {
       <section className="mb-6">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Cross-Network Android File Bridge</h1>
-          <span className={active ? "text-green-400" : "text-red-400"}>{active ? "ADB bridge healthy" : "Waiting for target fingerprint"}</span>
+          <div className="flex items-center gap-4">
+            <span className={active ? "text-green-400" : "text-red-400"}>
+              {active ? "ADB bridge healthy" : "Waiting for target fingerprint"}
+            </span>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="rounded bg-zinc-900 p-2 text-zinc-400 hover:bg-zinc-800 border border-zinc-800 transition"
+              title="Settings"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
         {!info?.target_fingerprint_set && <p className="mb-3 rounded border border-yellow-900 bg-yellow-950 p-3 text-sm text-yellow-100">Pilih satu device di tabel sebagai bridge. Identitas tetap divalidasi memakai fingerprint.</p>}
         <div className="overflow-x-auto rounded-lg border border-zinc-800">
@@ -175,16 +233,137 @@ export default function App() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <h2 className="mb-3 text-lg font-semibold">Transfer Status</h2>
-          <p className="mb-4 text-sm text-zinc-400">Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
-          <div className="h-5 overflow-hidden rounded bg-zinc-800">
-            <div className="h-full bg-green-500 transition-all" style={{ width: `${transfer?.percent ?? 0}%` }} />
+        <div className="space-y-6">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+            <h2 className="mb-3 text-lg font-semibold">Transfer Status</h2>
+            <p className="mb-4 text-sm text-zinc-400">Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
+            <div className="h-5 overflow-hidden rounded bg-zinc-800">
+              <div className="h-full bg-green-500 transition-all" style={{ width: `${transfer?.percent ?? 0}%` }} />
+            </div>
+            <p className="mt-3 break-all text-sm text-zinc-300">{transfer ? `${transfer.file}: ${transfer.message}` : "No active transfer"}</p>
+            {error && <p className="mt-3 rounded border border-red-900 bg-red-950 p-3 text-sm text-red-200">{error}</p>}
           </div>
-          <p className="mt-3 break-all text-sm text-zinc-300">{transfer ? `${transfer.file}: ${transfer.message}` : "No active transfer"}</p>
-          {error && <p className="mt-3 rounded border border-red-900 bg-red-950 p-3 text-sm text-red-200">{error}</p>}
+
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+            <h2 className="mb-3 text-lg font-semibold">Device Actions</h2>
+            <p className="mb-4 text-sm text-zinc-400">Jalankan aksi pada perangkat Android jembatan aktif.</p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                disabled={!active || actionLoading || !apkPath}
+                onClick={handleInstallApk}
+                className="rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 transition"
+              >
+                Push Install APK
+              </button>
+              <button
+                disabled={!active || actionLoading}
+                onClick={handleConnectWifi}
+                className="rounded bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 transition"
+              >
+                Connect Wi-Fi
+              </button>
+            </div>
+            {actionStatus && (
+              <p className="mt-3 rounded border border-zinc-700 bg-zinc-950 p-3 text-sm text-zinc-300 break-all">
+                {actionStatus}
+              </p>
+            )}
+          </div>
         </div>
       </section>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-zinc-100">Settings & Sideload Config</h3>
+              <button
+                onClick={() => {
+                  setWifiSsid(localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
+                  setWifiPassword(localStorage.getItem("wifi_password") || "1234qwer");
+                  setApkPath(localStorage.getItem("apk_path") || "");
+                  setShowSettings(false);
+                }}
+                className="text-zinc-400 hover:text-zinc-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">APK File Path</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={apkPath}
+                    onChange={(e) => setApkPath(e.target.value)}
+                    placeholder="E.g. C:\Downloads\app-debug.apk"
+                    className="flex-1 rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
+                  />
+                  <button
+                    onClick={browseApk}
+                    className="rounded bg-zinc-800 px-3 py-2 text-sm font-semibold hover:bg-zinc-700 transition"
+                  >
+                    Browse
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Wi-Fi SSID</label>
+                <input
+                  type="text"
+                  value={wifiSsid}
+                  onChange={(e) => setWifiSsid(e.target.value)}
+                  placeholder="SSID name"
+                  className="w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Wi-Fi Password</label>
+                <input
+                  type="password"
+                  value={wifiPassword}
+                  onChange={(e) => setWifiPassword(e.target.value)}
+                  placeholder="Password"
+                  className="w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setWifiSsid(localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
+                  setWifiPassword(localStorage.getItem("wifi_password") || "1234qwer");
+                  setApkPath(localStorage.getItem("apk_path") || "");
+                  setShowSettings(false);
+                }}
+                className="rounded bg-zinc-800 px-4 py-2 text-sm font-semibold hover:bg-zinc-700 text-zinc-300 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem("wifi_ssid", wifiSsid);
+                  localStorage.setItem("wifi_password", wifiPassword);
+                  localStorage.setItem("apk_path", apkPath);
+                  setShowSettings(false);
+                  setActionStatus("Konfigurasi disimpan ke localStorage.");
+                }}
+                className="rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 transition"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
