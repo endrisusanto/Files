@@ -1,69 +1,96 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bridge Monitor</title>
   <style>
-    * { box-sizing: border-box; }
-    body { 
-      margin: 0; 
-      background: #09090b; 
-      color: #f4f4f5; 
-      font: 14px/1.5 system-ui, -apple-system, sans-serif; 
+    * {
+      box-sizing: border-box;
     }
-    main { 
-      width: 100%; 
-      margin: 0; 
-      padding: 16px; 
+
+    body {
+      margin: 0;
+      background: #09090b;
+      color: #f4f4f5;
+      font: 14px/1.5 system-ui, -apple-system, sans-serif;
     }
-    header { 
-      display: flex; 
-      justify-content: space-between; 
-      gap: 16px; 
-      align-items: center; 
-      margin-bottom: 24px; 
+
+    main {
+      width: 100%;
+      margin: 0;
+      padding: 16px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 24px;
       border-bottom: 1px solid #27272a;
       padding-bottom: 16px;
     }
-    h1 { 
-      margin: 0; 
-      font-size: 24px; 
-      font-weight: 700; 
-      letter-spacing: -0.025em; 
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
       color: #fafafa;
     }
+
     h2 {
       margin: 24px 0 12px 0;
       font-size: 18px;
       font-weight: 600;
       color: #f4f4f5;
     }
-    .muted { color: #a1a1aa; }
-    .grid { 
-      display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
-      gap: 16px; 
-      margin-bottom: 24px; 
+
+    .muted {
+      color: #a1a1aa;
     }
-    .cards { 
-      display: grid; 
-      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); 
-      gap: 16px; 
-      margin-bottom: 24px; 
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
     }
-    .panel { 
-      background: #18181b; 
-      border: 1px solid #27272a; 
-      border-radius: 8px; 
-      padding: 20px; 
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(365px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
     }
-    .metric { 
-      font-size: 32px; 
-      font-weight: 700; 
+
+    .android-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .android-cards .panel {
+      flex: 1 1 365px;
+    }
+
+    .panel {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .metric {
+      font-size: 32px;
+      font-weight: 700;
       color: #fafafa;
       margin-top: 4px;
     }
+
     .table-container {
       width: 100%;
       overflow-x: auto;
@@ -72,82 +99,96 @@
       background: #18181b;
       margin-top: 12px;
     }
-    table { 
-      width: 100%; 
-      border-collapse: collapse; 
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
       text-align: left;
     }
-    th, td { 
-      padding: 12px 16px; 
-      border-bottom: 1px solid #27272a; 
+
+    th,
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #27272a;
       white-space: nowrap;
     }
-    th { 
-      background: #27272a; 
-      font-size: 11px; 
-      text-transform: uppercase; 
-      color: #a1a1aa; 
-      font-weight: 700; 
+
+    th {
+      background: #27272a;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #a1a1aa;
+      font-weight: 700;
       letter-spacing: 0.05em;
     }
+
     tr:last-child td {
       border-bottom: none;
     }
-    canvas { 
-      width: 100%; 
-      height: 200px; 
-      display: block; 
-      background: #18181b; 
-      border: 1px solid #27272a; 
-      border-radius: 8px; 
+
+    canvas {
+      width: 100%;
+      height: 200px;
+      display: block;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 8px;
       margin-top: 16px;
     }
-    .badge { 
-      display: inline-block; 
-      border: 1px solid #3f3f46; 
-      border-radius: 999px; 
-      padding: 3px 10px; 
-      background: #27272a; 
-      color: #fafafa; 
-      font-size: 11px; 
-      font-weight: 600; 
+
+    .badge {
+      display: inline-block;
+      border: 1px solid #3f3f46;
+      border-radius: 999px;
+      padding: 3px 10px;
+      background: #27272a;
+      color: #fafafa;
+      font-size: 11px;
+      font-weight: 600;
     }
-    .ok { 
-      border-color: #166534; 
-      color: #4ade80; 
-      background: #052e16; 
+
+    .ok {
+      border-color: #166534;
+      color: #4ade80;
+      background: #052e16;
     }
-    .bad { 
-      border-color: #991b1b; 
-      color: #f87171; 
-      background: #450a0a; 
+
+    .bad {
+      border-color: #991b1b;
+      color: #f87171;
+      background: #450a0a;
     }
-    .card-title { 
-      display: flex; 
-      justify-content: space-between; 
-      gap: 12px; 
-      align-items: center; 
-      margin-bottom: 16px; 
+
+    .card-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
       border-bottom: 1px solid #27272a;
       padding-bottom: 8px;
     }
-    .kv { 
-      display: grid; 
-      grid-template-columns: 110px 1fr; 
-      gap: 8px 16px; 
+
+    .kv {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 8px 16px;
       font-size: 13px;
     }
-    .value { 
-      overflow-wrap: anywhere; 
+
+    .value {
+      overflow-wrap: anywhere;
       color: #e4e4e7;
     }
-    code { 
-      background: #27272a; 
-      padding: 2px 6px; 
-      border-radius: 4px; 
+
+    code {
+      background: #27272a;
+      padding: 2px 6px;
+      border-radius: 4px;
       font-family: monospace;
       color: #f4f4f5;
     }
+
     .empty-state {
       padding: 24px;
       text-align: center;
@@ -155,6 +196,7 @@
     }
   </style>
 </head>
+
 <body>
   <main>
     <header>
@@ -192,7 +234,7 @@
     </section>
 
     <h2>Android Devices</h2>
-    <section class="cards" id="androidList">
+    <section class="android-cards" id="androidList">
       <div class="panel empty-state" style="grid-column: 1 / -1;">Waiting for active Android devices...</div>
     </section>
 
@@ -249,24 +291,24 @@
       const ctx = canvas.getContext("2d");
       const samples = state.flatMap((d) => d.samples || []).slice(-60);
       const max = Math.max(1, ...samples.flatMap((s) => [s.rx_bps, s.tx_bps]));
-      
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
+
       // Grid lines
       ctx.strokeStyle = "#27272a";
       ctx.lineWidth = 1;
       for (let i = 1; i < 5; i++) {
         const y = (canvas.height / 5) * i;
-        ctx.beginPath(); 
-        ctx.moveTo(0, y); 
-        ctx.lineTo(canvas.width, y); 
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
         ctx.stroke();
       }
-      
+
       // Plot lines
       [["rx_bps", "#4ade80"], ["tx_bps", "#60a5fa"]].forEach(([key, color]) => {
-        ctx.strokeStyle = color; 
-        ctx.lineWidth = 2.5; 
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         samples.forEach((s, i) => {
           const x = samples.length < 2 ? 0 : i * canvas.width / (samples.length - 1);
@@ -281,7 +323,7 @@
       // Calculate totals
       let totalDown = 0;
       let totalUp = 0;
-      
+
       $("devices").textContent = state.length;
       $("tauriCount").textContent = tauri.length;
 
@@ -361,7 +403,7 @@
       $("rows").innerHTML = state.length ? state.map((d) => {
         const lastSample = d.samples?.at(-1) || { rx_bps: 0, tx_bps: 0 };
         const isOnline = Date.now() - d.last_seen < 6000;
-        
+
         const uploadPercent = d.upload_percent || 0;
         const currentFile = d.current_file || "";
         const queueSuccess = d.queue_success || 0;
@@ -414,21 +456,21 @@
     function connect() {
       const scheme = location.protocol === "https:" ? "wss" : "ws";
       const ws = new WebSocket(`${scheme}://${location.host}/`);
-      ws.onopen = () => { 
-        $("socket").textContent = "web connected"; 
-        $("socket").className = "badge ok"; 
+      ws.onopen = () => {
+        $("socket").textContent = "Online!";
+        $("socket").className = "badge ok";
       };
-      ws.onclose = () => { 
-        $("socket").textContent = "web disconnected"; 
-        $("socket").className = "badge bad"; 
-        setTimeout(connect, 1000); 
+      ws.onclose = () => {
+        $("socket").textContent = "Offline";
+        $("socket").className = "badge bad";
+        setTimeout(connect, 1000);
       };
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        if (msg.type === "state") { 
-          state = msg.devices; 
-          tauri = msg.tauri || []; 
-          render(); 
+        if (msg.type === "state") {
+          state = msg.devices;
+          tauri = msg.tauri || [];
+          render();
         }
       };
     }
@@ -436,4 +478,5 @@
     setInterval(render, 1000);
   </script>
 </body>
+
 </html>
