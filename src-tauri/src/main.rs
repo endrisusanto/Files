@@ -441,6 +441,58 @@ fn connect_wifi(app: AppHandle, ssid: String, password: String) -> Result<String
     }
 }
 
+#[tauri::command]
+fn debug_adb() -> String {
+    let adb_path = get_adb_path();
+    let mut result = format!("=== ADB DIAGNOSTICS ===\n");
+    result.push_str(&format!("Resolved path: {}\n", adb_path));
+    result.push_str(&format!("File exists: {}\n", std::path::Path::new(&adb_path).exists()));
+
+    // 1. Try running version
+    let mut cmd1 = std::process::Command::new(&adb_path);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd1.creation_flags(0x08000000);
+    }
+    match cmd1.arg("--version").output() {
+        Ok(out) => {
+            result.push_str(&format!(
+                "\n1. adb --version (Success: {}):\nStdout:\n{}\nStderr:\n{}\n",
+                out.status.success(),
+                String::from_utf8_lossy(&out.stdout),
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+        Err(e) => {
+            result.push_str(&format!("\n1. adb --version failed: {}\n", e));
+        }
+    }
+
+    // 2. Try running devices -l
+    let mut cmd2 = std::process::Command::new(&adb_path);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd2.creation_flags(0x08000000);
+    }
+    match cmd2.args(["devices", "-l"]).output() {
+        Ok(out) => {
+            result.push_str(&format!(
+                "\n2. adb devices -l (Success: {}):\nStdout:\n{}\nStderr:\n{}\n",
+                out.status.success(),
+                String::from_utf8_lossy(&out.stdout),
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+        Err(e) => {
+            result.push_str(&format!("\n2. adb devices -l failed: {}\n", e));
+        }
+    }
+
+    result
+}
+
 fn main() {
     let config = Config {
         target_fingerprint: std::env::var("TARGET_BRIDGE_FINGERPRINT").unwrap_or_else(|_| "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE".into()),
@@ -458,7 +510,8 @@ fn main() {
             select_bridge,
             pick_apk_file,
             push_install_apk,
-            connect_wifi
+            connect_wifi,
+            debug_adb
         ])
         .setup(|app| {
             setup_tray(app)?;

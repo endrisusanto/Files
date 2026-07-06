@@ -41,6 +41,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [actionStatus, setActionStatus] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [diagnostics, setDiagnostics] = useState("");
+  const [diagLoading, setDiagLoading] = useState(false);
 
   useEffect(() => {
     invoke<AppInfo>("app_info").then(setInfo).catch((e) => setError(String(e)));
@@ -52,6 +54,19 @@ export default function App() {
     ];
     return () => void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
   }, []);
+
+  async function handleDiagnose() {
+    setDiagLoading(true);
+    setDiagnostics("Running ADB diagnostics...");
+    try {
+      const log = await invoke<string>("debug_adb");
+      setDiagnostics(log);
+    } catch (err) {
+      setDiagnostics(`Diagnostics failed: ${err}`);
+    } finally {
+      setDiagLoading(false);
+    }
+  }
 
   async function push(name: string) {
     setError("");
@@ -336,31 +351,51 @@ export default function App() {
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-zinc-800 pt-4">
               <button
-                onClick={() => {
-                  setWifiSsid(localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
-                  setWifiPassword(localStorage.getItem("wifi_password") || "1234qwer");
-                  setApkPath(localStorage.getItem("apk_path") || "");
-                  setShowSettings(false);
-                }}
-                className="rounded bg-zinc-800 px-4 py-2 text-sm font-semibold hover:bg-zinc-700 text-zinc-300 transition"
+                disabled={diagLoading}
+                onClick={handleDiagnose}
+                className="rounded bg-zinc-850 border border-zinc-700 px-3 py-1.5 text-xs font-semibold hover:bg-zinc-850 text-blue-400 transition"
               >
-                Cancel
+                {diagLoading ? "Diagnosing..." : "🔧 Diagnose ADB"}
               </button>
-              <button
-                onClick={() => {
-                  localStorage.setItem("wifi_ssid", wifiSsid);
-                  localStorage.setItem("wifi_password", wifiPassword);
-                  localStorage.setItem("apk_path", apkPath);
-                  setShowSettings(false);
-                  setActionStatus("Konfigurasi disimpan ke localStorage.");
-                }}
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 transition"
-              >
-                Save Changes
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setWifiSsid(localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
+                    setWifiPassword(localStorage.getItem("wifi_password") || "1234qwer");
+                    setApkPath(localStorage.getItem("apk_path") || "");
+                    setDiagnostics("");
+                    setShowSettings(false);
+                  }}
+                  className="rounded bg-zinc-800 px-4 py-2 text-sm font-semibold hover:bg-zinc-700 text-zinc-300 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.setItem("wifi_ssid", wifiSsid);
+                    localStorage.setItem("wifi_password", wifiPassword);
+                    localStorage.setItem("apk_path", apkPath);
+                    setDiagnostics("");
+                    setShowSettings(false);
+                    setActionStatus("Konfigurasi disimpan.");
+                  }}
+                  className="rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 transition"
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
+
+            {diagnostics && (
+              <div className="mt-4 border-t border-zinc-800 pt-4">
+                <h4 className="text-xs font-bold text-zinc-400 uppercase mb-2 text-left">Diagnostic Logs:</h4>
+                <pre className="w-full text-left bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-300 p-3 rounded max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
+                  {diagnostics}
+                </pre>
+              </div>
+            )}
           </div>
         </div>
       )}
