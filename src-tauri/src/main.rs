@@ -242,46 +242,58 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
 
     let mut handles = vec![];
     for (id, model) in basic_devices {
-        let selected_clone = selected.clone();
-        let target_fingerprint = config.target_fingerprint.clone();
-        
         let handle = thread::spawn(move || {
             let (fingerprint, available_storage, ip_address, apk_installed) = get_device_details(&id);
-            let is_selected_bridge = selected_clone
-                .as_deref()
-                .map(|target| target == fingerprint)
-                .unwrap_or_else(|| fingerprint == target_fingerprint);
-            DeviceInfo {
-                is_target_bridge: is_selected_bridge && available_storage >= MIN_FREE_KB,
-                id,
-                model,
-                fingerprint,
-                available_storage,
-                battery_level: None,
-                battery_temperature: None,
-                ip_address,
-                apk_installed,
-                is_selected_bridge,
-            }
+            (id, model, fingerprint, available_storage, ip_address, apk_installed)
         });
         handles.push(handle);
     }
 
     let mut devices = vec![];
     for handle in handles {
-        if let Ok(device) = handle.join() {
-            devices.push(device);
+        if let Ok((id, model, fingerprint, available_storage, ip_address, apk_installed)) = handle.join() {
+            devices.push((id, model, fingerprint, available_storage, ip_address, apk_installed));
         }
     }
 
+    let target_fingerprint = config.target_fingerprint.clone();
+    let selected_target = if let Some(target) = selected {
+        Some(target)
+    } else if let Some(dev_with_apk) = devices.iter().find(|d| d.5) {
+        println!("[bridge-tauri] Auto-pairing with connected device having bridge APK: {}", dev_with_apk.0);
+        Some(dev_with_apk.2.clone())
+    } else {
+        None
+    };
+
+    let result_devices: Vec<DeviceInfo> = devices.into_iter().map(|(id, model, fingerprint, available_storage, ip_address, apk_installed)| {
+        let is_selected = if let Some(ref target) = selected_target {
+            fingerprint == *target
+        } else {
+            fingerprint == target_fingerprint
+        };
+        DeviceInfo {
+            is_target_bridge: is_selected && available_storage >= MIN_FREE_KB,
+            id,
+            model,
+            fingerprint,
+            available_storage,
+            battery_level: None,
+            battery_temperature: None,
+            ip_address,
+            apk_installed,
+            is_selected_bridge: is_selected,
+        }
+    }).collect();
+
     println!(
         "[bridge-tauri] devices scanned: total={} selected={} ready={} apk_installed={}",
-        devices.len(),
-        devices.iter().filter(|d| d.is_selected_bridge).count(),
-        devices.iter().filter(|d| d.is_target_bridge).count(),
-        devices.iter().filter(|d| d.apk_installed).count()
+        result_devices.len(),
+        result_devices.iter().filter(|d| d.is_selected_bridge).count(),
+        result_devices.iter().filter(|d| d.is_target_bridge).count(),
+        result_devices.iter().filter(|d| d.apk_installed).count()
     );
-    devices
+    result_devices
 }
 
 fn bridge_files(dir: &Path) -> Vec<LocalFile> {
@@ -305,6 +317,52 @@ fn bridge_files(dir: &Path) -> Vec<LocalFile> {
             })
         })
         .collect()
+}
+fn watch_adb_devices(app: AppHandle) {
+    let config = app.state::<Config>().inner().clone();
+    thread::spawn(move || {
+        let mut last_ids = Vec::<String>::new();
+        // Force an initial scan to populate the cache immediately on start
+        let list = list_devices(&config);
+        if let Ok(mut cache) = config.devices_cache.lock() {
+            *cache = list.clone();
+        }
+        let _ = app.emit("devices", list);
+
+        loop {
+            let ids = match adb(&["devices"]) {
+                Ok(out) => {
+                    out.lines()
+                        .skip(1)
+                        .filter_map(|line| {
+                            let mut parts = line.split_whitespace();
+                            let id = parts.next()?;
+                            let status = parts.next()?;
+                            if status == "device" {
+                                Some(id.to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                }
+                Err(_) => vec![],
+            };
+
+            if ids != last_ids {
+                println!("[bridge-tauri] ADB device list changed: old={:?}, new={:?}", last_ids, ids);
+                last_ids = ids;
+                
+                let list = list_devices(&config);
+                if let Ok(mut cache) = config.devices_cache.lock() {
+                    *cache = list.clone();
+                }
+                let _ = app.emit("devices", list);
+            }
+
+            thread::sleep(Duration::from_secs(2));
+        }
+    });
 }
 
 fn file_is_available(path: &Path) -> bool {
@@ -945,6 +1003,7 @@ fn main() {
             monitor_loop(app.handle().clone());
             watch_source(app.handle().clone());
             watch_samba(app.handle().clone());
+            watch_adb_devices(app.handle().clone());
             Ok(())
         })
         .build(tauri::generate_context!())

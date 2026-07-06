@@ -100,10 +100,7 @@ export default function App() {
     sambaFilesRef.current = sambaFiles;
   }, [sambaFiles]);
 
-  // Wifi and APK Configuration
-  const [wifiSsid, setWifiSsid] = useState(() => localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
-  const [wifiPassword, setWifiPassword] = useState(() => localStorage.getItem("wifi_password") || "1234qwer");
-  const [apkPath, setApkPath] = useState(() => localStorage.getItem("apk_path") || "");
+  // Source Configuration
   const [sourcePath, setSourcePath] = useState(() => localStorage.getItem("source_path") || "");
   const [forceTransfer, setForceTransfer] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -219,6 +216,21 @@ export default function App() {
       void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
     };
   }, []);
+
+  useEffect(() => {
+    const alreadySelected = devices.some((d) => d.is_selected_bridge);
+    if (alreadySelected) return;
+
+    for (const d of devices) {
+      const isRemoteConnected = remoteDevices.some((rd) => rd.id === d.fingerprint);
+      if (isRemoteConnected) {
+        console.info("[bridge-ui] Auto-pairing matching WebSocket & USB device:", d.model, d.fingerprint);
+        appendLog(`Auto-pairing matching device: ${d.model} (${d.fingerprint})`);
+        selectBridge(d.fingerprint);
+        break;
+      }
+    }
+  }, [devices, remoteDevices]);
 
   useEffect(() => {
     const wsUrl = "wss://files.endrisusanto.my.id/";
@@ -393,61 +405,8 @@ export default function App() {
     }
   }
 
-  async function handleInstallApk() {
-    setActionStatus("Menginstall APK...");
-    setActionLoading(true);
-    console.info("[bridge-ui] install apk", apkPath);
-    try {
-      const msg = await invoke<string>("push_install_apk", { apkPath });
-      console.info("[bridge-ui] install apk ok", msg);
-      appendLog(`install apk ok ${msg}`);
-      setActionStatus(`Success: ${msg}`);
-      refreshDevices();
-      window.setTimeout(refreshDevices, 1500);
-    } catch (err) {
-      console.error("[bridge-ui] install apk failed", err);
-      appendLog(`install apk failed ${String(err)}`);
-      setActionStatus(`Error: ${err}`);
-    } finally {
-      setActionLoading(false);
-    }
-  }
 
-  async function handleConnectWifi() {
-    setActionStatus(`Menghubungkan ke Wi-Fi ${wifiSsid}...`);
-    setActionLoading(true);
-    console.info("[bridge-ui] connect wifi", wifiSsid);
-    try {
-      const msg = await invoke<string>("connect_wifi", { ssid: wifiSsid, password: wifiPassword });
-      console.info("[bridge-ui] connect wifi ok", msg);
-      appendLog(`connect wifi ok ${msg}`);
-      setActionStatus(`Success: ${msg}`);
-      refreshDevices();
-      window.setTimeout(refreshDevices, 1500);
-    } catch (err) {
-      console.error("[bridge-ui] connect wifi failed", err);
-      appendLog(`connect wifi failed ${String(err)}`);
-      setActionStatus(`Error: ${err}`);
-    } finally {
-      setActionLoading(false);
-    }
-  }
 
-  async function browseApk() {
-    console.info("[bridge-ui] browse apk");
-    try {
-      const path = await invoke<string | null>("pick_apk_file");
-      if (path) {
-        console.info("[bridge-ui] browse apk picked", path);
-        appendLog(`browse apk picked ${path}`);
-        setApkPath(path);
-      }
-    } catch (err) {
-      console.error("[bridge-ui] browse apk failed", err);
-      appendLog(`browse apk failed ${String(err)}`);
-      setError(String(err));
-    }
-  }
 
   async function browseSource() {
     appendLog("browse source folder");
@@ -794,9 +753,6 @@ export default function App() {
               <h3 className="text-lg font-bold text-zinc-100">Settings & Sideload Config</h3>
               <button
                 onClick={() => {
-                  setWifiSsid(localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
-                  setWifiPassword(localStorage.getItem("wifi_password") || "1234qwer");
-                  setApkPath(localStorage.getItem("apk_path") || "");
                   setSourcePath(info?.source_dir || "");
                   setShowSettings(false);
                 }}
@@ -827,47 +783,6 @@ export default function App() {
                   </button>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">APK File Path</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={apkPath}
-                    onChange={(e) => setApkPath(e.target.value)}
-                    placeholder="E.g. C:\Downloads\app-debug.apk"
-                    className="flex-1 rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-                  />
-                  <button
-                    onClick={browseApk}
-                    className="rounded bg-zinc-800 px-3 py-2 text-sm font-semibold hover:bg-zinc-700 transition"
-                  >
-                    Browse
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Wi-Fi SSID</label>
-                <input
-                  type="text"
-                  value={wifiSsid}
-                  onChange={(e) => setWifiSsid(e.target.value)}
-                  placeholder="SSID name"
-                  className="w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Wi-Fi Password</label>
-                <input
-                  type="password"
-                  value={wifiPassword}
-                  onChange={(e) => setWifiPassword(e.target.value)}
-                  placeholder="Password"
-                  className="w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
-                />
-              </div>
             </div>
 
             <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-zinc-800 pt-4">
@@ -881,9 +796,6 @@ export default function App() {
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    setWifiSsid(localStorage.getItem("wifi_ssid") || "RTT / IEEE 802.11");
-                    setWifiPassword(localStorage.getItem("wifi_password") || "1234qwer");
-                    setApkPath(localStorage.getItem("apk_path") || "");
                     setSourcePath(info?.source_dir || "");
                     setDiagnostics("");
                     setShowSettings(false);
@@ -894,9 +806,6 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => {
-                    localStorage.setItem("wifi_ssid", wifiSsid);
-                    localStorage.setItem("wifi_password", wifiPassword);
-                    localStorage.setItem("apk_path", apkPath);
                     localStorage.setItem("source_path", sourcePath);
                     applySource();
                     setDiagnostics("");
