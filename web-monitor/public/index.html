@@ -208,7 +208,14 @@
   <main>
     <header>
       <div style="display: flex; align-items: center; gap: 12px;">
-        <img src="/logo.svg" alt="FireFiles Logo" style="width: 40px; height: 40px;" />
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" style="width: 40px; height: 40px;" role="img" aria-label="FireFiles burning folder logo">
+          <rect width="256" height="256" rx="48" fill="#111827"/>
+          <path d="M42 83c0-13 10-23 23-23h45l20 22h61c13 0 23 10 23 23v72c0 13-10 23-23 23H65c-13 0-23-10-23-23V83z" fill="#f59e0b"/>
+          <path d="M42 110h172v69c0 12-10 21-22 21H64c-12 0-22-9-22-21v-69z" fill="#f97316"/>
+          <path d="M137 183c-25 0-43-17-43-40 0-18 12-30 25-43 8-8 16-17 19-29 25 17 24 38 19 52 9-6 15-16 17-27 16 13 25 28 25 45 0 25-22 42-62 42z" fill="#fee2e2"/>
+          <path d="M139 179c-16 0-27-11-27-25 0-12 8-20 16-28 5-5 11-11 13-19 16 11 15 25 12 34 6-4 10-10 11-17 10 8 16 18 16 29 0 16-14 26-41 26z" fill="#dc2626"/>
+          <path d="M142 177c-9 0-16-6-16-15 0-7 5-12 10-17 3-3 6-7 8-12 10 7 9 15 7 21 4-2 6-6 7-10 6 5 10 11 10 18 0 9-9 15-26 15z" fill="#facc15"/>
+        </svg>
         <div>
           <h1 style="background: linear-gradient(to right, #f97316, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; margin: 0;">FireFiles Monitor</h1>
           <div class="muted" style="margin-top: 4px;">Realtime WebSocket Staging Dashboard</div>
@@ -307,30 +314,94 @@
       const samples = state.flatMap((d) => d.samples || []).slice(-60);
       const max = Math.max(1, ...samples.flatMap((s) => [s.rx_bps, s.tx_bps]));
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+
+      // Adjust backing store size to physical screen pixels
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+
+      // Scale context to draw in logical CSS coordinates
+      ctx.scale(dpr, dpr);
+
+      const w = rect.width;
+      const h = rect.height;
+
+      ctx.clearRect(0, 0, w, h);
 
       // Grid lines
       ctx.strokeStyle = "#27272a";
       ctx.lineWidth = 1;
       for (let i = 1; i < 5; i++) {
-        const y = (canvas.height / 5) * i;
+        const y = (h / 5) * i;
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
+        ctx.lineTo(w, y);
         ctx.stroke();
       }
 
       // Plot lines
-      [["rx_bps", "#4ade80"], ["tx_bps", "#60a5fa"]].forEach(([key, color]) => {
-        ctx.strokeStyle = color;
+      [
+        ["rx_bps", "#4ade80", "rgba(74, 222, 128, 0.15)"],
+        ["tx_bps", "#60a5fa", "rgba(96, 165, 250, 0.15)"]
+      ].forEach(([key, strokeColor, fillColor]) => {
+        if (samples.length === 0) return;
+
+        // Create gradient fill
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, fillColor);
+        grad.addColorStop(1, "rgba(24, 24, 27, 0)"); // Fade to card background
+
+        // Path for stroke
+        ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
         ctx.beginPath();
+
+        // Path for fill
+        const fillPath = new Path2D();
+
+        let firstX = 0;
+        let firstY = h;
+        let lastX = 0;
+
         samples.forEach((s, i) => {
-          const x = samples.length < 2 ? 0 : i * canvas.width / (samples.length - 1);
-          const y = canvas.height - (s[key] / max) * canvas.height;
-          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+          const x = samples.length < 2 ? 0 : i * w / (samples.length - 1);
+          const y = h - (s[key] / max) * h;
+
+          if (i === 0) {
+            ctx.moveTo(x, y);
+            fillPath.moveTo(x, y);
+            firstX = x;
+            firstY = y;
+          } else {
+            const prevS = samples[i - 1];
+            const prevX = (i - 1) * w / (samples.length - 1);
+            const prevY = h - (prevS[key] / max) * h;
+
+            // Bezier control points for smooth horizontal flow
+            const cp1x = prevX + (x - prevX) * 0.5;
+            const cp1y = prevY;
+            const cp2x = prevX + (x - prevX) * 0.5;
+            const cp2y = y;
+
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y);
+            fillPath.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y);
+          }
+          lastX = x;
         });
+
+        // Draw the stroke
         ctx.stroke();
+
+        // Close the fill path to the bottom of the canvas
+        fillPath.lineTo(lastX, h);
+        fillPath.lineTo(firstX, h);
+        fillPath.closePath();
+
+        ctx.fillStyle = grad;
+        ctx.fill(fillPath);
       });
     }
 

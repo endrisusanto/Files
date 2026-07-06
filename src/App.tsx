@@ -89,6 +89,11 @@ export default function App() {
     }
     return val === "true";
   });
+  const [pushedFiles, setPushedFiles] = useState<Set<string>>(new Set());
+  const pushedFilesRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    pushedFilesRef.current = pushedFiles;
+  }, [pushedFiles]);
   const isPushingRef = useRef(false);
   const sambaFilesRef = useRef<LocalFile[]>([]);
   useEffect(() => {
@@ -163,12 +168,29 @@ export default function App() {
         console.info("[bridge-ui] files event", e.payload.length);
         appendLog(`files event count=${e.payload.length}`);
         setFiles(e.payload);
+
+        // Clean up pushedFiles that are no longer in source
+        const currentNames = new Set(e.payload.map((f) => f.name));
+        setPushedFiles((prev) => {
+          let changed = false;
+          const next = new Set(prev);
+          for (const name of next) {
+            if (!currentNames.has(name)) {
+              next.delete(name);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+
         const isAuto = localStorage.getItem("auto_push") === "true";
         if (isAuto && !isPushingRef.current) {
           const readyFile = e.payload.find((f) => {
             if (f.status !== "ready") return false;
             const inSamba = sambaFilesRef.current.some((sf) => sf.name === f.name);
-            return !inSamba;
+            if (inSamba) return false;
+            const alreadyPushed = pushedFilesRef.current.has(f.name);
+            return !alreadyPushed;
           });
           if (readyFile) {
             console.info("[bridge-ui] Auto-push triggering for:", readyFile.name);
@@ -328,6 +350,11 @@ export default function App() {
       await invoke("push_file", { fileName: name, force: forceTransfer });
       console.info("[bridge-ui] push file ok", name);
       appendLog(`push ok ${name}`);
+      setPushedFiles((prev) => {
+        const next = new Set(prev);
+        next.add(name);
+        return next;
+      });
     } catch (e) {
       console.error("[bridge-ui] push file failed", e);
       appendLog(`push failed ${name}: ${String(e)}`);
@@ -525,11 +552,8 @@ export default function App() {
                 <th className="p-3">Model</th>
                 <th className="p-3">Device ID</th>
                 <th className="p-3">IP</th>
-                <th className="p-3">Battery</th>
-                <th className="p-3">Temp</th>
                 <th className="p-3">Storage</th>
                 <th className="p-3">Status</th>
-                <th className="p-3">Fingerprint</th>
               </tr>
             </thead>
             <tbody>
@@ -546,20 +570,17 @@ export default function App() {
                   <td className="p-3">{d.model}</td>
                   <td className="p-3 text-zinc-400">{d.id}</td>
                   <td className="p-3">{d.ip_address}</td>
-                  <td className="p-3">{d.battery_level == null ? "-" : `${d.battery_level}%`}</td>
-                  <td className="p-3">{d.battery_temperature == null ? "-" : `${d.battery_temperature.toFixed(1)} C`}</td>
                   <td className="p-3">{gb(d.available_storage)}</td>
                   <td className="p-3">
                     <span className={`rounded border px-2 py-1 text-xs ${d.apk_installed ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
                       APK {d.apk_installed ? "ok" : "missing"}
                     </span>
                   </td>
-                  <td className="max-w-[360px] break-all p-3 text-xs text-zinc-500">{d.fingerprint}</td>
                 </tr>
               ))}
               {!devices.length && (
                 <tr>
-                  <td className="p-3 text-zinc-500" colSpan={9}>No ADB devices detected. Check USB debugging and run `adb devices` once to authorize.</td>
+                  <td className="p-3 text-zinc-500" colSpan={6}>No ADB devices detected. Check USB debugging and run `adb devices` once to authorize.</td>
                 </tr>
               )}
             </tbody>
@@ -702,7 +723,8 @@ export default function App() {
           <div className="space-y-2">
             {files.map((f) => {
               const inSamba = sambaFiles.some((sf) => sf.name === f.name);
-              const displayStatus = inSamba ? "uploaded" : f.status;
+              const isPushed = pushedFiles.has(f.name);
+              const displayStatus = inSamba ? "uploaded" : isPushed ? "pushed" : f.status;
               const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
               return (
               <div key={f.name} className="rounded border border-zinc-800 bg-zinc-950 p-3">

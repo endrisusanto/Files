@@ -168,13 +168,61 @@ fn source_dir(config: &Config) -> PathBuf {
     config.source_dir.lock().map(|v| v.clone()).unwrap_or_else(|_| PathBuf::from(DEFAULT_SOURCE_DIR))
 }
 
+fn get_device_details(id: &str) -> (String, u64, String, bool) {
+    let cmd = format!(
+        "getprop ro.build.fingerprint; echo '==='; df -k /sdcard/Download; echo '==='; ip -f inet addr show wlan0; echo '==='; pm path {}",
+        ANDROID_PACKAGE
+    );
+    let Ok(output) = command("adb")
+        .args(["-s", id, "shell", &cmd])
+        .output() else {
+            return ("unknown".to_string(), 0, "-".to_string(), false);
+        };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parts: Vec<&str> = stdout.split("===").collect();
+    if parts.len() < 4 {
+        return ("unknown".to_string(), 0, "-".to_string(), false);
+    }
+
+    let fingerprint = parts[0].trim().to_string();
+
+    // Parse storage
+    let df_out = parts[1];
+    let available_storage = df_out.lines()
+        .filter(|line| !line.trim().is_empty())
+        .skip(1)
+        .filter_map(|line| line.split_whitespace().nth(3)?.parse::<u64>().ok())
+        .next()
+        .unwrap_or(0);
+
+    // Parse IP
+    let ip_out = parts[2];
+    let ip_address = ip_out.lines()
+        .find_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.starts_with("inet ") {
+                trimmed.strip_prefix("inet ")?.split('/').next().map(str::to_string)
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| "-".into());
+
+    // Parse PM path
+    let pm_out = parts[3];
+    let apk_installed = pm_out.contains("package:");
+
+    (fingerprint, available_storage, ip_address, apk_installed)
+}
+
 fn list_devices(config: &Config) -> Vec<DeviceInfo> {
     let Ok(out) = adb(&["devices", "-l"]) else {
         eprintln!("[bridge-tauri] adb devices failed");
         return vec![];
     };
     let selected = config.selected_fingerprint.lock().ok().and_then(|v| v.clone());
-    let devices: Vec<_> = out.lines()
+    let basic_devices: Vec<(String, String)> = out.lines()
         .skip(1)
         .filter_map(|line| {
             let mut parts = line.split_whitespace();
@@ -188,33 +236,44 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
                 .find_map(|part| part.strip_prefix("model:"))
                 .unwrap_or("unknown")
                 .to_string();
-            
-            // Jangan gunakan .ok()? di sini agar device tetap terdaftar di tabel meskipun adb shell getprop gagal
-            let fingerprint = adb(&["-s", &id, "shell", "getprop", "ro.build.fingerprint"])
-                .unwrap_or_else(|_| "unknown".to_string());
+            Some((id, model))
+        })
+        .collect();
 
-            let available_storage = storage_kb(&id);
-            let (battery_level, battery_temperature) = battery(&id);
-            let ip_address = ip_address(&id);
-            let apk_installed = adb(&["-s", &id, "shell", "pm", "path", ANDROID_PACKAGE]).is_ok();
-            let is_selected_bridge = selected
+    let mut handles = vec![];
+    for (id, model) in basic_devices {
+        let selected_clone = selected.clone();
+        let target_fingerprint = config.target_fingerprint.clone();
+        
+        let handle = thread::spawn(move || {
+            let (fingerprint, available_storage, ip_address, apk_installed) = get_device_details(&id);
+            let is_selected_bridge = selected_clone
                 .as_deref()
                 .map(|target| target == fingerprint)
-                .unwrap_or_else(|| fingerprint == config.target_fingerprint);
-            Some(DeviceInfo {
+                .unwrap_or_else(|| fingerprint == target_fingerprint);
+            DeviceInfo {
                 is_target_bridge: is_selected_bridge && available_storage >= MIN_FREE_KB,
                 id,
                 model,
                 fingerprint,
                 available_storage,
-                battery_level,
-                battery_temperature,
+                battery_level: None,
+                battery_temperature: None,
                 ip_address,
                 apk_installed,
                 is_selected_bridge,
-            })
-        })
-        .collect();
+            }
+        });
+        handles.push(handle);
+    }
+
+    let mut devices = vec![];
+    for handle in handles {
+        if let Ok(device) = handle.join() {
+            devices.push(device);
+        }
+    }
+
     println!(
         "[bridge-tauri] devices scanned: total={} selected={} ready={} apk_installed={}",
         devices.len(),
@@ -223,41 +282,6 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
         devices.iter().filter(|d| d.apk_installed).count()
     );
     devices
-}
-
-fn storage_kb(id: &str) -> u64 {
-    let Ok(out) = adb(&["-s", id, "shell", "df", "-k", "/sdcard/Download"]) else { return 0 };
-    out.lines()
-        .skip(1)
-        .filter_map(|line| line.split_whitespace().nth(3)?.parse().ok())
-        .next()
-        .unwrap_or(0)
-}
-
-fn battery(id: &str) -> (Option<u8>, Option<f32>) {
-    let Ok(out) = adb(&["-s", id, "shell", "dumpsys", "battery"]) else { return (None, None) };
-    let mut level = None;
-    let mut temp = None;
-    for line in out.lines() {
-        let line = line.trim();
-        if let Some(value) = line.strip_prefix("level:") {
-            level = value.trim().parse().ok();
-        }
-        if let Some(value) = line.strip_prefix("temperature:") {
-            temp = value.trim().parse::<f32>().ok().map(|v| v / 10.0);
-        }
-    }
-    (level, temp)
-}
-
-fn ip_address(id: &str) -> String {
-    adb(&["-s", id, "shell", "ip", "-f", "inet", "addr", "show", "wlan0"])
-        .ok()
-        .and_then(|out| {
-            out.lines()
-                .find_map(|line| line.trim().strip_prefix("inet ")?.split('/').next().map(str::to_string))
-        })
-        .unwrap_or_else(|| "-".into())
 }
 
 fn bridge_files(dir: &Path) -> Vec<LocalFile> {
@@ -461,7 +485,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show" => show_main_window(app),
-            "quit" => app.exit(0),
+            "quit" => std::process::exit(0),
             _ => {}
         })
         .on_tray_icon_event(|tray, _| show_main_window(tray.app_handle()))
@@ -529,7 +553,14 @@ fn get_remote_file_size(device_id: &str, path: &str) -> Option<u64> {
 fn push_file_blocking(app: AppHandle, file_name: String, force: bool) -> Result<(), String> {
     println!("[bridge-tauri] push_file start file={file_name} force={force}");
     let config = app.state::<Config>().inner().clone();
-    let device = list_devices(&config)
+    let mut cached_devices = config.devices_cache.lock().ok().map(|c| c.clone()).unwrap_or_default();
+    if cached_devices.is_empty() {
+        cached_devices = list_devices(&config);
+        if let Ok(mut cache) = config.devices_cache.lock() {
+            *cache = cached_devices.clone();
+        }
+    }
+    let device = cached_devices
         .into_iter()
         .find(|d| if force { d.is_selected_bridge } else { d.is_target_bridge })
         .ok_or_else(|| {
@@ -866,7 +897,7 @@ fn main() {
         config.service
     );
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(config)
         .invoke_handler(tauri::generate_handler![
             push_file,
@@ -898,6 +929,12 @@ fn main() {
             watch_samba(app.handle().clone());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("failed to run app");
+        .build(tauri::generate_context!())
+        .expect("failed to build app");
+
+    app.run(|_app_handle, event| {
+        if let tauri::RunEvent::ExitRequested { api, .. } = event {
+            api.prevent_exit();
+        }
+    });
 }

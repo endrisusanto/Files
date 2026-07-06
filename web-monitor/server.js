@@ -4,6 +4,19 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const PORT = Number(process.env.PORT || 8080);
+
+const MIME_TYPES = {
+  html: "text/html; charset=utf-8",
+  css: "text/css; charset=utf-8",
+  js: "application/javascript; charset=utf-8",
+  svg: "image/svg+xml",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  ico: "image/x-icon",
+  json: "application/json; charset=utf-8"
+};
 const WS_PORT = Number(process.env.WS_PORT || 1421);
 const clients = new Set();
 const devices = new Map();
@@ -134,10 +147,13 @@ const app = http.createServer((req, res) => {
   }
   const file = req.url === "/" ? "index.html" : req.url.slice(1);
   try {
+    const ext = file.split(".").pop().toLowerCase();
+    const contentType = MIME_TYPES[ext] || "application/octet-stream";
     const body = readFileSync(join(import.meta.dirname, "public", file));
+    res.writeHead(200, { "Content-Type": contentType });
     res.end(body);
   } catch {
-    res.writeHead(404).end("not found");
+    res.writeHead(404, { "Content-Type": "text/plain" }).end("not found");
   }
 });
 
