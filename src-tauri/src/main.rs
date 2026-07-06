@@ -149,15 +149,23 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
     let selected = config.selected_fingerprint.lock().ok().and_then(|v| v.clone());
     out.lines()
         .skip(1)
-        .filter(|line| line.contains(" device"))
         .filter_map(|line| {
-            let id = line.split_whitespace().next()?.to_string();
+            let mut parts = line.split_whitespace();
+            let id = parts.next()?.to_string();
+            let status = parts.next()?;
+            if status != "device" {
+                return None;
+            }
             let model = line
                 .split_whitespace()
                 .find_map(|part| part.strip_prefix("model:"))
                 .unwrap_or("unknown")
                 .to_string();
-            let fingerprint = adb(&["-s", &id, "shell", "getprop", "ro.build.fingerprint"]).ok()?;
+            
+            // Jangan gunakan .ok()? di sini agar device tetap terdaftar di tabel meskipun adb shell getprop gagal
+            let fingerprint = adb(&["-s", &id, "shell", "getprop", "ro.build.fingerprint"])
+                .unwrap_or_else(|_| "unknown".to_string());
+
             let available_storage = storage_kb(&id);
             let (battery_level, battery_temperature) = battery(&id);
             let ip_address = ip_address(&id);
