@@ -2,6 +2,7 @@ package com.example.bridge
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -18,6 +19,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -90,6 +92,10 @@ class MainActivity : Activity() {
             text = "Test Upload test.txt"
             setOnClickListener { testUpload() }
         }
+        val settings = Button(this).apply {
+            text = "Samba Settings"
+            setOnClickListener { showSambaSettings() }
+        }
         val refresh = Button(this).apply {
             text = "Refresh"
             setOnClickListener { refreshStatus() }
@@ -121,6 +127,9 @@ class MainActivity : Activity() {
             addView(testSamba, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = 18
             })
+            addView(settings, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = 18
+            })
             addView(refresh, LinearLayout.LayoutParams(-1, -2))
             addView(TextView(this@MainActivity).apply {
                 text = "Debug Log"
@@ -128,7 +137,10 @@ class MainActivity : Activity() {
                 setTextColor(0xfffafafa.toInt())
                 setPadding(0, 32, 0, 12)
             }, LinearLayout.LayoutParams(-1, -2))
-            addView(debugLog, LinearLayout.LayoutParams(-1, 320))
+            addView(ScrollView(this@MainActivity).apply {
+                setBackgroundColor(0xff18181b.toInt())
+                addView(debugLog)
+            }, LinearLayout.LayoutParams(-1, 320))
         }
 
         setContentView(ScrollView(this).apply {
@@ -169,8 +181,8 @@ class MainActivity : Activity() {
         appendLog("Testing Samba upload test.txt")
         Thread {
             val message = try {
-                BridgeService.uploadTestFile()
-                "Test upload OK: ${BridgeService.TARGET}test.txt"
+                BridgeService.uploadTestFile(this)
+                "Test upload OK: ${BridgeService.target(this)}test.txt"
             } catch (t: Throwable) {
                 Log.e(tag, "Test upload failed", t)
                 "Test upload failed: ${t.message}"
@@ -180,6 +192,34 @@ class MainActivity : Activity() {
                 refreshStatus(message)
             }
         }.start()
+    }
+
+    private fun showSambaSettings() {
+        val host = EditText(this).apply {
+            hint = "Host"
+            setText(BridgeService.host(this@MainActivity))
+        }
+        val share = EditText(this).apply {
+            hint = "Share"
+            setText(BridgeService.share(this@MainActivity))
+        }
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 12, 48, 0)
+            addView(host)
+            addView(share)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Samba Target")
+            .setView(form)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Save & Test") { _, _ ->
+                BridgeService.saveTarget(this, host.text.toString(), share.text.toString())
+                appendLog("Samba target saved: ${BridgeService.target(this)}")
+                refreshStatus("Samba target saved")
+                testUpload()
+            }
+            .show()
     }
 
     private fun refreshStatus(message: String? = null) {
@@ -193,19 +233,19 @@ class MainActivity : Activity() {
             "Wi-Fi: ${wifi.ssid} ${ip(wifi.ipAddress)}",
             "Staging: ${localDir.absolutePath}",
             "Latest: ${file?.name ?: "-"}",
-            "Target: ${BridgeService.TARGET}"
+            "Target: ${BridgeService.target(this)}"
         ).joinToString("\n")
         appendLog("Status refreshed")
         badge.text = "APK: checking Samba"
         badge.setTextColor(0xffd4d4d8.toInt())
         Thread {
             val ok = try {
-                BridgeService.checkSamba()
-                Log.i(tag, "Samba check ok: ${BridgeService.TARGET}")
+                BridgeService.checkSamba(this)
+                Log.i(tag, "Samba check ok: ${BridgeService.target(this)}")
                 appendLog("Samba check OK")
                 true
             } catch (t: Throwable) {
-                Log.e(tag, "Samba check failed: ${BridgeService.TARGET}", t)
+                Log.e(tag, "Samba check failed: ${BridgeService.target(this)}", t)
                 appendLog("Samba check failed: ${t.message}")
                 false
             }

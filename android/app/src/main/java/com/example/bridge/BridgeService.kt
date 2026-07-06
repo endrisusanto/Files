@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -30,21 +31,30 @@ class BridgeService : Service() {
     companion object {
         const val SMB_HOST = "192.168.10.221"
         const val SMB_SHARE = "sambashare"
-        const val TARGET = "smb://192.168.10.221/sambashare/"
 
-        fun checkSamba() {
+        fun host(context: Context) = context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("smb_host", SMB_HOST) ?: SMB_HOST
+        fun share(context: Context) = context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("smb_share", SMB_SHARE) ?: SMB_SHARE
+        fun target(context: Context) = "smb://${host(context)}/${share(context)}/"
+        fun saveTarget(context: Context, host: String, share: String) {
+            context.getSharedPreferences("bridge", Context.MODE_PRIVATE).edit()
+                .putString("smb_host", host.trim())
+                .putString("smb_share", share.trim().trim('/'))
+                .apply()
+        }
+
+        fun checkSamba(context: Context) {
             SMBClient().use { client ->
-                client.connect(SMB_HOST).use { connection ->
-                    connection.authenticate(anonymous()).connectShare(SMB_SHARE).use {}
+                client.connect(host(context)).use { connection ->
+                    connection.authenticate(anonymous()).connectShare(share(context)).use {}
                 }
             }
         }
 
-        fun uploadTestFile() {
+        fun uploadTestFile(context: Context) {
             SMBClient().use { client ->
-                client.connect(SMB_HOST).use { connection ->
-                    connection.authenticate(anonymous()).connectShare(SMB_SHARE).use { share ->
-                        val disk = share as DiskShare
+                client.connect(host(context)).use { connection ->
+                    connection.authenticate(anonymous()).connectShare(share(context)).use { smbShare ->
+                        val disk = smbShare as DiskShare
                         disk.openFile(
                             "test.txt",
                             EnumSet.of(AccessMask.GENERIC_WRITE),
@@ -99,13 +109,13 @@ class BridgeService : Service() {
     }
 
     private fun upload(file: File) {
-        Log.i(tag, "SMB upload start file=${file.name} target=$TARGET")
+        Log.i(tag, "SMB upload start file=${file.name} target=${target(this)}")
         localDir.mkdirs()
         require(file.isFile) { "missing file: ${file.absolutePath}" }
         SMBClient().use { client ->
-            client.connect(SMB_HOST).use { connection ->
-                connection.authenticate(anonymous()).connectShare(SMB_SHARE).use { share ->
-                    val disk = share as DiskShare
+            client.connect(host(this)).use { connection ->
+                connection.authenticate(anonymous()).connectShare(share(this)).use { smbShare ->
+                    val disk = smbShare as DiskShare
                     disk.openFile(
                         file.name,
                         EnumSet.of(AccessMask.GENERIC_WRITE),
