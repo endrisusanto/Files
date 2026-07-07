@@ -97,7 +97,7 @@ class BridgeService : Service() {
                 queueTotal = qTotal
                 queueSuccess = qSuccess
             } else {
-                val filesToUpload = localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".tar.md5") } ?: emptyList()
+                val filesToUpload = localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".md5") } ?: emptyList()
                 if (filesToUpload.size > queueTotal) {
                     queueTotal = filesToUpload.size
                     queueSuccess = 0
@@ -123,7 +123,7 @@ class BridgeService : Service() {
             } finally {
                 currentFile = ""
                 currentProgress = 0
-                if (localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".tar.md5") }?.isEmpty() == true) {
+                if (localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".md5") }?.isEmpty() == true) {
                     queueTotal = 0
                     queueSuccess = 0
                 }

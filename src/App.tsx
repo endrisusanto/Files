@@ -52,30 +52,45 @@ const statusClass = (status: string | undefined | null) => {
 
 function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   const width = 600;
-  const height = 140;
+  const height = 80;
   const points = samples.slice(-60);
   const max = Math.max(1, ...points.flatMap((p) => [p.rx_bps, p.tx_bps]));
-  const path = (key: keyof NetworkSample) =>
-    points.map((p, i) => {
+  
+  const path = (key: keyof NetworkSample) => {
+    if (points.length === 0) return "";
+    let d = "";
+    points.forEach((p, i) => {
       const x = points.length <= 1 ? 0 : (i / (points.length - 1)) * width;
       const y = height - (p[key] / max) * height;
-      return `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(" ");
+      if (i === 0) {
+        d += `M ${x.toFixed(1)} ${y.toFixed(1)}`;
+      } else {
+        const prevX = ((i - 1) / (points.length - 1)) * width;
+        const prevY = height - (points[i - 1][key] / max) * height;
+        const cpX1 = prevX + (x - prevX) / 2;
+        const cpY1 = prevY;
+        const cpX2 = prevX + (x - prevX) / 2;
+        const cpY2 = y;
+        d += ` C ${cpX1.toFixed(1)} ${cpY1.toFixed(1)}, ${cpX2.toFixed(1)} ${cpY2.toFixed(1)}, ${x.toFixed(1)} ${y.toFixed(1)}`;
+      }
+    });
+    return d;
+  };
   const last = points[points.length - 1] ?? { rx_bps: 0, tx_bps: 0 };
 
   return (
-    <section className="mb-6 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Network 1m</h2>
-        <div className="flex gap-4 text-sm">
-          <span className="text-green-300">Down {speed(last.rx_bps)}</span>
-          <span className="text-blue-300">Up {speed(last.tx_bps)}</span>
+    <section className="mb-3 rounded border border-zinc-800 bg-zinc-900 p-2">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-xs font-semibold text-zinc-400">Network (Realtime Curve)</h2>
+        <div className="flex gap-3 text-[10px]">
+          <span className="text-green-300 font-mono">Down: {speed(last.rx_bps)}</span>
+          <span className="text-blue-300 font-mono">Up: {speed(last.tx_bps)}</span>
         </div>
       </div>
-      <svg className="h-40 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-        <rect width={width} height={height} fill="#09090b" />
-        <path d={path("rx_bps")} fill="none" stroke="#86efac" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-        <path d={path("tx_bps")} fill="none" stroke="#93c5fd" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      <svg className="h-20 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        <rect width={width} height={height} fill="#09090b" rx="4" />
+        <path d={path("rx_bps")} fill="none" stroke="#86efac" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <path d={path("tx_bps")} fill="none" stroke="#93c5fd" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
     </section>
   );
@@ -118,6 +133,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [diagnostics, setDiagnostics] = useState("");
   const [diagLoading, setDiagLoading] = useState(false);
+  const [filelistOpen, setFilelistOpen] = useState(true);
+  const [debugOpen, setDebugOpen] = useState(false);
 
   function appendLog(line: string) {
     const text = `${new Date().toLocaleTimeString()} ${line}`;
@@ -622,7 +639,7 @@ export default function App() {
                           selectBridge(d.id);
                           appendLog(`Selected remote device for monitoring: ${d.model} (${d.id})`);
                         }}
-                        className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
+                        className="w-28 rounded bg-blue-600 hover:bg-blue-500 px-2 py-1 text-xs font-bold text-white transition text-center"
                       >
                         Monitor
                       </button>
@@ -638,7 +655,7 @@ export default function App() {
                             appendLog(`Sent remote upload command to device ${d.id}`);
                           }
                         }}
-                        className="rounded bg-green-600 px-2 py-1 text-xs font-bold text-white hover:bg-green-500 disabled:opacity-50"
+                        className="w-28 rounded bg-blue-600 hover:bg-blue-500 px-2 py-1 text-xs font-bold text-white transition disabled:opacity-50 text-center"
                       >
                         Remote Upload
                       </button>
@@ -658,7 +675,7 @@ export default function App() {
                             appendLog(`Sent remote settings command to device ${d.id}`);
                           }
                         }}
-                        className="rounded bg-blue-600 px-2 py-1 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50"
+                        className="w-28 rounded bg-blue-600 hover:bg-blue-500 px-2 py-1 text-xs font-bold text-white transition disabled:opacity-50 text-center"
                       >
                         Remote Settings
                       </button>
@@ -678,104 +695,129 @@ export default function App() {
 
       <NetworkChart samples={network} />
 
-      <section className="space-y-6">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">{info?.source_dir ?? "E:\\SUBRO"}</h2>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 text-sm text-zinc-300">
-                <input
-                  type="checkbox"
-                  checked={autoPush}
-                  onChange={(e) => {
-                    setAutoPush(e.target.checked);
-                    localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
-                    appendLog(`Auto push ${e.target.checked ? "enabled" : "disabled"}`);
-                  }}
-                  className="h-4 w-4 accent-green-500"
-                />
-                Auto Push
-              </label>
-              <label className="flex items-center gap-2 text-sm text-zinc-300">
-                <input
-                  type="checkbox"
-                  checked={forceTransfer}
-                  onChange={(e) => setForceTransfer(e.target.checked)}
-                  className="h-4 w-4 accent-amber-500"
-                />
-                Force transfer
-              </label>
-            </div>
-          </div>
-          <div className="space-y-2">
-            {(files || []).map((f) => {
-              const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
-              const isPushed = pushedFiles ? pushedFiles.has(f.name) : false;
-              
-              const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
-              const isUploadingThis = activeRemote?.current_file === f.name;
-              const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
+      <section className="space-y-3">
+        {/* Accordion File List */}
+        <div className="rounded border border-zinc-800 bg-zinc-900 overflow-hidden">
+          <button 
+            onClick={() => setFilelistOpen(!filelistOpen)}
+            className="w-full flex items-center justify-between p-3 bg-zinc-900 hover:bg-zinc-800 text-left font-semibold text-sm transition"
+          >
+            <span>📁 Staging Directory: {info?.source_dir ?? "E:\\SUBRO"}</span>
+            <span className="text-zinc-500 font-mono text-xs">{filelistOpen ? "▲ Collapse" : "▼ Expand"}</span>
+          </button>
 
-              let displayStatus = f.status;
-              if (isPushingThis) {
-                displayStatus = `inprogress staging push to android (${transfer.percent}%)`;
-              } else if (isUploadingThis) {
-                displayStatus = `inprogress transfer to samba (${activeRemote.upload_percent}%)`;
-              } else if (isUploaded) {
-                displayStatus = "transfer samba complete";
-              } else if (isPushed) {
-                displayStatus = "pushed to android successful";
-              }
-
-              const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
-              return (
-              <div key={f.name} className="rounded border border-zinc-800 bg-zinc-950 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <p className="break-all font-medium">{f.name}</p>
-                      <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${statusClass(displayStatus)}`}>
-                        {displayStatus}
-                      </span>
-                    </div>
-                    <p className="text-sm text-zinc-500">{fileGb(f.size)}</p>
-                    {isPushingThis && (
-                      <div className="mt-2 w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                          className="bg-blue-500 h-1.5 rounded-full transition-all duration-300" 
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    disabled={!selectedDevice || (displayStatus !== "ready" && !forceTransfer)}
-                    onClick={() => push(f.name)}
-                    className={`rounded px-3 py-2 text-sm font-bold text-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 ${forceTransfer ? "bg-amber-500" : "bg-green-500"}`}
-                  >
-                    {forceTransfer ? "Force Transfer" : "Transfer"}
-                  </button>
+          {filelistOpen && (
+            <div className="p-3 border-t border-zinc-800 bg-zinc-950/40 space-y-2">
+              <div className="flex justify-between items-center bg-zinc-900/60 p-2 rounded mb-2 border border-zinc-800">
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-xs text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={autoPush}
+                      onChange={(e) => {
+                        setAutoPush(e.target.checked);
+                        localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
+                        appendLog(`Auto push ${e.target.checked ? "enabled" : "disabled"}`);
+                      }}
+                      className="h-3 w-3 accent-blue-500"
+                    />
+                    Auto Push
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={forceTransfer}
+                      onChange={(e) => setForceTransfer(e.target.checked)}
+                      className="h-3 w-3 accent-blue-500"
+                    />
+                    Force transfer
+                  </label>
                 </div>
               </div>
-              );
-            })}
-            {!files.length && <p className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-500">No .tar.md5 files found</p>}
-          </div>
-          <div className="mt-4 border-t border-zinc-800 pt-4">
-            <p className="mb-3 text-sm text-zinc-400">Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
-            <p className="mt-3 break-all text-sm text-zinc-300">{transfer ? `${transfer.file}: ${transfer.message}` : "No active transfer"}</p>
+              
+              <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                {(files || []).map((f) => {
+                  const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
+                  const isPushed = pushedFiles ? pushedFiles.has(f.name) : false;
+                  
+                  const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
+                  const isUploadingThis = activeRemote?.current_file === f.name;
+                  const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
 
-            {error && <p className="mt-3 rounded border border-red-900 bg-red-950 p-3 text-sm text-red-200">{error}</p>}
-          </div>
+                  let displayStatus = f.status;
+                  if (isPushingThis) {
+                    displayStatus = `inprogress staging push (${transfer.percent}%)`;
+                  } else if (isUploadingThis) {
+                    displayStatus = `inprogress transfer to samba (${activeRemote.upload_percent}%)`;
+                  } else if (isUploaded) {
+                    displayStatus = "transfer samba complete";
+                  } else if (isPushed) {
+                    displayStatus = "pushed to android successful";
+                  }
+
+                  const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
+                  return (
+                    <div key={f.name} className="rounded border border-zinc-800 bg-zinc-950 p-2 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="break-all font-medium text-zinc-200">{f.name}</p>
+                            <span className={`rounded border px-1.5 py-0.2 text-[9px] font-semibold ${statusClass(displayStatus)}`}>
+                              {displayStatus}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-zinc-500">{fileGb(f.size)}</p>
+                          {isPushingThis && (
+                            <div className="mt-1 w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
+                              <div 
+                                className="bg-blue-500 h-1 rounded-full transition-all duration-300" 
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          disabled={!selectedDevice || (displayStatus !== "ready" && !forceTransfer)}
+                          onClick={() => push(f.name)}
+                          className="w-24 rounded bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[10px] font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40 text-center"
+                        >
+                          {forceTransfer ? "Force Push" : "Push"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!files.length && <p className="rounded border border-zinc-800 bg-zinc-950 p-2 text-xs text-zinc-500 text-center">No .md5 files found</p>}
+              </div>
+
+              <div className="mt-2 border-t border-zinc-800 pt-2 text-[10px] text-zinc-400 space-y-1">
+                <p>Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
+                <p className="break-all">Active Transfer: {transfer ? `${transfer.file} (${transfer.message})` : "None"}</p>
+                {error && <p className="text-red-400 font-semibold">{error}</p>}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <h2 className="mb-3 text-lg font-semibold">Debug Log</h2>
-          <textarea
-            readOnly
-            value={debugLog}
-            className="h-56 w-full resize-none rounded border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-300 outline-none"
-          />
+        {/* Accordion Debug Log */}
+        <div className="rounded border border-zinc-800 bg-zinc-900 overflow-hidden">
+          <button 
+            onClick={() => setDebugOpen(!debugOpen)}
+            className="w-full flex items-center justify-between p-3 bg-zinc-900 hover:bg-zinc-800 text-left font-semibold text-sm transition"
+          >
+            <span>📜 System Diagnostics & Log</span>
+            <span className="text-zinc-500 font-mono text-xs">{debugOpen ? "▲ Collapse" : "▼ Expand"}</span>
+          </button>
+          
+          {debugOpen && (
+            <div className="p-3 border-t border-zinc-800 bg-zinc-950/40">
+              <textarea
+                readOnly
+                value={debugLog}
+                className="h-40 w-full resize-none rounded border border-zinc-800 bg-zinc-950 p-2 font-mono text-[10px] text-zinc-400 outline-none"
+              />
+            </div>
+          )}
         </div>
       </section>
 

@@ -115,31 +115,31 @@ class MainActivity : Activity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(40, 56, 40, 56)
+            setPadding(30, 30, 30, 30)
             setBackgroundColor(0xff09090b.toInt())
             addView(TextView(this@MainActivity).apply {
                 text = "Android File Bridge"
-                textSize = 26f
+                textSize = 20f
                 setTextColor(0xfffafafa.toInt())
-                setPadding(0, 0, 0, 32)
+                setPadding(0, 0, 0, 16)
             }, LinearLayout.LayoutParams(-1, -2))
             addView(badge, LinearLayout.LayoutParams(-2, -2).apply {
-                bottomMargin = 28
+                bottomMargin = 16
             })
             addView(status, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = 36
+                bottomMargin = 20
             })
-            addView(networkChart, LinearLayout.LayoutParams(-1, 220).apply {
-                bottomMargin = 28
+            addView(networkChart, LinearLayout.LayoutParams(-1, 140).apply {
+                bottomMargin = 16
             })
             addView(upload, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = 18
+                bottomMargin = 10
             })
             addView(testSamba, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = 18
+                bottomMargin = 10
             })
             addView(settings, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = 18
+                bottomMargin = 10
             })
             addView(refresh, LinearLayout.LayoutParams(-1, -2))
             addView(TextView(this@MainActivity).apply {
@@ -171,15 +171,15 @@ class MainActivity : Activity() {
 
     private fun latestFile(): File? =
         localDir.listFiles()
-            ?.filter { it.isFile && it.name.endsWith(".tar.md5") }
+            ?.filter { it.isFile && it.name.endsWith(".md5") }
             ?.maxByOrNull { it.lastModified() }
 
     private fun startLatestUpload() {
         val file = latestFile()
         if (file == null) {
-            Log.w(tag, "Upload skipped: no .tar.md5 file")
-            appendLog("Upload skipped: no .tar.md5 file")
-            refreshStatus("No .tar.md5 file found")
+            Log.w(tag, "Upload skipped: no .md5 file")
+            appendLog("Upload skipped: no .md5 file")
+            refreshStatus("No .md5 file found")
             return
         }
         Log.i(tag, "Starting upload for ${file.absolutePath}")
@@ -437,24 +437,35 @@ class MainActivity : Activity() {
         override fun onDraw(canvas: Canvas) {
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
             val maxBytes = max(1L, networkHistory.flatMap { listOf(it.first, it.second) }.maxOrNull() ?: 1L)
-            drawLine(canvas, true, maxBytes, downPaint)
-            drawLine(canvas, false, maxBytes, upPaint)
+            drawCurve(canvas, true, maxBytes, downPaint)
+            drawCurve(canvas, false, maxBytes, upPaint)
             val last = networkHistory.lastOrNull() ?: Pair(0L, 0L)
             canvas.drawText("Down ${mbps(last.first)} MB/s   Up ${mbps(last.second)} MB/s", 16f, 38f, textPaint)
         }
 
-        private fun drawLine(canvas: Canvas, down: Boolean, maxBytes: Long, paint: Paint) {
+        private fun drawCurve(canvas: Canvas, down: Boolean, maxBytes: Long, paint: Paint) {
             if (networkHistory.size < 2) return
-            var previousX = 0f
-            var previousY = height.toFloat()
+            val path = android.graphics.Path()
             networkHistory.forEachIndexed { index, point ->
                 val x = index * width.toFloat() / (networkHistory.size - 1)
                 val bytes = if (down) point.first else point.second
                 val y = height - (bytes.toFloat() / maxBytes) * height
-                if (index > 0) canvas.drawLine(previousX, previousY, x, y, paint)
-                previousX = x
-                previousY = y
+                if (index == 0) {
+                    path.moveTo(x, y)
+                } else {
+                    val prevX = (index - 1) * width.toFloat() / (networkHistory.size - 1)
+                    val prevBytes = if (down) networkHistory[index - 1].first else networkHistory[index - 1].second
+                    val prevY = height - (prevBytes.toFloat() / maxBytes) * height
+                    
+                    // Control points for smooth horizontal bezier flow
+                    val cp1x = prevX + (x - prevX) / 2
+                    val cp1y = prevY
+                    val cp2x = prevX + (x - prevX) / 2
+                    val cp2y = y
+                    path.cubicTo(cp1x, cp1y, cp2x, cp2y, x, y)
+                }
             }
+            canvas.drawPath(path, paint)
         }
 
         private fun mbps(bytes: Long) = "%.2f".format(bytes / 1024.0 / 1024.0)
