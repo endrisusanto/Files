@@ -270,6 +270,7 @@
         </div>
       </div>
       <div id="socket" class="badge bad">web disconnected</div>
+      <button id="uploadAll" onclick="uploadAll()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;">⬆ Upload All</button>
     </header>
 
     <section class="grid">
@@ -629,14 +630,27 @@
       draw();
     }
 
+    let _ws = null;
+
+    function uploadAll() {
+      if (!_ws || _ws.readyState !== 1) return alert("WebSocket not connected");
+      state.forEach(d => {
+        if (Date.now() - d.last_seen < 10000) {
+          _ws.send(JSON.stringify({ type: "command", target: d.id, command: "upload" }));
+        }
+      });
+    }
+
     function connect() {
       const scheme = location.protocol === "https:" ? "wss" : "ws";
       const ws = new WebSocket(`${scheme}://${location.host}/`);
       ws.onopen = () => {
+        _ws = ws;
         $("socket").textContent = "Online!";
         $("socket").className = "badge ok";
       };
       ws.onclose = () => {
+        _ws = null;
         $("socket").textContent = "Offline";
         $("socket").className = "badge bad";
         setTimeout(connect, 1000);

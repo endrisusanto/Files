@@ -439,10 +439,10 @@ export default function App() {
         }).length;
 
         await invoke("push_file", {
-          fileName: current,
+          file_name: current,
           force: forceTransfer,
-          queueTotal,
-          queueSuccess
+          queue_total: queueTotal,
+          queue_success: queueSuccess
         });
         console.info("[bridge-ui] push file ok", current);
         appendLog(`push ok ${current}`);

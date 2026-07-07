@@ -598,7 +598,7 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn push_file(app: AppHandle, file_name: String, force: bool, queue_total: i32, queue_success: i32) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || push_file_blocking(app, file_name, force, queue_total, queue_success))
         .await
@@ -628,7 +628,7 @@ async fn get_phone_files(app: AppHandle) -> Result<Vec<String>, String> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String> {
     println!("[bridge-tauri] select_bridge fingerprint={fingerprint}");
     let config = app.state::<Config>().inner().clone();
@@ -676,7 +676,7 @@ async fn app_info(app: AppHandle) -> AppInfo {
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 async fn set_source_dir(app: AppHandle, path: String) -> Result<Vec<LocalFile>, String> {
     let config = app.state::<Config>().inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
