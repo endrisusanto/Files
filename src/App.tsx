@@ -577,7 +577,8 @@ export default function App() {
             <tbody>
               {remoteDevices.map((d) => {
                 const isOnline = d.connected !== false && Date.now() - d.last_seen < 10000;
-                const usbOnline = false; // remoteTauri removed (data came from WS which now only tracks remoteDevices)
+                // Check if this remote WebSocket device is also connected via USB/ADB locally
+                const usbOnline = devices.some((localDev) => localDev.fingerprint === d.id);
                 const isSelected = localStorage.getItem("selected_remote_id") === d.id;
                 return (
                   <tr key={d.id} className={`border-t border-zinc-800 ${isSelected ? "bg-green-950/20" : "bg-zinc-950 hover:bg-zinc-900/50"}`}>
