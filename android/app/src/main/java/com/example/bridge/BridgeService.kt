@@ -86,26 +86,8 @@ class BridgeService : Service() {
         Log.i(tag, "BridgeService start startId=$startId")
         startForeground(1, notification("Uploading to Samba"))
         Thread {
-            val name = intent?.getStringExtra("file") ?: return@Thread run {
-                Log.e(tag, "BridgeService missing file extra")
-                stopSelf(startId)
-            }
             val qTotal = intent?.getIntExtra("queue_total", 0) ?: 0
             val qSuccess = intent?.getIntExtra("queue_success", 0) ?: 0
-            
-            if (qTotal > 0) {
-                queueTotal = qTotal
-                queueSuccess = qSuccess
-            } else {
-                val filesToUpload = localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".md5") } ?: emptyList()
-                if (filesToUpload.size > queueTotal) {
-                    queueTotal = filesToUpload.size
-                    queueSuccess = 0
-                }
-            }
-
-            val file = File(localDir, name)
-            Log.i(tag, "Upload worker started file=${file.absolutePath}")
             val wake = getSystemService(PowerManager::class.java)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "bridge:upload")
                 .apply { acquire(2 * 60 * 60 * 1000L) }
@@ -113,12 +95,31 @@ class BridgeService : Service() {
                 .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "bridge:wifi")
                 .apply { acquire() }
             try {
-                retry(3) { upload(file) }
-                if (!file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
-                Log.i(tag, "Upload done and local file deleted: ${file.name}")
-                queueSuccess += 1
+                val name = intent?.getStringExtra("file")
+                val filesToUpload = if (name != null) {
+                    listOf(File(localDir, name))
+                } else {
+                    localDir.listFiles()
+                        ?.filter { it.isFile && it.name.endsWith(".md5") }
+                        ?.sortedBy { it.lastModified() }
+                        ?: emptyList()
+                }
+                if (qTotal > 0) {
+                    queueTotal = qTotal
+                    queueSuccess = qSuccess
+                } else {
+                    queueTotal = filesToUpload.size
+                    queueSuccess = 0
+                }
+                for (file in filesToUpload) {
+                    Log.i(tag, "Upload worker started file=${file.absolutePath}")
+                    retry(3) { upload(file) }
+                    if (!file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
+                    Log.i(tag, "Upload done and local file deleted: ${file.name}")
+                    queueSuccess += 1
+                }
             } catch (t: Throwable) {
-                Log.e(tag, "Upload failed: ${file.absolutePath}", t)
+                Log.e(tag, "Upload failed", t)
                 getSystemService(NotificationManager::class.java).notify(2, notification("Upload failed: ${t.message}"))
             } finally {
                 currentFile = ""

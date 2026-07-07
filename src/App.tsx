@@ -117,6 +117,10 @@ export default function App() {
   });
   const [pushedFiles, setPushedFiles] = useState<Set<string>>(new Set());
   const [phoneFiles, setPhoneFiles] = useState<Set<string>>(new Set());
+  const filesRef = useRef<LocalFile[]>([]);
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
   const pushedFilesRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     pushedFilesRef.current = pushedFiles;
@@ -203,6 +207,7 @@ export default function App() {
       listen<LocalFile[]>("files", (e) => {
         console.info("[bridge-ui] files event", e.payload.length);
         appendLog(`files event count=${e.payload.length}`);
+        filesRef.current = e.payload;
         setFiles(e.payload);
 
         // Clean up pushedFiles that are no longer in source
@@ -219,25 +224,14 @@ export default function App() {
           return changed ? next : prev;
         });
 
-        const isAuto = localStorage.getItem("auto_push") === "true";
-        if (isAuto && !isPushingRef.current) {
-          const readyFile = e.payload.find((f) => {
-            if (f.status !== "ready") return false;
-            const inSamba = sambaFilesRef.current.some((sf) => sf.name === f.name);
-            if (inSamba) return false;
-            const alreadyPushed = pushedFilesRef.current.has(f.name);
-            return !alreadyPushed;
-          });
-          if (readyFile) {
-            console.info("[bridge-ui] Auto-push triggering for:", readyFile.name);
-            appendLog(`Auto-push triggered: ${readyFile.name}`);
-            push(readyFile.name);
-          }
+        if (localStorage.getItem("auto_push") === "true") {
+          pushAllPending();
         }
       }),
       listen<LocalFile[]>("samba-files", (e) => {
         console.info("[bridge-ui] samba-files event", e.payload.length);
         appendLog(`samba-files event count=${e.payload.length}`);
+        sambaFilesRef.current = e.payload;
         setSambaFiles(e.payload);
       }),
       listen<Transfer>("transfer", (e) => {
@@ -416,42 +410,62 @@ export default function App() {
     }
   }
 
-  async function push(name: string) {
+  function pendingFiles() {
+    return filesRef.current.filter((f) => {
+      if (f.status !== "ready") return false;
+      if (sambaFilesRef.current.some((sf) => sf.name === f.name)) return false;
+      return !pushedFilesRef.current.has(f.name);
+    });
+  }
+
+  async function push(name?: string) {
     if (isPushingRef.current) {
       console.warn("[bridge-ui] Transfer already in progress, skipping push");
       return;
     }
     isPushingRef.current = true;
     setError("");
-    console.info("[bridge-ui] push file", name);
-
-    const queueTotal = files.length;
-    const queueSuccess = files.filter(f => {
-      const inSamba = sambaFiles.some((sf) => sf.name === f.name);
-      const isPushed = pushedFiles.has(f.name);
-      return inSamba || (isPushed && f.name !== name);
-    }).length;
+    let ok = true;
 
     try {
-      await invoke("push_file", { 
-        fileName: name,
-        force: forceTransfer,
-        queueTotal,
-        queueSuccess
-      });
-      console.info("[bridge-ui] push file ok", name);
-      appendLog(`push ok ${name}`);
-      setPushedFiles((prev) => {
-        const next = new Set(prev);
-        next.add(name);
-        return next;
-      });
+      const names = name ? [name] : pendingFiles().map((f) => f.name);
+      for (const current of names) {
+        console.info("[bridge-ui] push file", current);
+        const queueTotal = filesRef.current.length;
+        const queueSuccess = filesRef.current.filter((f) => {
+          const inSamba = sambaFilesRef.current.some((sf) => sf.name === f.name);
+          const isPushed = pushedFilesRef.current.has(f.name);
+          return inSamba || (isPushed && f.name !== current);
+        }).length;
+
+        await invoke("push_file", {
+          fileName: current,
+          force: forceTransfer,
+          queueTotal,
+          queueSuccess
+        });
+        console.info("[bridge-ui] push file ok", current);
+        appendLog(`push ok ${current}`);
+        pushedFilesRef.current = new Set(pushedFilesRef.current).add(current);
+        setPushedFiles(new Set(pushedFilesRef.current));
+      }
     } catch (e) {
+      ok = false;
       console.error("[bridge-ui] push file failed", e);
-      appendLog(`push failed ${name}: ${String(e)}`);
+      appendLog(`push failed: ${String(e)}`);
       setError(String(e));
     } finally {
       isPushingRef.current = false;
+      if (ok && !name && localStorage.getItem("auto_push") === "true" && pendingFiles().length) {
+        pushAllPending();
+      }
+    }
+  }
+
+  function pushAllPending() {
+    if (pendingFiles().length) {
+      appendLog("Auto-push queue started");
+      push();
     }
   }
 
@@ -650,14 +664,14 @@ export default function App() {
                             ws.send(JSON.stringify({
                               type: "command",
                               target: d.id,
-                              command: "upload"
+                              command: "upload_all"
                             }));
-                            appendLog(`Sent remote upload command to device ${d.id}`);
+                            appendLog(`Sent remote upload all command to device ${d.id}`);
                           }
                         }}
                         className="w-28 rounded bg-blue-600 hover:bg-blue-500 px-2 py-1 text-xs font-bold text-white transition disabled:opacity-50 text-center"
                       >
-                        Remote Upload
+                        Remote Upload All
                       </button>
                       <button
                         disabled={!isOnline || !ws}
@@ -718,6 +732,7 @@ export default function App() {
                         setAutoPush(e.target.checked);
                         localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
                         appendLog(`Auto push ${e.target.checked ? "enabled" : "disabled"}`);
+                        if (e.target.checked) pushAllPending();
                       }}
                       className="h-3 w-3 accent-blue-500"
                     />

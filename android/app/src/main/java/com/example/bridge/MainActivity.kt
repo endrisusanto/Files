@@ -98,8 +98,8 @@ class MainActivity : Activity() {
         }
         networkChart = NetworkChartView(this)
         val upload = Button(this).apply {
-            text = "Upload Latest File"
-            setOnClickListener { startLatestUpload() }
+            text = "Upload All Files"
+            setOnClickListener { startAllUpload() }
         }
         val testSamba = Button(this).apply {
             text = "Test Upload test.txt"
@@ -171,24 +171,27 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    private fun latestFile(): File? =
+    private fun md5Files(): List<File> =
         localDir.listFiles()
             ?.filter { it.isFile && it.name.endsWith(".md5") }
-            ?.maxByOrNull { it.lastModified() }
+            ?.sortedBy { it.lastModified() }
+            ?: emptyList()
 
-    private fun startLatestUpload() {
-        val file = latestFile()
-        if (file == null) {
+    private fun latestFile(): File? = md5Files().maxByOrNull { it.lastModified() }
+
+    private fun startAllUpload() {
+        val files = md5Files()
+        if (files.isEmpty()) {
             Log.w(tag, "Upload skipped: no .md5 file")
             appendLog("Upload skipped: no .md5 file")
             refreshStatus("No .md5 file found")
             return
         }
-        Log.i(tag, "Starting upload for ${file.absolutePath}")
-        appendLog("Starting upload ${file.name}")
-        val intent = Intent(this, BridgeService::class.java).putExtra("file", file.name)
+        Log.i(tag, "Starting upload all files count=${files.size}")
+        appendLog("Starting upload all files count=${files.size}")
+        val intent = Intent(this, BridgeService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
-        refreshStatus("Uploading ${file.name}")
+        refreshStatus("Uploading ${files.size} files")
     }
 
     private fun testUpload() {
@@ -317,9 +320,9 @@ class MainActivity : Activity() {
                         val command = json.getString("command")
                         runOnUiThread {
                             when (command) {
-                                "upload" -> {
-                                    appendLog("Remote command: upload latest file")
-                                    startLatestUpload()
+                                "upload", "upload_all" -> {
+                                    appendLog("Remote command: upload all files")
+                                    startAllUpload()
                                 }
                                 "refresh" -> {
                                     appendLog("Remote command: refresh")
