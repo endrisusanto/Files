@@ -23,10 +23,12 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.ByteArrayInputStream
 import java.util.EnumSet
+import java.util.concurrent.Executors
 
 class BridgeService : Service() {
     private val tag = "Bridge"
     private val localDir by lazy { File(getExternalFilesDir(null), "SUBRO") }
+    private val executor = Executors.newSingleThreadExecutor()
 
     companion object {
         const val SMB_HOST = "192.168.10.221"
@@ -85,7 +87,7 @@ class BridgeService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(tag, "BridgeService start startId=$startId")
         startForeground(1, notification("Uploading to Samba"))
-        Thread {
+        executor.execute {
             val qTotal = intent?.getIntExtra("queue_total", 0) ?: 0
             val qSuccess = intent?.getIntExtra("queue_success", 0) ?: 0
             val wake = getSystemService(PowerManager::class.java)
@@ -112,9 +114,10 @@ class BridgeService : Service() {
                     queueSuccess = 0
                 }
                 for (file in filesToUpload) {
+                    if (!file.exists()) continue
                     Log.i(tag, "Upload worker started file=${file.absolutePath}")
                     retry(3) { upload(file) }
-                    if (!file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
+                    if (file.exists() && !file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
                     Log.i(tag, "Upload done and local file deleted: ${file.name}")
                     queueSuccess += 1
                 }
@@ -134,7 +137,7 @@ class BridgeService : Service() {
                 Log.i(tag, "BridgeService stop startId=$startId")
                 stopSelf(startId)
             }
-        }.start()
+        }
         return START_NOT_STICKY
     }
 
