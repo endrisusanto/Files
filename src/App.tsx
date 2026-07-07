@@ -492,6 +492,7 @@ export default function App() {
   const active = devices.some((d) => d.is_target_bridge);
   const selected = devices.some((d) => d.is_selected_bridge);
   const selectedDevice = devices.find((d) => d.is_selected_bridge);
+  const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint);
   const deviceActionReady = Boolean(selectedDevice);
   const isLinux = info?.platform === "linux";
 
