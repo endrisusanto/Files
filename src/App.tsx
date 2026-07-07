@@ -27,7 +27,6 @@ type Transfer = { file: string; percent: number; message: string };
 type NetworkSample = { rx_bps: number; tx_bps: number };
 type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean; hostname: string };
 
-const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 const speed = (b: number) => `${(b / 1024 / 1024).toFixed(2)} MB/s`;
 const statusClass = (status: string | undefined | null) => {
@@ -96,6 +95,7 @@ export default function App() {
   const [debugLog, setDebugLog] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [remoteDevices, setRemoteDevices] = useState<any[]>([]);
+  const [remoteTauri, setRemoteTauri] = useState<any[]>([]);
   const [autoPush, setAutoPush] = useState(() => {
     const val = localStorage.getItem("auto_push");
     if (val === null) {
@@ -124,7 +124,6 @@ export default function App() {
   const [actionLoading, setActionLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState("");
   const [diagLoading, setDiagLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   function appendLog(line: string) {
     const text = `${new Date().toLocaleTimeString()} ${line}`;
@@ -279,6 +278,7 @@ export default function App() {
           const msg = JSON.parse(event.data);
           if (msg.type === "state") {
             setRemoteDevices(msg.devices || []);
+            setRemoteTauri(msg.tauri || []);
             const selectedRemoteId = localStorage.getItem("selected_remote_id");
             const selectedRemote = (msg.devices || []).find((d: any) => d.id === selectedRemoteId);
             if (selectedRemote && selectedRemote.samples && selectedRemote.samples.length > 0) {
@@ -366,7 +366,6 @@ export default function App() {
   }, [ws, info, devices, files, remoteDevices, transfer, phoneFiles]);
 
   async function refreshDevices() {
-    setRefreshing(true);
     setError("");
     console.info("[bridge-ui] refresh devices");
     appendLog("refresh devices");
@@ -379,8 +378,6 @@ export default function App() {
       console.error("[bridge-ui] refresh devices failed", e);
       appendLog(`refresh devices failed ${String(e)}`);
       setError(String(e));
-    } finally {
-      setRefreshing(false);
     }
   }
 
@@ -467,6 +464,7 @@ export default function App() {
       const path = await invoke<string | null>("pick_source_dir");
       if (path) {
         setSourcePath(path);
+        await applySource(path);
         appendLog(`source picked ${path}`);
       }
     } catch (err) {
@@ -550,16 +548,6 @@ export default function App() {
               {active ? "ADB bridge healthy" : selected ? "Bridge selected, storage low" : "No bridge selected"}
             </span>
             <button
-              disabled={refreshing}
-              onClick={refreshDevices}
-              className="rounded bg-zinc-900 p-2 text-zinc-400 hover:bg-zinc-300 hover:text-zinc-950 border border-zinc-800 transition disabled:opacity-50"
-              title="Refresh Device List"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-              </svg>
-            </button>
-            <button
               onClick={() => setShowSettings(true)}
               className="rounded bg-zinc-900 p-2 text-zinc-400 hover:bg-zinc-800 border border-zinc-800 transition"
               title="Settings"
@@ -569,48 +557,6 @@ export default function App() {
               </svg>
             </button>
           </div>
-        </div>
-        <div className="overflow-x-auto rounded-lg border border-zinc-800">
-          <table className="w-full min-w-[980px] border-collapse text-left">
-            <thead className="bg-zinc-900 text-sm text-zinc-400">
-              <tr>
-                <th className="p-3">Bridge</th>
-                <th className="p-3">Model</th>
-                <th className="p-3">Device ID</th>
-                <th className="p-3">IP</th>
-                <th className="p-3">Storage</th>
-                <th className="p-3">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {devices.map((d) => (
-                <tr key={d.id} className={`border-t border-zinc-800 ${d.is_selected_bridge ? "bg-green-950/40" : "bg-zinc-950"}`}>
-                  <td className="p-3">
-                    <input
-                      type="checkbox"
-                      checked={d.is_selected_bridge}
-                      onChange={() => selectBridge(d.fingerprint)}
-                      className="h-5 w-5 accent-green-500"
-                    />
-                  </td>
-                  <td className="p-3">{d.model}</td>
-                  <td className="p-3 text-zinc-400">{d.id}</td>
-                  <td className="p-3">{d.ip_address}</td>
-                  <td className="p-3">{gb(d.available_storage)}</td>
-                  <td className="p-3">
-                    <span className={`rounded border px-2 py-1 text-xs ${d.apk_installed ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
-                      APK {d.apk_installed ? "ok" : "missing"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {!devices.length && (
-                <tr>
-                  <td className="p-3 text-zinc-500" colSpan={6}>No ADB devices detected. Check USB debugging and run `adb devices` once to authorize.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
         </div>
       </section>
 
@@ -630,6 +576,7 @@ export default function App() {
                 <th className="p-3">Device ID</th>
                 <th className="p-3">Samba Target</th>
                 <th className="p-3">Samba Status</th>
+                <th className="p-3">USB/Tauri</th>
                 <th className="p-3">Latest File</th>
                 <th className="p-3">WebSocket Status</th>
                 <th className="p-3">Actions</th>
@@ -637,7 +584,8 @@ export default function App() {
             </thead>
             <tbody>
               {remoteDevices.map((d) => {
-                const isOnline = Date.now() - d.last_seen < 10000;
+                const isOnline = d.connected !== false && Date.now() - d.last_seen < 10000;
+                const usbOnline = remoteTauri.some((host) => (host.devices || []).some((device: Device) => device.fingerprint === d.id));
                 const isSelected = localStorage.getItem("selected_remote_id") === d.id;
                 return (
                   <tr key={d.id} className={`border-t border-zinc-800 ${isSelected ? "bg-green-950/20" : "bg-zinc-950 hover:bg-zinc-900/50"}`}>
@@ -647,6 +595,11 @@ export default function App() {
                     <td className="p-3">
                       <span className={`rounded border px-2 py-0.5 text-xs ${d.samba === "connected" ? "border-green-800 bg-green-950 text-green-300" : "border-red-800 bg-red-950 text-red-300"}`}>
                         Samba {d.samba || "not connected"}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`rounded border px-2 py-0.5 text-xs ${usbOnline ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-500"}`}>
+                        {usbOnline ? "Connected" : "Disconnected"}
                       </span>
                     </td>
                     <td className="p-3 text-xs text-zinc-400 max-w-[200px] truncate" title={d.latest}>{d.latest || "-"}</td>
@@ -707,7 +660,7 @@ export default function App() {
               })}
               {!remoteDevices.length && (
                 <tr>
-                  <td className="p-3 text-zinc-500" colSpan={7}>No remote WebSocket devices registered on server.</td>
+                  <td className="p-3 text-zinc-500" colSpan={8}>No remote WebSocket devices registered on server.</td>
                 </tr>
               )}
             </tbody>

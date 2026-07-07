@@ -79,6 +79,7 @@ function attachAndroid(req, socket) {
         ...current,
         ...sample,
         id,
+        connected: true,
         last_seen: Date.now(),
         samples: [...current.samples.slice(-59), { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 }],
       });
@@ -90,6 +91,8 @@ function attachAndroid(req, socket) {
   socket.on("close", () => {
     if (socket.deviceId) {
       androidSockets.delete(socket.deviceId);
+      const current = devices.get(socket.deviceId);
+      if (current) devices.set(socket.deviceId, { ...current, connected: false });
     }
     broadcast();
   });
