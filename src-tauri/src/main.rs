@@ -283,11 +283,11 @@ fn bridge_files(dir: &Path) -> Vec<LocalFile> {
             let path = entry.path();
             let name = path.file_name()?.to_string_lossy().to_string();
             let lower = name.to_lowercase();
-            if !lower.ends_with(".tar.md5") && !lower.ends_with(".tar.md5.part") {
+            if !lower.ends_with(".md5") && !lower.ends_with(".md5.part") {
                 return None;
             }
             let meta = entry.metadata().ok()?;
-            let locked = lower.ends_with(".tar.md5") && !file_is_available(&path);
+            let locked = lower.ends_with(".md5") && !file_is_available(&path);
             Some(LocalFile {
                 status: if lower.ends_with(".part") { "downloading" } else if locked { "locked" } else { "ready" }.into(),
                 name,
@@ -512,9 +512,9 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         ));
     }
     let source = source_dir(&config).join(&file_name);
-    if !source.is_file() || !file_name.ends_with(".tar.md5") || (!force && !file_is_available(&source)) {
+    if !source.is_file() || !file_name.ends_with(".md5") || (!force && !file_is_available(&source)) {
         eprintln!("[bridge-tauri] push_file rejected source={}", source.display());
-        return Err("file is not a ready .tar.md5".into());
+        return Err("file is not a ready .md5 file".into());
     }
 
     if let Err(e) = adb(&["-s", &device.id, "shell", "mkdir", "-p", ANDROID_DIR]) {
@@ -617,7 +617,7 @@ async fn get_phone_files(app: AppHandle) -> Result<Vec<String>, String> {
             };
             let files: Vec<String> = out.lines()
                 .map(|l| l.trim().to_string())
-                .filter(|l| !l.is_empty() && l.ends_with(".tar.md5"))
+                .filter(|l| !l.is_empty() && l.ends_with(".md5"))
                 .collect();
             Ok(files)
         })
