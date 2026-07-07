@@ -8,12 +8,9 @@ type Device = {
   model: string;
   fingerprint: string;
   available_storage: number;
-  battery_level?: number | null;
-  battery_temperature?: number | null;
   ip_address: string;
   apk_installed: boolean;
   is_selected_bridge: boolean;
-  is_target_bridge: boolean;
 };
 
 type LocalFile = {
@@ -95,7 +92,6 @@ export default function App() {
   const [debugLog, setDebugLog] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [remoteDevices, setRemoteDevices] = useState<any[]>([]);
-  const [remoteTauri, setRemoteTauri] = useState<any[]>([]);
   const [autoPush, setAutoPush] = useState(() => {
     const val = localStorage.getItem("auto_push");
     if (val === null) {
@@ -120,10 +116,7 @@ export default function App() {
   const [sourcePath, setSourcePath] = useState(() => localStorage.getItem("source_path") || "");
   const [forceTransfer, setForceTransfer] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [actionStatus, setActionStatus] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState("");
-  const [diagLoading, setDiagLoading] = useState(false);
 
   function appendLog(line: string) {
     const text = `${new Date().toLocaleTimeString()} ${line}`;
@@ -278,7 +271,6 @@ export default function App() {
           const msg = JSON.parse(event.data);
           if (msg.type === "state") {
             setRemoteDevices(msg.devices || []);
-            setRemoteTauri(msg.tauri || []);
             const selectedRemoteId = localStorage.getItem("selected_remote_id");
             const selectedRemote = (msg.devices || []).find((d: any) => d.id === selectedRemoteId);
             if (selectedRemote && selectedRemote.samples && selectedRemote.samples.length > 0) {
@@ -487,7 +479,7 @@ export default function App() {
     }
   }
 
-  const active = devices.some((d) => d.is_target_bridge);
+  const active = devices.some((d) => d.is_selected_bridge);
   const selected = devices.some((d) => d.is_selected_bridge);
   const selectedDevice = devices.find((d) => d.is_selected_bridge);
   const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint);
@@ -585,7 +577,7 @@ export default function App() {
             <tbody>
               {remoteDevices.map((d) => {
                 const isOnline = d.connected !== false && Date.now() - d.last_seen < 10000;
-                const usbOnline = remoteTauri.some((host) => (host.devices || []).some((device: Device) => device.fingerprint === d.id));
+                const usbOnline = false; // remoteTauri removed (data came from WS which now only tracks remoteDevices)
                 const isSelected = localStorage.getItem("selected_remote_id") === d.id;
                 return (
                   <tr key={d.id} className={`border-t border-zinc-800 ${isSelected ? "bg-green-950/20" : "bg-zinc-950 hover:bg-zinc-900/50"}`}>
@@ -748,11 +740,7 @@ export default function App() {
           <div className="mt-4 border-t border-zinc-800 pt-4">
             <p className="mb-3 text-sm text-zinc-400">Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
             <p className="mt-3 break-all text-sm text-zinc-300">{transfer ? `${transfer.file}: ${transfer.message}` : "No active transfer"}</p>
-            {actionStatus && (
-              <p className="mt-3 rounded border border-zinc-700 bg-zinc-950 p-3 text-sm text-zinc-300 break-all">
-                {actionStatus}
-              </p>
-            )}
+
             {error && <p className="mt-3 rounded border border-red-900 bg-red-950 p-3 text-sm text-red-200">{error}</p>}
           </div>
         </div>

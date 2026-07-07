@@ -45,12 +45,9 @@ struct DeviceInfo {
     model: String,
     fingerprint: String,
     available_storage: u64,
-    battery_level: Option<u8>,
-    battery_temperature: Option<f32>,
     ip_address: String,
     apk_installed: bool,
     is_selected_bridge: bool,
-    is_target_bridge: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -260,25 +257,20 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
             fingerprint == target_fingerprint
         };
         DeviceInfo {
-            is_target_bridge: is_selected && available_storage >= MIN_FREE_KB,
+            is_selected_bridge: is_selected,
             id,
             model,
             fingerprint,
             available_storage,
-            battery_level: None,
-            battery_temperature: None,
             ip_address,
             apk_installed,
-            is_selected_bridge: is_selected,
         }
     }).collect();
 
     println!(
-        "[bridge-tauri] devices scanned: total={} selected={} ready={} apk_installed={}",
+        "[bridge-tauri] devices scanned: total={} selected={}",
         result_devices.len(),
         result_devices.iter().filter(|d| d.is_selected_bridge).count(),
-        result_devices.iter().filter(|d| d.is_target_bridge).count(),
-        result_devices.iter().filter(|d| d.apk_installed).count()
     );
     result_devices
 }
@@ -359,41 +351,12 @@ fn file_is_available(path: &Path) -> bool {
 fn emit_loop(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
     thread::spawn(move || loop {
-        println!("[bridge-tauri] emit_loop tick");
-        let cached = config.devices_cache.lock().ok().map(|c| c.clone()).unwrap_or_default();
-        let _ = app.emit("devices", cached);
         let _ = app.emit("files", bridge_files(&source_dir(&config)));
         let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
-        // ponytail: increase interval to 5s to drastically reduce background process spawning overhead
         thread::sleep(Duration::from_secs(5));
     });
 }
 
-
-
-fn monitor_loop(app: AppHandle) {
-    let config = app.state::<Config>().inner().clone();
-    let url = std::env::var("MONITOR_URL").unwrap_or_else(|_| "https://files.endrisusanto.my.id/tauri".into());
-    thread::spawn(move || loop {
-        let host = std::env::var("COMPUTERNAME")
-            .or_else(|_| std::env::var("HOSTNAME"))
-            .unwrap_or_else(|_| "tauri".into());
-        let cached = config.devices_cache.lock().ok().map(|c| c.clone()).unwrap_or_default();
-        let body = serde_json::json!({
-            "id": host,
-            "host": host,
-            "platform": std::env::consts::OS,
-            "source_dir": source_dir(&config).display().to_string(),
-            "samba_dir": config.samba_dir.display().to_string(),
-            "devices": cached,
-        })
-        .to_string();
-        let _ = command("curl")
-            .args(["-fsS", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, &url])
-            .output();
-        thread::sleep(Duration::from_secs(10));
-    });
-}
 
 
 
@@ -591,7 +554,7 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
 
     thread::spawn(move || {
         while *ir_clone.lock().unwrap() {
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(2000));
             if let Some(remote_size) = get_remote_file_size(&device_id, &remote_path) {
                 let percent = ((remote_size as f64 / total_size as f64) * 100.0) as u8;
                 let percent = std::cmp::min(99, percent);
@@ -739,87 +702,6 @@ async fn pick_source_dir() -> Option<String> {
 }
 
 #[tauri::command]
-async fn pick_apk_file() -> Option<String> {
-    rfd::FileDialog::new()
-        .add_filter("Android APK", &["apk"])
-        .pick_file()
-        .map(|p| p.to_string_lossy().into_owned())
-}
-
-fn push_install_apk_blocking(app: AppHandle, apk_path: String) -> Result<String, String> {
-    println!("[bridge-tauri] push_install_apk path={apk_path}");
-    let config = app.state::<Config>().inner().clone();
-    let device = list_devices(&config)
-        .into_iter()
-        .find(|d| d.is_selected_bridge)
-        .ok_or_else(|| {
-            eprintln!("[bridge-tauri] push_install_apk no selected bridge");
-            "No target bridge connected or selected"
-        })?;
-    let path = PathBuf::from(&apk_path);
-    if !path.is_file() {
-        eprintln!("[bridge-tauri] push_install_apk missing apk path={apk_path}");
-        return Err("File APK tidak ditemukan atau path tidak valid".into());
-    }
-    let out = command("adb")
-        .args(["-s", &device.id, "install", "-r", path.to_str().unwrap()])
-        .output()
-        .map_err(|e| e.to_string())?;
-    
-    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-    if out.status.success() {
-        println!("[bridge-tauri] push_install_apk done device={}", device.id);
-        Ok("APK berhasil diinstall".into())
-    } else {
-        eprintln!("[bridge-tauri] push_install_apk failed stdout={stdout} stderr={stderr}");
-        Err(format!("Gagal menginstall APK: {} {}", stdout, stderr))
-    }
-}
-
-#[tauri::command]
-async fn push_install_apk(app: AppHandle, apk_path: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || push_install_apk_blocking(app, apk_path))
-        .await
-        .map_err(|e| e.to_string())?
-}
-
-fn connect_wifi_blocking(app: AppHandle, ssid: String, password: String) -> Result<String, String> {
-    println!("[bridge-tauri] connect_wifi ssid={ssid}");
-    let config = app.state::<Config>().inner().clone();
-    let device = list_devices(&config)
-        .into_iter()
-        .find(|d| d.is_selected_bridge)
-        .ok_or_else(|| {
-            eprintln!("[bridge-tauri] connect_wifi no selected bridge");
-            "No target bridge connected or selected"
-        })?;
-    
-    let out = command("adb")
-        .args(["-s", &device.id, "shell", "cmd", "wifi", "connect-network", &ssid, "wpa2", &password])
-        .output()
-        .map_err(|e| e.to_string())?;
-
-    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-
-    if out.status.success() && !stdout.contains("Failed") && !stderr.contains("Failed") {
-        println!("[bridge-tauri] connect_wifi done ssid={ssid} device={}", device.id);
-        Ok(format!("Berhasil menghubungkan ke Wi-Fi {}", ssid))
-    } else {
-        eprintln!("[bridge-tauri] connect_wifi failed stdout={stdout} stderr={stderr}");
-        Err(format!("Gagal menghubungkan ke Wi-Fi: {} {}", stdout, stderr))
-    }
-}
-
-#[tauri::command]
-async fn connect_wifi(app: AppHandle, ssid: String, password: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || connect_wifi_blocking(app, ssid, password))
-        .await
-        .map_err(|e| e.to_string())?
-}
-
-#[tauri::command]
 async fn debug_adb() -> String {
     println!("[bridge-tauri] debug_adb");
     tauri::async_runtime::spawn_blocking(move || {
@@ -916,9 +798,6 @@ fn main() {
             select_bridge,
             set_source_dir,
             pick_source_dir,
-            pick_apk_file,
-            push_install_apk,
-            connect_wifi,
             debug_adb,
             get_devices
         ])
@@ -935,7 +814,6 @@ fn main() {
             }
             // ponytail: removed legacy local websocket_loop to stay clean and secure
             emit_loop(app.handle().clone());
-            monitor_loop(app.handle().clone());
             watch_source(app.handle().clone());
             watch_samba(app.handle().clone());
             watch_adb_devices(app.handle().clone());
