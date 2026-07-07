@@ -461,11 +461,6 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
             "quit" => std::process::exit(0),
             _ => {}
         })
-        .on_tray_icon_event(|tray, event| {
-            if let tauri::tray::TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, .. } = event {
-                show_main_window(tray.app_handle());
-            }
-        })
         .build(app)?;
     Ok(())
 }

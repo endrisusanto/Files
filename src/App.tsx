@@ -30,7 +30,10 @@ type AppInfo = { platform: string; source_dir: string; samba_dir: string; target
 const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 const speed = (b: number) => `${(b / 1024 / 1024).toFixed(2)} MB/s`;
-const statusClass = (status: string) => {
+const statusClass = (status: string | undefined | null) => {
+  if (!status || typeof status !== "string") {
+    return "border-zinc-800 bg-zinc-900 text-zinc-400";
+  }
   if (status.includes("inprogress staging push")) {
     return "border-blue-800 bg-blue-950 text-blue-300 animate-pulse";
   }
@@ -318,12 +321,12 @@ export default function App() {
         const selectedDevice = devices.find((d) => d.is_selected_bridge);
         const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint);
 
-        const mappedFiles = files.map((f) => {
-          const inSamba = sambaFilesRef.current.some((sf) => sf.name === f.name);
-          const isPushed = pushedFilesRef.current.has(f.name);
+        const mappedFiles = (files || []).map((f) => {
+          const inSamba = sambaFilesRef.current ? sambaFilesRef.current.some((sf) => sf.name === f.name) : false;
+          const isPushed = pushedFilesRef.current ? pushedFilesRef.current.has(f.name) : false;
           const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
           const isUploadingThis = activeRemote?.current_file === f.name;
-          const isUploaded = inSamba || (isPushed && !phoneFiles.has(f.name));
+          const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
 
           let displayStatus = f.status;
           if (isPushingThis) {
@@ -743,13 +746,13 @@ export default function App() {
             </div>
           </div>
           <div className="space-y-2">
-            {files.map((f) => {
-              const inSamba = sambaFiles.some((sf) => sf.name === f.name);
-              const isPushed = pushedFiles.has(f.name);
+            {(files || []).map((f) => {
+              const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
+              const isPushed = pushedFiles ? pushedFiles.has(f.name) : false;
               
               const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
               const isUploadingThis = activeRemote?.current_file === f.name;
-              const isUploaded = inSamba || (isPushed && !phoneFiles.has(f.name));
+              const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
 
               let displayStatus = f.status;
               if (isPushingThis) {
