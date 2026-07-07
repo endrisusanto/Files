@@ -171,6 +171,11 @@ export default function App() {
         .catch(() => {});
     }, 5000);
 
+    const devicesInterval = setInterval(() => {
+      refreshDevices();
+    }, 4000);
+
+
     const unsubs = [
       listen<Device[]>("devices", (e) => {
         console.info("[bridge-ui] devices event", e.payload.length);
@@ -230,6 +235,7 @@ export default function App() {
     return () => {
       clearInterval(interval);
       clearInterval(phoneFilesInterval);
+      clearInterval(devicesInterval);
       void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
     };
   }, []);
