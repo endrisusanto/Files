@@ -724,9 +724,17 @@ export default function App() {
                       </span>
                     </div>
                     <p className="text-sm text-zinc-500">{fileGb(f.size)}</p>
+                    {isPushingThis && (
+                      <div className="mt-2 w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-blue-500 h-1.5 rounded-full transition-all duration-300" 
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
                   <button
-                    disabled={(!forceTransfer && (!active || displayStatus !== "ready")) || (forceTransfer && !selectedDevice)}
+                    disabled={!selectedDevice || (displayStatus !== "ready" && !forceTransfer)}
                     onClick={() => push(f.name)}
                     className={`rounded px-3 py-2 text-sm font-bold text-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 ${forceTransfer ? "bg-amber-500" : "bg-green-500"}`}
                   >
