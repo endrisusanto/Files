@@ -576,6 +576,7 @@ export default function App() {
                 <th className="p-3">Samba Target</th>
                 <th className="p-3">Samba Status</th>
                 <th className="p-3">USB/Tauri</th>
+                <th className="p-3">Target</th>
                 <th className="p-3">Latest File</th>
                 <th className="p-3">WebSocket Status</th>
                 <th className="p-3">Actions</th>
@@ -588,7 +589,7 @@ export default function App() {
                 const usbOnline = devices.some((localDev) => localDev.fingerprint === d.id);
                 const isSelected = localStorage.getItem("selected_remote_id") === d.id;
                 return (
-                  <tr key={d.id} className={`border-t border-zinc-800 ${isSelected ? "bg-green-950/20" : "bg-zinc-950 hover:bg-zinc-900/50"}`}>
+                  <tr key={d.id} className={`border-t border-zinc-800 ${isSelected ? "bg-green-950/10" : "bg-zinc-950 hover:bg-zinc-900/50"}`}>
                     <td className="p-3 font-medium">{d.model || "-"}</td>
                     <td className="p-3 text-zinc-400 text-xs max-w-[200px] truncate" title={d.id}>{d.id}</td>
                     <td className="p-3 text-zinc-300 text-xs">{d.target || "-"}</td>
@@ -602,6 +603,11 @@ export default function App() {
                         {usbOnline ? "Connected" : "Disconnected"}
                       </span>
                     </td>
+                    <td className="p-3">
+                      <span className={`rounded border px-2 py-0.5 text-xs ${isSelected ? "border-blue-800 bg-blue-950 text-blue-300" : "border-zinc-800 bg-zinc-900 text-zinc-500"}`}>
+                        {isSelected ? "Selected" : "Idle"}
+                      </span>
+                    </td>
                     <td className="p-3 text-xs text-zinc-400 max-w-[200px] truncate" title={d.latest}>{d.latest || "-"}</td>
                     <td className="p-3">
                       <span className={`rounded border px-2 py-0.5 text-xs ${isOnline ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-500"}`}>
@@ -612,6 +618,8 @@ export default function App() {
                       <button
                         onClick={() => {
                           localStorage.setItem("selected_remote_id", d.id);
+                          // Auto-select USB/ADB bridge locally when user manually clicks Monitor
+                          selectBridge(d.id);
                           appendLog(`Selected remote device for monitoring: ${d.model} (${d.id})`);
                         }}
                         className="rounded bg-zinc-800 border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
@@ -660,7 +668,7 @@ export default function App() {
               })}
               {!remoteDevices.length && (
                 <tr>
-                  <td className="p-3 text-zinc-500" colSpan={8}>No remote WebSocket devices registered on server.</td>
+                  <td className="p-3 text-zinc-500" colSpan={9}>No remote WebSocket devices registered on server.</td>
                 </tr>
               )}
             </tbody>
