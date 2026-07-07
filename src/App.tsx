@@ -90,6 +90,7 @@ export default function App() {
     return val === "true";
   });
   const [pushedFiles, setPushedFiles] = useState<Set<string>>(new Set());
+  const [phoneFiles, setPhoneFiles] = useState<Set<string>>(new Set());
   const pushedFilesRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     pushedFilesRef.current = pushedFiles;
@@ -155,6 +156,14 @@ export default function App() {
         .catch((e) => console.error("periodic app_info fetch failed", e));
     }, 10000);
 
+    const phoneFilesInterval = setInterval(() => {
+      invoke<string[]>("get_phone_files")
+        .then((list) => {
+          setPhoneFiles(new Set(list));
+        })
+        .catch(() => {});
+    }, 5000);
+
     const unsubs = [
       listen<Device[]>("devices", (e) => {
         console.info("[bridge-ui] devices event", e.payload.length);
@@ -213,6 +222,7 @@ export default function App() {
     refreshDevices();
     return () => {
       clearInterval(interval);
+      clearInterval(phoneFilesInterval);
       void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
     };
   }, []);
@@ -369,10 +379,10 @@ export default function App() {
 
     try {
       await invoke("push_file", { 
-        fileName: name, 
+        file_name: name, 
         force: forceTransfer,
-        queueTotal,
-        queueSuccess
+        queue_total: queueTotal,
+        queue_success: queueSuccess
       });
       console.info("[bridge-ui] push file ok", name);
       appendLog(`push ok ${name}`);
@@ -697,7 +707,8 @@ export default function App() {
             {files.map((f) => {
               const inSamba = sambaFiles.some((sf) => sf.name === f.name);
               const isPushed = pushedFiles.has(f.name);
-              const displayStatus = inSamba ? "uploaded" : isPushed ? "pushed" : f.status;
+              const isUploaded = inSamba || (isPushed && !phoneFiles.has(f.name));
+              const displayStatus = isUploaded ? "uploaded" : isPushed ? "pushed" : f.status;
               const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
               return (
               <div key={f.name} className="rounded border border-zinc-800 bg-zinc-950 p-3">

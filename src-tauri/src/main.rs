@@ -25,7 +25,7 @@ const DEFAULT_SOURCE_DIR: &str = r"E:\SUBRO";
 const ANDROID_DIR: &str = "/sdcard/Android/data/com.example.bridge/files/SUBRO/";
 const ANDROID_PACKAGE: &str = "com.example.bridge";
 const DEFAULT_SAMBA_DIR: &str = "/sambashare";
-const MIN_FREE_KB: u64 = 25 * 1024 * 1024;
+const MIN_FREE_KB: u64 = 1 * 1024 * 1024;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -157,7 +157,7 @@ fn source_dir(config: &Config) -> PathBuf {
 
 fn get_device_details(id: &str) -> (String, u64, String, bool) {
     let cmd = format!(
-        "getprop ro.build.fingerprint; echo '==='; df -k /sdcard/Download; echo '==='; ip -f inet addr show wlan0; echo '==='; pm path {}",
+        "getprop ro.build.fingerprint; echo '==='; df -k /sdcard; echo '==='; ip -f inet addr show wlan0; echo '==='; pm path {}",
         ANDROID_PACKAGE
     );
     let Ok(output) = command("adb")
@@ -635,6 +635,29 @@ async fn push_file(app: AppHandle, file_name: String, force: bool, queue_total: 
 }
 
 #[tauri::command]
+async fn get_phone_files(app: AppHandle) -> Result<Vec<String>, String> {
+    let config = app.state::<Config>().inner().clone();
+    let cached_devices = config.devices_cache.lock().ok().map(|c| c.clone()).unwrap_or_default();
+    let device_id = cached_devices.iter().find(|d| d.is_selected_bridge).map(|d| d.id.clone());
+    if let Some(id) = device_id {
+        tauri::async_runtime::spawn_blocking(move || {
+            let Ok(out) = adb(&["-s", &id, "shell", "ls", ANDROID_DIR]) else {
+                return Ok(vec![]);
+            };
+            let files: Vec<String> = out.lines()
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty() && l.ends_with(".tar.md5"))
+                .collect();
+            Ok(files)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    } else {
+        Ok(vec![])
+    }
+}
+
+#[tauri::command]
 async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String> {
     println!("[bridge-tauri] select_bridge fingerprint={fingerprint}");
     let config = app.state::<Config>().inner().clone();
@@ -880,6 +903,7 @@ fn main() {
         .manage(config)
         .invoke_handler(tauri::generate_handler![
             push_file,
+            get_phone_files,
             app_info,
             select_bridge,
             set_source_dir,
