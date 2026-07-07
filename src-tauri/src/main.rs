@@ -534,11 +534,20 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
     }
     let device = cached_devices
         .into_iter()
-        .find(|d| if force { d.is_selected_bridge } else { d.is_target_bridge })
+        .find(|d| d.is_selected_bridge)
         .ok_or_else(|| {
-            eprintln!("[bridge-tauri] push_file no ready bridge");
-            "target bridge fingerprint not connected or lacks 25GB free storage"
+            eprintln!("[bridge-tauri] push_file no bridge selected");
+            "No device selected. Connect a device with the bridge APK installed."
         })?;
+
+    // Soft storage check — warn but don't block (MIN_FREE_KB = 1GB)
+    if !force && device.available_storage < MIN_FREE_KB {
+        eprintln!("[bridge-tauri] push_file low storage: {} KB free", device.available_storage);
+        return Err(format!(
+            "Device storage too low: {} MB free (need 1 GB). Use Force Transfer to override.",
+            device.available_storage / 1024
+        ));
+    }
     let source = source_dir(&config).join(&file_name);
     if !source.is_file() || !file_name.ends_with(".tar.md5") || (!force && !file_is_available(&source)) {
         eprintln!("[bridge-tauri] push_file rejected source={}", source.display());
