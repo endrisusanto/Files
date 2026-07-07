@@ -30,14 +30,26 @@ type AppInfo = { platform: string; source_dir: string; samba_dir: string; target
 const gb = (kb: number) => `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 const speed = (b: number) => `${(b / 1024 / 1024).toFixed(2)} MB/s`;
-const statusClass = (status: string) =>
-  status === "ready"
-    ? "border-green-800 bg-green-950 text-green-300"
-    : status === "locked"
-      ? "border-amber-800 bg-amber-950 text-amber-300"
-      : status === "uploaded"
-        ? "border-zinc-800 bg-zinc-950 text-zinc-500"
-        : "border-blue-800 bg-blue-950 text-blue-300";
+const statusClass = (status: string) => {
+  if (status.includes("inprogress staging push")) {
+    return "border-blue-800 bg-blue-950 text-blue-300 animate-pulse";
+  }
+  if (status.includes("inprogress transfer to samba")) {
+    return "border-cyan-800 bg-cyan-950 text-cyan-300 animate-pulse";
+  }
+  switch (status) {
+    case "ready":
+      return "border-zinc-800 bg-zinc-900 text-zinc-400";
+    case "pushed to android successful":
+      return "border-amber-800 bg-amber-950 text-amber-300";
+    case "transfer samba complete":
+      return "border-green-800 bg-green-950 text-green-300";
+    case "locked":
+      return "border-red-800 bg-red-950 text-red-300";
+    default:
+      return "border-zinc-800 bg-zinc-900 text-zinc-400";
+  }
+};
 
 function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   const width = 600;
@@ -303,6 +315,33 @@ export default function App() {
     
     function sendStatus() {
       if (ws.readyState === WebSocket.OPEN) {
+        const selectedDevice = devices.find((d) => d.is_selected_bridge);
+        const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint);
+
+        const mappedFiles = files.map((f) => {
+          const inSamba = sambaFilesRef.current.some((sf) => sf.name === f.name);
+          const isPushed = pushedFilesRef.current.has(f.name);
+          const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
+          const isUploadingThis = activeRemote?.current_file === f.name;
+          const isUploaded = inSamba || (isPushed && !phoneFiles.has(f.name));
+
+          let displayStatus = f.status;
+          if (isPushingThis) {
+            displayStatus = `inprogress staging push to android (${transfer.percent}%)`;
+          } else if (isUploadingThis) {
+            displayStatus = `inprogress transfer to samba (${activeRemote.upload_percent}%)`;
+          } else if (isUploaded) {
+            displayStatus = "transfer samba complete";
+          } else if (isPushed) {
+            displayStatus = "pushed to android successful";
+          }
+
+          return {
+            ...f,
+            status: displayStatus,
+          };
+        });
+
         const payload = {
           type: "tauri_status",
           id: info.hostname || "tauri",
@@ -311,7 +350,7 @@ export default function App() {
           source_dir: info.source_dir,
           samba_dir: info.samba_dir,
           devices: devices,
-          files: files
+          files: mappedFiles
         };
         ws.send(JSON.stringify(payload));
       }
@@ -321,7 +360,7 @@ export default function App() {
     const interval = setInterval(sendStatus, 5000);
     
     return () => clearInterval(interval);
-  }, [ws, info, devices, files]);
+  }, [ws, info, devices, files, remoteDevices, transfer, phoneFiles]);
 
   async function refreshDevices() {
     setRefreshing(true);
@@ -707,8 +746,22 @@ export default function App() {
             {files.map((f) => {
               const inSamba = sambaFiles.some((sf) => sf.name === f.name);
               const isPushed = pushedFiles.has(f.name);
+              
+              const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
+              const isUploadingThis = activeRemote?.current_file === f.name;
               const isUploaded = inSamba || (isPushed && !phoneFiles.has(f.name));
-              const displayStatus = isUploaded ? "uploaded" : isPushed ? "pushed" : f.status;
+
+              let displayStatus = f.status;
+              if (isPushingThis) {
+                displayStatus = `inprogress staging push to android (${transfer.percent}%)`;
+              } else if (isUploadingThis) {
+                displayStatus = `inprogress transfer to samba (${activeRemote.upload_percent}%)`;
+              } else if (isUploaded) {
+                displayStatus = "transfer samba complete";
+              } else if (isPushed) {
+                displayStatus = "pushed to android successful";
+              }
+
               const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
               return (
               <div key={f.name} className="rounded border border-zinc-800 bg-zinc-950 p-3">

@@ -482,7 +482,10 @@
                   </thead>
                   <tbody>
                     ${files.map(f => {
-                      const statusClass = f.status === 'uploaded' ? 'ok' : f.status === 'pushed' ? 'info' : 'warn';
+                      const isComplete = f.status === 'transfer samba complete';
+                      const isInProgress = f.status.includes('inprogress');
+                      const isSuccess = f.status.includes('successful');
+                      const statusClass = isComplete ? 'ok' : isInProgress ? 'info' : isSuccess ? 'warn' : 'warn';
                       const fileGbSize = (f.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
                       return `
                         <tr style="border-bottom: 1px solid #1f1f23;">
