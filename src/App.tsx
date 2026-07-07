@@ -117,6 +117,7 @@ export default function App() {
   const [forceTransfer, setForceTransfer] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [diagnostics, setDiagnostics] = useState("");
+  const [diagLoading, setDiagLoading] = useState(false);
 
   function appendLog(line: string) {
     const text = `${new Date().toLocaleTimeString()} ${line}`;
