@@ -717,7 +717,7 @@ export default function App() {
                   EXEC_BATCH_SYNC
                 </button>
                 <button
-                  onClick={openDir}
+                  onClick={browseSource}
                   className="rounded border border-zinc-700 bg-zinc-800 px-3 py-1 text-[10px] font-bold uppercase text-zinc-300 hover:bg-zinc-700"
                 >
                   CHDIR...
