@@ -302,9 +302,9 @@
         <div id="tauriCount" class="metric">0</div>
       </div>
       <div class="panel">
-        <div class="muted">Total Download</div>
-        <div id="down" class="metric">0.00</div>
-        <div class="muted" style="font-size: 11px; margin-top: 4px;">MB/s</div>
+        <div class="muted">Transfer Success</div>
+        <div id="queueRatio" class="metric" style="font-size: 20px;">0 / 0</div>
+        <div class="muted" style="font-size: 11px; margin-top: 4px;">Files Uploaded</div>
       </div>
       <div class="panel">
         <div class="muted">Total Upload</div>
@@ -376,20 +376,26 @@
       `;
     }
 
+    // Distinct color palette for per-device upload lines
+    const DEVICE_COLORS = [
+      { stroke: "#60a5fa", fill: "rgba(96, 165, 250, 0.12)" },
+      { stroke: "#f472b6", fill: "rgba(244, 114, 182, 0.12)" },
+      { stroke: "#a78bfa", fill: "rgba(167, 139, 250, 0.12)" },
+      { stroke: "#34d399", fill: "rgba(52, 211, 153, 0.12)" },
+      { stroke: "#fb923c", fill: "rgba(251, 146, 60, 0.12)" },
+      { stroke: "#facc15", fill: "rgba(250, 204, 21, 0.12)" },
+      { stroke: "#e879f9", fill: "rgba(232, 121, 249, 0.12)" },
+      { stroke: "#22d3ee", fill: "rgba(34, 211, 238, 0.12)" },
+    ];
+
     function draw() {
       const canvas = $("chart");
       const ctx = canvas.getContext("2d");
-      const samples = state.flatMap((d) => d.samples || []).slice(-60);
-      const max = Math.max(1, ...samples.flatMap((s) => [s.rx_bps, s.tx_bps]));
 
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
-
-      // Adjust backing store size to physical screen pixels
       canvas.width = Math.round(rect.width * dpr);
       canvas.height = Math.round(rect.height * dpr);
-
-      // Scale context to draw in logical CSS coordinates
       ctx.scale(dpr, dpr);
 
       const w = rect.width;
@@ -408,75 +414,85 @@
         ctx.stroke();
       }
 
-      // Plot lines
-      [
-        ["rx_bps", "#4ade80", "rgba(74, 222, 128, 0.15)"],
-        ["tx_bps", "#60a5fa", "rgba(96, 165, 250, 0.15)"]
-      ].forEach(([key, strokeColor, fillColor]) => {
-        if (samples.length === 0) return;
+      // Determine global max across all active device upload samples
+      const allTx = state.flatMap(d => (d.samples || []).map(s => s.tx_bps || 0));
+      const max = Math.max(1, ...allTx);
 
-        // Create gradient fill
+      // Draw one upload (tx_bps) line per device with its own color
+      state.forEach((d, di) => {
+        const samples = (d.samples || []).slice(-60);
+        if (samples.length < 2) return;
+
+        const { stroke: strokeColor, fill: fillColor } = DEVICE_COLORS[di % DEVICE_COLORS.length];
         const grad = ctx.createLinearGradient(0, 0, 0, h);
         grad.addColorStop(0, fillColor);
-        grad.addColorStop(1, "rgba(24, 24, 27, 0)"); // Fade to card background
+        grad.addColorStop(1, "rgba(9, 9, 11, 0)");
 
-        // Path for stroke
         ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
         ctx.beginPath();
 
-        // Path for fill
         const fillPath = new Path2D();
-
         let firstX = 0;
-        let firstY = h;
         let lastX = 0;
 
         samples.forEach((s, i) => {
-          const x = samples.length < 2 ? 0 : i * w / (samples.length - 1);
-          const y = h - (s[key] / max) * h;
-
+          const x = i * w / (samples.length - 1);
+          const y = h - (s.tx_bps / max) * (h * 0.9);
           if (i === 0) {
             ctx.moveTo(x, y);
             fillPath.moveTo(x, y);
             firstX = x;
-            firstY = y;
           } else {
-            const prevS = samples[i - 1];
+            const prev = samples[i - 1];
             const prevX = (i - 1) * w / (samples.length - 1);
-            const prevY = h - (prevS[key] / max) * h;
-
-            // Bezier control points for smooth horizontal flow
+            const prevY = h - (prev.tx_bps / max) * (h * 0.9);
             const cp1x = prevX + (x - prevX) * 0.5;
-            const cp1y = prevY;
-            const cp2x = prevX + (x - prevX) * 0.5;
-            const cp2y = y;
-
-            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y);
-            fillPath.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y);
+            const cp2x = cp1x;
+            ctx.bezierCurveTo(cp1x, prevY, cp2x, y, x, y);
+            fillPath.bezierCurveTo(cp1x, prevY, cp2x, y, x, y);
           }
           lastX = x;
         });
-
-        // Draw the stroke
         ctx.stroke();
-
-        // Close the fill path to the bottom of the canvas
         fillPath.lineTo(lastX, h);
         fillPath.lineTo(firstX, h);
         fillPath.closePath();
-
         ctx.fillStyle = grad;
         ctx.fill(fillPath);
+
+        // Draw device label in its color at the right edge
+        const label = d.model || d.id?.slice(0, 12) || `Device ${di + 1}`;
+        const lastSample = samples.at(-1);
+        const labelY = Math.max(18, h - (lastSample.tx_bps / max) * (h * 0.9) - 6);
+        ctx.fillStyle = strokeColor;
+        ctx.font = "bold 10px system-ui";
+        ctx.textAlign = "right";
+        ctx.fillText(`⬆ ${label}`, w - 4, labelY);
       });
+
+      // Draw legend if more than 1 device
+      if (state.length > 1) {
+        ctx.textAlign = "left";
+        state.forEach((d, di) => {
+          const { stroke } = DEVICE_COLORS[di % DEVICE_COLORS.length];
+          const label = d.model || `Device ${di + 1}`;
+          ctx.fillStyle = stroke;
+          ctx.font = "bold 10px system-ui";
+          ctx.fillRect(8, 8 + di * 16, 12, 4);
+          ctx.fillStyle = "#e4e4e7";
+          ctx.font = "10px system-ui";
+          ctx.fillText(label, 24, 14 + di * 16);
+        });
+      }
     }
 
     function render() {
-      // Calculate totals
-      let totalDown = 0;
       let totalUp = 0;
+      let totalQueueSuccess = 0;
+      let totalQueueTotal = 0;
 
       $("devices").textContent = state.length;
       $("tauriCount").textContent = tauri.length;
@@ -555,8 +571,9 @@
           const isOnline = Date.now() - d.last_seen < 6000;
           const lastSample = d.samples?.at(-1) || { rx_bps: 0, tx_bps: 0 };
           if (isOnline) {
-            totalDown += lastSample.rx_bps;
             totalUp += lastSample.tx_bps;
+            totalQueueSuccess += d.queue_success || 0;
+            totalQueueTotal += d.queue_total || 0;
           }
           return `
             <div class="panel">
@@ -573,12 +590,10 @@
                 </div>
                 <div class="muted">Samba Target</div><div class="value"><code>${d.target || "-"}</code></div>
                 <div class="muted">Latest File</div><div class="value"><code>${d.latest || "-"}</code></div>
-                <div class="muted">Live Speed</div>
-                <div class="value">
-                  <span style="color: #4ade80; font-weight: 700;">Down: ${mb(lastSample.rx_bps)} MB/s</span>
-                  <span class="muted" style="margin: 0 4px;">|</span>
-                  <span style="color: #60a5fa; font-weight: 700;">Up: ${mb(lastSample.tx_bps)} MB/s</span>
-                </div>
+                <div class="muted">Upload Speed</div>
+                 <div class="value">
+                   <span style="color: #60a5fa; font-weight: 700;">⬆ ${mb(lastSample.tx_bps)} MB/s</span>
+                 </div>
                 <div class="muted">Upload Queue</div>
                 <div class="value">
                   ${d.queue_total > 0 ? `
@@ -593,8 +608,8 @@
         }).join("");
       }
 
-      $("down").textContent = mb(totalDown);
       $("up").textContent = mb(totalUp);
+      $("queueRatio").textContent = totalQueueTotal > 0 ? `${totalQueueSuccess} / ${totalQueueTotal}` : '0 / 0';
 
       // Render table rows
         $("rows").innerHTML = state.length ? state.map((d) => {
@@ -634,8 +649,6 @@
                 </span>
               </td>
               <td>
-                <span style="color: #4ade80; font-weight: 700; font-family: monospace;">⬇ ${mb(lastSample.rx_bps)} MB/s</span>
-                <span class="muted" style="margin: 0 4px;">/</span>
                 <span style="color: #60a5fa; font-weight: 700; font-family: monospace;">⬆ ${mb(lastSample.tx_bps)} MB/s</span>
               </td>
               <td>${uploadProgressHtml}</td>
