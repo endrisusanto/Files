@@ -53,7 +53,7 @@ const statusClass = (status: string | undefined | null) => {
 function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   const width = 600;
   const height = 80;
-  const points = samples.slice(-60);
+  const points = samples.slice(-300);
   const max = Math.max(1, ...points.flatMap((p) => [p.rx_bps, p.tx_bps]));
   
   const path = (key: keyof NetworkSample) => {
@@ -79,16 +79,16 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   const last = points[points.length - 1] ?? { rx_bps: 0, tx_bps: 0 };
 
   return (
-    <section className="mb-3 rounded border border-zinc-800 bg-zinc-900 p-2">
+    <section className="mb-3 rounded border border-zinc-800 bg-zinc-900 p-2 font-mono">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-xs font-semibold text-zinc-400">Network (Realtime Curve)</h2>
-        <div className="flex gap-3 text-[10px]">
-          <span className="text-green-300 font-mono">Down: {speed(last.rx_bps)}</span>
-          <span className="text-blue-300 font-mono">Up: {speed(last.tx_bps)}</span>
+        <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">[ SYS.NETWORK_METRICS_CURVE ]</h2>
+        <div className="flex gap-4 text-[10px] tracking-wider">
+          <span className="text-green-300">RX: {speed(last.rx_bps)}</span>
+          <span className="text-blue-300">TX: {speed(last.tx_bps)}</span>
         </div>
       </div>
-      <svg className="h-20 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-        <rect width={width} height={height} fill="#09090b" rx="4" />
+      <svg className="h-24 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        <rect width={width} height={height} fill="#09090b" rx="2" />
         <path d={path("rx_bps")} fill="none" stroke="#86efac" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
         <path d={path("tx_bps")} fill="none" stroke="#93c5fd" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
@@ -240,7 +240,7 @@ export default function App() {
         setTransfer(e.payload);
       }).catch(err => { appendLog(`listen transfer err: ${err}`); return () => {}; }),
       listen<NetworkSample>("network", (e) => {
-        setNetwork((list) => [...list.slice(-59), e.payload]);
+        setNetwork((list) => [...list.slice(-299), e.payload]);
       }).catch(err => { appendLog(`listen network err: ${err}`); return () => {}; }),
     ];
     refreshDevices();
@@ -293,7 +293,7 @@ export default function App() {
             const selectedRemote = (msg.devices || []).find((d: any) => d.id === selectedRemoteId);
             if (selectedRemote && selectedRemote.samples && selectedRemote.samples.length > 0) {
               const lastSample = selectedRemote.samples[selectedRemote.samples.length - 1];
-              setNetwork((list) => [...list.slice(-59), { rx_bps: lastSample.rx_bps, tx_bps: lastSample.tx_bps }]);
+              setNetwork((list) => [...list.slice(-299), { rx_bps: lastSample.rx_bps, tx_bps: lastSample.tx_bps }]);
             }
           }
         } catch (err) {
@@ -531,15 +531,15 @@ export default function App() {
             <img src={logo} alt="FireFiles Logo" className="h-9 w-9" />
             <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">FireFiles</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <span className={`rounded border px-2 py-1 text-xs font-semibold ${active ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
-              Tauri: {active ? "ready" : selected ? "storage low" : "select device"}
+          <div className="flex items-center gap-4 font-mono text-[11px] uppercase tracking-wider">
+            <span className={`rounded border px-2 py-1 font-bold ${active ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
+              DAEMON: {active ? "READY" : selected ? "STORAGE_LOW" : "IDLE"}
             </span>
-            <span className={`rounded border px-2 py-1 text-xs font-semibold ${selectedDevice?.apk_installed ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
-              APK: {selectedDevice?.apk_installed ? "installed" : "missing"}
+            <span className={`rounded border px-2 py-1 font-bold ${selectedDevice?.apk_installed ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
+              APK_BRIDGE: {selectedDevice?.apk_installed ? "INSTALLED" : "MISSING"}
             </span>
-            <span className={active ? "text-green-400" : "text-zinc-400"}>
-              {active ? "ADB bridge healthy" : selected ? "Bridge selected, storage low" : "No bridge selected"}
+            <span className={active ? "text-green-400 font-bold" : "text-zinc-400"}>
+              {active ? "ADB_TCP: ESTABLISHED" : selected ? "WARN: STORAGE_LOW" : "ADB_TCP: DISCONNECTED"}
             </span>
             <button
               onClick={() => setShowSettings(true)}
@@ -555,26 +555,26 @@ export default function App() {
       </section>
 
       {/* Remote WebSocket Devices */}
-      <section className="mb-6">
+      <section className="mb-6 font-mono">
         <div className="mb-3 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Remote WebSocket Devices</h1>
-          <span className={`rounded border px-2 py-1 text-xs font-semibold ${ws ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
-            Server: {ws ? "Connected" : "Disconnected"}
+          <h2 className="text-lg font-bold uppercase tracking-widest text-zinc-200">[ SYS.REMOTE_NODES ]</h2>
+          <span className={ws ? "rounded border border-green-800 bg-green-950 px-2 py-1 text-xs text-green-300" : "rounded border border-red-800 bg-red-950 px-2 py-1 text-xs text-red-300"}>
+            WSS: {ws ? "CONNECTED" : "DISCONNECTED"}
           </span>
         </div>
-        <div className="overflow-x-auto rounded-lg border border-zinc-800">
-          <table className="w-full min-w-[980px] border-collapse text-left">
-            <thead className="bg-zinc-900 text-sm text-zinc-400">
+        <div className="overflow-x-auto rounded border border-zinc-800">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead className="bg-zinc-900 text-xs font-semibold uppercase tracking-wider text-zinc-400">
               <tr>
-                <th className="p-3">Model</th>
-                <th className="p-3">Device ID</th>
-                <th className="p-3">Samba Target</th>
-                <th className="p-3">Samba Status</th>
-                <th className="p-3">USB/Tauri</th>
-                <th className="p-3">Target</th>
-                <th className="p-3">Latest File</th>
-                <th className="p-3">WebSocket Status</th>
-                <th className="p-3">Actions</th>
+                <th className="p-3">HW_MODEL</th>
+                <th className="p-3">DEV_UUID</th>
+                <th className="p-3">SMB_TARGET_URI</th>
+                <th className="p-3">SMB_STAT</th>
+                <th className="p-3">USB_LINK</th>
+                <th className="p-3">TRGT_STAT</th>
+                <th className="p-3">LATEST_OBJ</th>
+                <th className="p-3">WS_LINK</th>
+                <th className="p-3">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -671,48 +671,34 @@ export default function App() {
         </div>
       </section>
 
-      <NetworkChart samples={network} />
+      <NetworkChart samples={network} limit={300} />
 
-      <section className="space-y-3">
-        {/* Accordion File List */}
-        <div className="rounded border border-zinc-800 bg-zinc-900 overflow-hidden">
-          <button 
-            onClick={() => setFilelistOpen(!filelistOpen)}
-            className="w-full flex items-center justify-between p-3 bg-zinc-900 hover:bg-zinc-800 text-left font-semibold text-sm transition"
-          >
-            <span>📁 Staging Directory: {info?.source_dir ?? "E:\\SUBRO"}</span>
-            <span className="text-zinc-500 font-mono text-xs">{filelistOpen ? "▲ Collapse" : "▼ Expand"}</span>
-          </button>
-
-          {filelistOpen && (
-            <div className="p-3 border-t border-zinc-800 bg-zinc-950/40 space-y-2">
-              <div className="flex justify-between items-center bg-zinc-900/60 p-2 rounded mb-2 border border-zinc-800">
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-xs text-zinc-300">
-                    <input
-                      type="checkbox"
-                      checked={autoPush}
-                      onChange={(e) => {
-                        setAutoPush(e.target.checked);
-                        localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
-                        appendLog(`Auto push ${e.target.checked ? "enabled" : "disabled"}`);
-                        if (e.target.checked) pushAllPending();
-                      }}
-                      className="h-3 w-3 accent-blue-500"
-                    />
-                    Auto Push
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-zinc-300">
-                    <input
-                      type="checkbox"
-                      checked={forceTransfer}
-                      onChange={(e) => setForceTransfer(e.target.checked)}
-                      className="h-3 w-3 accent-blue-500"
-                    />
-                    Force transfer
-                  </label>
-                </div>
+      <section className="mb-4 rounded border border-zinc-800 bg-zinc-900 font-mono">
+        <div className="flex cursor-pointer items-center justify-between p-3 hover:bg-zinc-800/50" onClick={() => setFilelistOpen(!filelistOpen)}>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📁</span>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">[ SYS.LOCAL_STAGING ] <span className="text-zinc-500 font-normal lowercase tracking-normal">URI: {info?.source_dir || "N/A"}</span></h2>
+          </div>
+          <span className="text-xs text-zinc-500 uppercase">{filelistOpen ? "▲ COLLAPSE" : "▼ EXPAND"}</span>
+        </div>
+        
+        {filelistOpen && (
+          <div className="border-t border-zinc-800 p-3">
+            <div className="mb-4 flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex gap-6 text-[11px] font-bold uppercase tracking-wider">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" className="accent-blue-600" checked={autoPush} onChange={(e) => {
+                    setAutoPush(e.target.checked);
+                    localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
+                  }} />
+                  AUTO_SYNC
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-amber-500">
+                  <input type="checkbox" className="accent-amber-600" checked={forceTransfer} onChange={(e) => setForceTransfer(e.target.checked)} />
+                  FORCE_OVERWRITE
+                </label>
               </div>
+            </div>
               
               <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
                 {(files || []).map((f) => {
@@ -756,11 +742,11 @@ export default function App() {
                           )}
                         </div>
                         <button
-                          disabled={!selectedDevice || (displayStatus !== "ready" && !forceTransfer)}
+                          disabled={!selectedDevice || (displayStatus !== "ready" && !forceTransfer) || isPushingThis}
                           onClick={() => push(f.name)}
-                          className="w-24 rounded bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[10px] font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40 text-center"
+                          className="w-24 rounded border border-blue-800 bg-blue-950 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          {forceTransfer ? "Force Push" : "Push"}
+                          {forceTransfer ? "EXEC_FORCE" : "EXEC_PUSH"}
                         </button>
                       </div>
                     </div>
@@ -776,17 +762,17 @@ export default function App() {
               </div>
             </div>
           )}
-        </div>
+        </section>
 
         {/* Accordion Debug Log */}
-        <div className="rounded border border-zinc-800 bg-zinc-900 overflow-hidden">
-          <button 
-            onClick={() => setDebugOpen(!debugOpen)}
-            className="w-full flex items-center justify-between p-3 bg-zinc-900 hover:bg-zinc-800 text-left font-semibold text-sm transition"
-          >
-            <span>📜 System Diagnostics & Log</span>
-            <span className="text-zinc-500 font-mono text-xs">{debugOpen ? "▲ Collapse" : "▼ Expand"}</span>
-          </button>
+        <section className="rounded border border-zinc-800 bg-zinc-900 font-mono">
+        <div className="flex cursor-pointer items-center justify-between p-3 hover:bg-zinc-800/50" onClick={() => setDebugOpen(!debugOpen)}>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📜</span>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">[ SYS.DIAGNOSTICS_LOG ]</h2>
+          </div>
+          <span className="text-xs text-zinc-500 uppercase">{debugOpen ? "▲ COLLAPSE" : "▼ EXPAND"}</span>
+        </div>
           
           {debugOpen && (
             <div className="p-3 border-t border-zinc-800 bg-zinc-950/40">
@@ -797,8 +783,7 @@ export default function App() {
               />
             </div>
           )}
-        </div>
-      </section>
+        </section>
 
       {/* Settings Modal */}
       {showSettings && (
