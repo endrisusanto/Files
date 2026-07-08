@@ -1,6 +1,6 @@
 {
   "type": "module",
-  "version": "0.1.93",
+  "version": "0.1.94",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420",
     "build": "vite build",
