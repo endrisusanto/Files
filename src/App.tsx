@@ -750,12 +750,7 @@ export default function App() {
                     <div key={f.name} className="rounded border border-zinc-800 bg-zinc-950 p-2 text-xs">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <p className="break-all font-medium text-zinc-200">{f.name}</p>
-                            <span className={`rounded border px-1.5 py-0.2 text-[9px] font-semibold ${statusClass(displayStatus)}`}>
-                              {displayStatus}
-                            </span>
-                          </div>
+                          <p className="break-all font-medium text-zinc-200">{f.name}</p>
                           <p className="text-[10px] text-zinc-500">{fileGb(f.size)}</p>
                           {isPushingThis && (
                             <div className="mt-1 w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
@@ -766,13 +761,18 @@ export default function App() {
                             </div>
                           )}
                         </div>
-                        <button
-                          disabled={!selectedDevice || (displayStatus !== "ready" && !forceTransfer) || isPushingThis}
-                          onClick={() => push(f.name)}
-                          className="w-24 rounded border border-blue-800 bg-blue-950 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          {forceTransfer ? "EXEC_FORCE" : "EXEC_PUSH"}
-                        </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${statusClass(displayStatus)}`}>
+                            {displayStatus}
+                          </span>
+                          <button
+                            disabled={!selectedDevice || (displayStatus !== "ready" && !forceTransfer) || isPushingThis}
+                            onClick={() => push(f.name)}
+                            className="w-24 rounded border border-blue-800 bg-blue-950 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {forceTransfer ? "EXEC_FORCE" : "EXEC_PUSH"}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

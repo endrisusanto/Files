@@ -81,7 +81,7 @@ function attachAndroid(req, socket) {
         id,
         connected: true,
         last_seen: Date.now(),
-        samples: [...current.samples.slice(-59), { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 }],
+        samples: [...current.samples.slice(-299), { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 }],
       });
       socket.deviceId = id;
       androidSockets.set(id, socket);
