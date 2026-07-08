@@ -211,7 +211,7 @@ class MainActivity : Activity() {
                 setPadding(0, 0, 0, 12)
             }, LinearLayout.LayoutParams(-1, -2))
 
-            addView(networkChart, LinearLayout.LayoutParams(-1, 200).apply {
+            addView(networkChart, LinearLayout.LayoutParams(-1, 0, 1.0f).apply {
                 bottomMargin = 24
             })
 
@@ -232,7 +232,7 @@ class MainActivity : Activity() {
                 background = logBg
                 setPadding(20, 20, 20, 20)
                 addView(debugLog)
-            }, LinearLayout.LayoutParams(-1, 300))
+            }, LinearLayout.LayoutParams(-1, 0, 1.0f))
         }
 
         val rootLayout = LinearLayout(this).apply {
@@ -244,7 +244,7 @@ class MainActivity : Activity() {
             val leftParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
                 rightMargin = 40
             }
-            val rightParams = LinearLayout.LayoutParams(0, -2, 1.2f)
+            val rightParams = LinearLayout.LayoutParams(0, -1, 1.2f)
 
             addView(leftColumn, leftParams)
             addView(rightColumn, rightParams)
@@ -252,6 +252,7 @@ class MainActivity : Activity() {
 
         setContentView(ScrollView(this).apply {
             fitsSystemWindows = true
+            isFillViewport = true
             setBackgroundColor(0xff09090b.toInt())
             addView(rootLayout)
         })
