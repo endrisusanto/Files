@@ -351,8 +351,12 @@ fn file_is_available(path: &Path) -> bool {
 fn emit_loop(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
     thread::spawn(move || loop {
-        let _ = app.emit("files", bridge_files(&source_dir(&config)));
-        let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
+        if let Err(e) = app.emit("files", bridge_files(&source_dir(&config))) {
+            eprintln!("[bridge-tauri] emit files error: {}", e);
+        }
+        if let Err(e) = app.emit("samba-files", bridge_files(&config.samba_dir)) {
+            eprintln!("[bridge-tauri] emit samba-files error: {}", e);
+        }
         thread::sleep(Duration::from_secs(5));
     });
 }

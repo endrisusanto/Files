@@ -203,7 +203,7 @@ export default function App() {
         console.info("[bridge-ui] devices event", e.payload.length);
         appendLog(`devices event count=${e.payload.length}`);
         setDevices(e.payload);
-      }),
+      }).catch(err => { appendLog(`listen devices err: ${err}`); return () => {}; }),
       listen<LocalFile[]>("files", (e) => {
         console.info("[bridge-ui] files event", e.payload.length);
         appendLog(`files event count=${e.payload.length}`);
@@ -227,21 +227,21 @@ export default function App() {
         if (localStorage.getItem("auto_push") === "true") {
           pushAllPending();
         }
-      }),
+      }).catch(err => { appendLog(`listen files err: ${err}`); return () => {}; }),
       listen<LocalFile[]>("samba-files", (e) => {
         console.info("[bridge-ui] samba-files event", e.payload.length);
         appendLog(`samba-files event count=${e.payload.length}`);
         sambaFilesRef.current = e.payload;
         setSambaFiles(e.payload);
-      }),
+      }).catch(err => { appendLog(`listen samba-files err: ${err}`); return () => {}; }),
       listen<Transfer>("transfer", (e) => {
         console.info("[bridge-ui] transfer event", e.payload);
         appendLog(`transfer ${e.payload.file}: ${e.payload.message}`);
         setTransfer(e.payload);
-      }),
+      }).catch(err => { appendLog(`listen transfer err: ${err}`); return () => {}; }),
       listen<NetworkSample>("network", (e) => {
         setNetwork((list) => [...list.slice(-59), e.payload]);
-      }),
+      }).catch(err => { appendLog(`listen network err: ${err}`); return () => {}; }),
     ];
     refreshDevices();
     return () => {
