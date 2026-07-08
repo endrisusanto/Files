@@ -240,7 +240,12 @@ export default function App() {
       listen<Transfer>("transfer", (e) => {
         console.info("[bridge-ui] transfer event", e.payload);
         appendLog(`transfer ${e.payload.file}: ${e.payload.message}`);
-        setTransfer(e.payload);
+        setTransfer((prev) => {
+          if (prev && prev.file === e.payload.file && prev.percent === 100 && e.payload.percent < 100) {
+            return prev;
+          }
+          return e.payload;
+        });
       }).catch(err => { appendLog(`listen transfer err: ${err}`); return () => {}; }),
       listen<NetworkSample>("network", (e) => {
         setNetwork((list) => [...list.slice(-299), e.payload]);

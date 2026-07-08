@@ -565,7 +565,13 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
     thread::spawn(move || {
         while *ir_clone.lock().unwrap() {
             thread::sleep(Duration::from_millis(500));
+            if !*ir_clone.lock().unwrap() {
+                break;
+            }
             if let Some(remote_size) = get_remote_file_size(&device_id, &remote_path) {
+                if !*ir_clone.lock().unwrap() {
+                    break;
+                }
                 let percent = ((remote_size as f64 / total_size as f64) * 100.0) as u8;
                 let percent = std::cmp::min(99, percent);
                 let _ = app_handle.emit("transfer", TransferProgress {
