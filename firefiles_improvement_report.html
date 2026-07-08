@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FireFiles — Binary Transfer Streamlining for GBA Testing Workflow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans', Arial, sans-serif;
+    background: #f0f0f0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+  }
+
+  .page {
+    background: #ffffff;
+    width: 1020px;
+    min-height: 720px;
+    padding: 24px 30px 20px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+    position: relative;
+  }
+
+  /* CONFIDENTIAL */
+  .confidential {
+    position: absolute;
+    top: 12px;
+    right: 28px;
+    color: #cc0000;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* TITLE ROW */
+  .title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    padding-right: 60px;
+  }
+  .main-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #111;
+    line-height: 1.3;
+  }
+  .main-title .effect-label {
+    color: #e06000;
+    font-weight: 800;
+  }
+  .author-block {
+    text-align: right;
+    font-size: 11.5px;
+    color: #222;
+    line-height: 1.6;
+    min-width: 260px;
+  }
+  .author-block .author-name {
+    font-weight: 700;
+    font-size: 12.5px;
+  }
+
+  /* TWO-COLUMN LAYOUT */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  /* COLUMN BOX */
+  .col-box {
+    border: 1.5px solid #2255a4;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .col-header {
+    background: #2255a4;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: center;
+    padding: 7px 10px;
+    letter-spacing: 0.5px;
+  }
+  .col-body {
+    padding: 12px 14px;
+    min-height: 420px;
+    background: #fff;
+  }
+
+  /* SECTION TITLE */
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #111;
+    margin-bottom: 10px;
+  }
+  .section-title .checkbox {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #222;
+    display: inline-block;
+    flex-shrink: 0;
+    background: #fff;
+  }
+
+  /* CONTENT */
+  .content-block { margin-bottom: 10px; }
+  .content-block p {
+    font-size: 11px;
+    color: #222;
+    line-height: 1.6;
+    margin-bottom: 4px;
+  }
+  .content-block p.bullet {
+    padding-left: 14px;
+    text-indent: -9px;
+  }
+  .content-block p.bullet::before { content: "• "; }
+  .content-block p.sub-bullet {
+    padding-left: 22px;
+    text-indent: -9px;
+    color: #333;
+  }
+  .content-block p.sub-bullet::before { content: "- "; }
+  .content-block p.note {
+    color: #666;
+    font-size: 10px;
+    font-style: italic;
+  }
+
+  /* FLOW DIAGRAM */
+  .flow-diagram {
+    background: #f4f7fc;
+    border: 1px solid #c8d8f0;
+    border-radius: 3px;
+    padding: 10px 12px;
+    margin: 10px 0;
+  }
+  .flow-title {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #2255a4;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 5px;
+    flex-wrap: wrap;
+  }
+  .flow-node {
+    background: #2255a4;
+    color: #fff;
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 2px;
+    text-align: center;
+    min-width: 70px;
+    line-height: 1.3;
+  }
+  .flow-node.red { background: #cc2200; }
+  .flow-node.orange { background: #e06000; }
+  .flow-node.green { background: #1a7a1a; }
+  .flow-node.gray { background: #666; }
+  .flow-node.light {
+    background: #e8f0fc;
+    color: #2255a4;
+    border: 1px solid #2255a4;
+  }
+  .flow-arrow {
+    font-size: 14px;
+    color: #555;
+    font-weight: 700;
+  }
+  .flow-arrow.red { color: #cc2200; }
+  .flow-label {
+    font-size: 9px;
+    color: #666;
+    display: block;
+    text-align: center;
+    margin-top: 1px;
+  }
+
+  /* COMPARISON TABLE */
+  .comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10.5px;
+    margin: 8px 0;
+  }
+  .comp-table th {
+    background: #2255a4;
+    color: #fff;
+    padding: 4px 8px;
+    font-weight: 600;
+    font-size: 10px;
+    text-align: center;
+  }
+  .comp-table td {
+    padding: 3px 8px;
+    border: 1px solid #ccd8ee;
+    vertical-align: middle;
+    line-height: 1.4;
+  }
+  .comp-table tr:nth-child(even) td { background: #f2f5fb; }
+  .comp-table td.label { font-weight: 600; color: #333; background: #e8eef8; }
+  .comp-table td.bad { color: #cc2200; font-weight: 700; }
+  .comp-table td.good { color: #1a7a1a; font-weight: 700; }
+  .comp-table td.center { text-align: center; }
+
+  /* HIGHLIGHT BOX */
+  .highlight-box {
+    background: #fff3e0;
+    border: 1.5px solid #e06000;
+    border-radius: 3px;
+    padding: 7px 10px;
+    margin: 8px 0;
+  }
+  .highlight-box p {
+    font-size: 11px;
+    color: #6d3000;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  /* TO-BE IMPROVEMENT */
+  .improvement-item {
+    margin-bottom: 12px;
+  }
+  .improvement-num {
+    display: inline-block;
+    background: #2255a4;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 2px;
+    margin-right: 5px;
+  }
+  .improvement-title {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #111;
+    text-decoration: underline;
+    display: inline;
+  }
+  .improvement-sub {
+    font-size: 10.5px;
+    color: #333;
+    margin-top: 4px;
+    margin-left: 4px;
+    line-height: 1.5;
+  }
+
+  /* ARROW DIAGRAM */
+  .arrow-diagram {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+  }
+  .arrow-diagram .box-before,
+  .arrow-diagram .box-after {
+    flex: 1;
+    border: 1px solid #aaa;
+    border-radius: 3px;
+    padding: 7px 8px;
+    font-size: 9.5px;
+    line-height: 1.5;
+  }
+  .arrow-diagram .box-before {
+    background: #fff0f0;
+    border-color: #cc2200;
+  }
+  .arrow-diagram .box-after {
+    background: #f0fff0;
+    border-color: #1a7a1a;
+  }
+  .arrow-diagram .big-arrow {
+    font-size: 28px;
+    color: #2255a4;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+  .box-before .box-label {
+    font-weight: 700;
+    color: #cc2200;
+    font-size: 9px;
+    display: block;
+    margin-bottom: 3px;
+  }
+  .box-after .box-label {
+    font-weight: 700;
+    color: #1a7a1a;
+    font-size: 9px;
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  /* DATA TABLE HIGHLIGHT */
+  .data-highlight {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin: 8px 0;
+  }
+  .data-cell {
+    background: #f0f4fb;
+    border: 1px solid #2255a4;
+    border-radius: 3px;
+    padding: 6px 8px;
+    text-align: center;
+  }
+  .data-cell .val {
+    font-size: 15px;
+    font-weight: 800;
+    color: #2255a4;
+    display: block;
+  }
+  .data-cell .val.red { color: #cc2200; }
+  .data-cell .val.green { color: #1a7a1a; }
+  .data-cell .lbl {
+    font-size: 9px;
+    color: #555;
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* DIVIDER */
+  .divider {
+    border: none;
+    border-top: 1px solid #d0d8ec;
+    margin: 8px 0;
+  }
+
+  /* EFFECT BAR */
+  .effect-bar {
+    background: #1a3a7a;
+    color: #fff;
+    border-radius: 3px;
+    padding: 12px 16px;
+    margin-top: 4px;
+  }
+  .effect-bar-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .effect-label-big {
+    background: #fff;
+    color: #1a3a7a;
+    font-weight: 800;
+    font-size: 14px;
+    padding: 3px 12px;
+    border-radius: 2px;
+    letter-spacing: 0.5px;
+  }
+  .effect-bar ul {
+    list-style: none;
+    padding: 0;
+  }
+  .effect-bar ul li {
+    font-size: 12px;
+    color: #fff;
+    margin-bottom: 5px;
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.5;
+  }
+  .effect-bar ul li::before {
+    content: "•";
+    position: absolute;
+    left: 2px;
+    color: #ffa040;
+    font-weight: 700;
+  }
+  .effect-bar ul li strong { color: #ffd080; }
+  .effect-bar ul li .formula {
+    font-size: 10px;
+    color: #aac4f0;
+    margin-left: 8px;
+  }
+
+  .footnote {
+    font-size: 9.5px;
+    color: #777;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid #ccc;
+    line-height: 1.5;
+  }
+
+  /* Capacity gauge */
+  .gauge-bar {
+    background: #e8e8e8;
+    border-radius: 3px;
+    height: 12px;
+    width: 100%;
+    overflow: hidden;
+    margin: 2px 0;
+    position: relative;
+  }
+  .gauge-fill { height: 100%; border-radius: 3px; }
+  .gauge-label-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: #555;
+    margin-top: 1px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="confidential">Confidential</div>
+
+  <!-- TITLE -->
+  <div class="title-row">
+    <div class="main-title">
+      Binary Transfer Streamlining for GBA Testing Workflow<br>
+      <span class="effect-label">(Major Effect: Rp 225,000,000 / Year)</span>
+    </div>
+    <div class="author-block">
+      <span class="author-name">QA Engineering Team — FireFiles Project</span><br>
+      Innovation: Automated Binary Distribution<br>
+      (Android Bridge + ADB + Samba Ecosystem)
+    </div>
+  </div>
+
+  <!-- TWO COLUMNS -->
+  <div class="columns">
+
+    <!-- ===== AS IS ===== -->
+    <div class="col-box">
+      <div class="col-header">As Is</div>
+      <div class="col-body">
+
+        <div class="section-title">
+          <span class="checkbox"></span>
+          Background of Initiative
+        </div>
+
+        <div class="content-block">
+          <p class="bullet">Peak workload: <strong>93 tasks/week</strong>, each task requires <strong>2 binary files</strong> (user + userdebug, ≥20 GB each) → <strong>186 files / 3.63 TB per week</strong></p>
+          <p class="bullet">All binary transfers done <strong>manually via MTP USB 2.0</strong> every morning — operator cannot leave the workstation, consuming <strong>entire regular working hours just for transfer</strong></p>
+          <p class="bullet"><strong>Zero time remaining for GBA testing</strong> during regular hours → team is forced to use overtime (max 2h/person) just to do testing work</p>
+          <p class="bullet"><strong>NVMe upgrade for Windows laptop is not feasible</strong> under company efficiency policy → HDD remains only option, MTP stays slow</p>
+          <p class="bullet">Root cause: <strong>MTP transfer bottleneck forces workforce into overtime for testing</strong> — not a headcount shortage, but a process inefficiency</p>
+        </div>
+
+        <!-- Transfer speed problem -->
+        <div class="flow-diagram">
+          <div class="flow-title">⚠ MTP USB 2.0 Transfer Speed Problem</div>
+          <div class="flow-row">
+            <div class="flow-node" style="min-width:90px">USB 2.0 Theoretical<br>480 Mbps = 60 MB/s</div>
+            <span class="flow-arrow red">→</span>
+            <div class="flow-node red" style="min-width:90px">MTP Protocol<br>Overhead ~80%</div>
+            <span class="flow-arrow red">→</span>
+            <div class="flow-node red" style="min-width:90px">Actual Speed<br>~12 MB/s ❌</div>
+          </div>
+          <div class="flow-row" style="margin-top:6px">
+            <div class="flow-node" style="min-width:90px">1 Binary = 20 GB</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node orange" style="min-width:90px">Laptop → Android<br>~28 min</div>
+            <span class="flow-arrow">+</span>
+            <div class="flow-node orange" style="min-width:90px">Android → Linux<br>~28 min</div>
+            <span class="flow-arrow">=</span>
+            <div class="flow-node red" style="min-width:80px">57 min<br>per binary</div>
+          </div>
+        </div>
+
+        <!-- Current daily process -->
+        <div class="flow-diagram" style="background:#fff5f5; border-color:#f0b0b0;">
+          <div class="flow-title" style="color:#cc2200;">Daily Workflow Per Member — Root Cause of Forced Overtime</div>
+          <div class="flow-row">
+            <div class="flow-node gray" style="font-size:8.5px; min-width:55px">08:00<br>Cek & Pilah</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node red" style="font-size:8.5px; min-width:95px">MTP Transfer<br>Laptop→Android<br>≈ 3.4 jam menunggu</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node red" style="font-size:8.5px; min-width:95px">MTP Transfer<br>Android→Linux<br>≈ 3.4 jam menunggu</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node red" style="font-size:8.5px; min-width:80px">17:00<br>Jam kerja habis<br>BELUM testing!</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node orange" style="font-size:8.5px; min-width:70px">LEMBUR 2h<br>Baru bisa<br>GBA Testing</div>
+          </div>
+          <p style="font-size:9px; color:#cc2200; margin-top:6px; font-weight:600;">
+            ✖ MTP transfer menyita 11.8 jam/member → Seluruh jam kerja reguler habis untuk menunggu transfer<br>
+            ✖ GBA Testing hanya bisa dilakukan pada jam lembur — tim TERPAKSA lembur bukan karena kurang orang, tapi karena proses transfer yang tidak efisien
+          </p>
+        </div>
+
+        <!-- Capacity crisis -->
+        <div class="highlight-box">
+          <p>❗ Akar Masalah: MTP transfer mengonsumsi <strong>100% jam kerja reguler</strong> per member (11.8h transfer &gt; 8h kerja).<br>
+          Akibatnya: <strong>testing hanya bisa dilakukan saat lembur</strong> — tim bukan kurang orang, melainkan terjebak dalam proses transfer yang tidak efisien setiap hari.</p>
+        </div>
+
+        <table class="comp-table" style="margin-top:6px;">
+          <tr>
+            <th>Aktivitas Harian (3 Member)</th>
+            <th>Person-Hours Dibutuhkan</th>
+            <th>Jam Tersedia</th>
+            <th>Hasil</th>
+          </tr>
+          <tr>
+            <td class="label">MTP Transfer (37 file × 57 mnt)</td>
+            <td class="center bad">35.3 jam-orang</td>
+            <td class="center bad">24 jam (reguler)</td>
+            <td class="center bad">Transfer saja sudah overload</td>
+          </tr>
+          <tr style="background:#fff0f0;">
+            <td class="label">GBA Testing (19 task × 45 mnt)</td>
+            <td class="center bad">14.0 jam-orang</td>
+            <td class="center bad"><strong>0 jam tersisa</strong></td>
+            <td class="center bad"><strong>Tidak ada waktu testing!</strong></td>
+          </tr>
+          <tr style="background:#fff0cc;">
+            <td class="label" style="color:#7a4a00;">⏰ Lembur untuk Testing (max 2h/orang)</td>
+            <td class="center" style="color:#7a4a00; font-weight:700;">+6 jam-orang/hari</td>
+            <td class="center" style="color:#7a4a00; font-weight:700;">30 jam (reguler+OT)</td>
+            <td class="center" style="color:#7a4a00; font-weight:700;">Hanya 56.7 task/minggu selesai</td>
+          </tr>
+          <tr style="background:#ffe8e8;">
+            <td class="label" style="color:#cc2200;">💸 Biaya Lembur Testing/minggu</td>
+            <td class="center bad" colspan="2">30 OT hrs × Rp 51.136/hr = <strong>Rp 1.534.091</strong></td>
+            <td class="center bad">× 40 peak weeks/tahun</td>
+          </tr>
+          <tr style="background:#ffcccc;">
+            <td class="label" style="color:#aa0000;"><strong>💸 TOTAL BIAYA LEMBUR TESTING / TAHUN</strong></td>
+            <td class="center" colspan="2" style="color:#aa0000; font-weight:800; font-size:12px;">Rp 61.363.636</td>
+            <td class="center bad"><strong>+ 36 task/minggu TETAP gagal</strong></td>
+          </tr>
+        </table>
+
+        <div style="background:#fff8dc; border:1.5px solid #cc8800; border-radius:3px; padding:6px 10px; margin-top:6px;">
+          <p style="font-size:10.5px; color:#7a4400; font-weight:600; line-height:1.5;">
+            ⚠ <u>Kesimpulan:</u> Tim tidak kekurangan SDM untuk testing — tim kekurangan <strong>waktu testing akibat transfer MTP menyita seluruh jam kerja reguler</strong>.<br>
+            Lembur 2h/hari hanya menghasilkan 6 jam-orang tambahan untuk testing, sehingga <strong>36 task/minggu tetap tidak terselesaikan</strong> dan biaya lembur Rp 61 juta/tahun terus terbuang.
+          </p>
+        </div>
+
+        <p class="note" style="margin-top:5px;">* MTP no resume: cable disconnect = restart transfer from beginning (wasted 28–57 min)</p>
+        <p class="note">* USB port conflict: cannot download & transfer simultaneously on same laptop</p>
+        <p class="note">* Flashing at Windows HDD: 40–60 min/DUT — Linux NVMe: 3–8 min/DUT (4–5× faster)</p>
+
+      </div>
+    </div>
+
+    <!-- ===== TO BE ===== -->
+    <div class="col-box">
+      <div class="col-header">To Be</div>
+      <div class="col-body">
+
+        <div class="section-title">
+          <span class="checkbox" style="border-color:#1a7a1a; background:#e8f8e8;"></span>
+          Improvements — FireFiles Automated Ecosystem
+        </div>
+
+        <!-- Key data -->
+        <div class="data-highlight">
+          <div class="data-cell">
+            <span class="val green">0 min</span>
+            <span class="lbl">Operator transfer time<br>per day (automated)</span>
+          </div>
+          <div class="data-cell">
+            <span class="val green">160</span>
+            <span class="lbl">Tasks/week capacity<br>(vs 93 required)</span>
+          </div>
+          <div class="data-cell">
+            <span class="val green">Rp 225M</span>
+            <span class="lbl">Annual cost saving<br>(OT + Salary)</span>
+          </div>
+        </div>
+
+        <!-- Improvement 1 -->
+        <div class="improvement-item">
+          <span class="improvement-num">①</span>
+          <span class="improvement-title">Auto-Push Binary via ADB — Runs Overnight Unattended</span>
+          <div class="improvement-sub">
+            · File Watcher detects completed binary → Auto-push via ADB (45 MB/s) → Android bridge → Samba WiFi (37 MB/s) → Linux NVMe<br>
+            · All 37 files/day transferred automatically starting 20:00 → ready by 06:30 next morning
+          </div>
+
+          <div class="arrow-diagram" style="margin-top:6px;">
+            <div class="box-before">
+              <span class="box-label">❌ AS-IS (Manual every morning)</span>
+              Laptop <span style="color:#cc2200">→ MTP USB →</span> Android<br>
+              Android <span style="color:#cc2200">→ MTP USB →</span> Linux<br>
+              <strong style="color:#cc2200">57 min/file × operator present</strong><br>
+              12 files = 11.8 jam per member
+            </div>
+            <div class="big-arrow">⇒</div>
+            <div class="box-after">
+              <span class="box-label">✅ TO-BE (Automated overnight)</span>
+              Laptop <span style="color:#1a7a1a">→ ADB (45MB/s) →</span> Android<br>
+              Android <span style="color:#1a7a1a">→ Samba WiFi (37MB/s) →</span> Linux<br>
+              <strong style="color:#1a7a1a">16.8 min/file, zero operator</strong><br>
+              37 files = 10.4 jam (overnight ✅)
+            </div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Improvement 2 -->
+        <div class="improvement-item">
+          <span class="improvement-num">②</span>
+          <span class="improvement-title">Android Bridge Agent — 3-Layer Transfer Ecosystem</span>
+          <div class="improvement-sub">
+            · Windows Laptop (HDD) → <strong>ADB USB</strong> → Android Device → <strong>WiFi Samba</strong> → PC Linux NVMe<br>
+            · Android acts as a wireless relay bridge — bypasses Windows HDD limitation entirely<br>
+            · NVMe upgrade NOT required on Windows laptop (cost-efficient solution)
+          </div>
+
+          <div class="flow-diagram" style="background:#f0fff4; border-color:#1a7a1a; margin-top:6px;">
+            <div class="flow-title" style="color:#1a7a1a;">Automated 3-Layer Transfer Pipeline</div>
+            <div class="flow-row">
+              <div class="flow-node light" style="font-size:8.5px; min-width:80px">💻 Windows<br>Laptop (HDD)<br>Download Only</div>
+              <div style="text-align:center">
+                <span class="flow-arrow" style="color:#1a7a1a; font-size:12px;">→</span>
+                <span class="flow-label" style="color:#1a7a1a;">ADB USB<br>45 MB/s<br>~7.6 min</span>
+              </div>
+              <div class="flow-node green" style="font-size:8.5px; min-width:80px">📱 Android<br>Bridge Agent<br>(APK Worker)</div>
+              <div style="text-align:center">
+                <span class="flow-arrow" style="color:#1a7a1a; font-size:12px;">→</span>
+                <span class="flow-label" style="color:#1a7a1a;">WiFi Samba<br>37 MB/s<br>~9.2 min</span>
+              </div>
+              <div class="flow-node green" style="font-size:8.5px; min-width:80px">🖥 PC Linux<br>NVMe SSD<br>GBA Testing</div>
+            </div>
+            <p style="font-size:9px; color:#1a7a1a; margin-top:5px; font-weight:600; text-align:center;">
+              DUT always connected to Linux PC — no USB port switching needed ✅
+            </p>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Improvement 3 -->
+        <div class="improvement-item">
+          <span class="improvement-num">③</span>
+          <span class="improvement-title">Task Completion Capacity — From 61% to 100%+</span>
+          <div class="improvement-sub">
+            · AS-IS: Tim terpaksa lembur 2h/hari karena transfer MTP menyita seluruh jam kerja → hanya ~56.7 tasks/week = <strong style="color:#cc2200;">61% dari target 93 tasks</strong><br>
+            · TO-BE: Transfer otomatis semalam, operator langsung testing 8 jam penuh → 160 tasks/week = <strong style="color:#1a7a1a;">172% kapasitas, zero overtime</strong>
+          </div>
+          <div style="margin-top:6px;">
+            <div style="font-size:9px; color:#555; margin-bottom:2px;">AS-IS Capacity (with 2h OT max):</div>
+            <div class="gauge-bar"><div class="gauge-fill" style="width:61%; background: #cc2200;"></div></div>
+            <div class="gauge-label-row"><span style="color:#cc2200; font-weight:700;">56.7 tasks/week (61%)</span><span>93 target</span></div>
+
+            <div style="font-size:9px; color:#555; margin-top:5px; margin-bottom:2px;">TO-BE Capacity (8h normal hours):</div>
+            <div class="gauge-bar"><div class="gauge-fill" style="width:100%; background: #1a7a1a;"></div></div>
+            <div class="gauge-label-row"><span style="color:#1a7a1a; font-weight:700;">160 tasks/week (172%) ✅</span><span>+67 surplus</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div><!-- end columns -->
+
+  <!-- EFFECT BAR -->
+  <div class="effect-bar">
+    <div class="effect-bar-title">
+      <span class="effect-label-big">Effect</span>
+      <span style="font-size:11px; color:#c8daff;">Annual Cost Saving — Study Case: 93 tasks/week, 2 binary/task × 20 GB, Team 3 Members</span>
+    </div>
+    <ul>
+      <li>
+        <strong>① Lembur Testing Dieliminasi → Saving Rp 61,363,636 / tahun</strong>
+        <span class="formula">[Lembur terjadi karena MTP menyita jam kerja reguler, bukan karena kurang SDM · 30 OT hrs/week × Rp 51,136 × 40 peak weeks → TO-BE: 0 overtime]</span>
+      </li>
+      <li>
+        <strong>② Jam Kerja Reguler Dipulihkan untuk Testing → Rp 163,636,364 / tahun</strong>
+        <span class="formula">[8 jam/member/hari yang sebelumnya terbuang untuk MTP kini 100% digunakan untuk GBA testing · 8h × Rp 34,091 × 3 members × 200 hari]</span>
+      </li>
+      <li>
+        <strong>③ Backlog 36.3 task/minggu → 0 missed tasks</strong> — 160 task/week capacity dalam jam kerja normal, tanpa lembur, tanpa tambah headcount, tanpa upgrade hardware
+      </li>
+      <li>
+        Flash speed: HDD 40–60 min → NVMe 3–8 min/DUT (4–5×) · Transfer: MTP 12 MB/s → ADB+Samba 45/37 MB/s (3.4×) · Productive testing time per member: 0h → 8h/day
+        <span style="float:right; font-size:11px; color:#ffd080; font-weight:700;">TOTAL SAVING: Rp 225,000,000 / Year</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="footnote">
+    ※ Calculation basis: 93 tasks/week (peak) × 2 binary/task × 20 GB/binary = 3.63 TB/week · Salary: Rp 6,000,000/month (Rp 34,091/hr regular, Rp 51,136/hr OT) · MTP speed: 12 MB/s (actual, USB 2.0 + MTP overhead) · ADB: 45 MB/s · Samba WiFi: 37 MB/s · Max OT: 2h/person/day (company efficiency policy) · NVMe upgrade for Windows laptop: not feasible under current budget constraints · Peak weeks: 40/year
+  </div>
+
+</div>
+</body>
+</html>

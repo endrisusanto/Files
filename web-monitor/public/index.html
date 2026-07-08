@@ -489,6 +489,34 @@
       }
     }
 
+    // Save and restore scroll positions to prevent jump-to-top on re-render
+    function saveScrolls() {
+      const scrollable = document.querySelectorAll('[data-scroll-key]');
+      const map = {};
+      scrollable.forEach(el => { map[el.dataset.scrollKey] = el.scrollTop; });
+      return map;
+    }
+
+    function restoreScrolls(map) {
+      if (!map) return;
+      const scrollable = document.querySelectorAll('[data-scroll-key]');
+      scrollable.forEach(el => {
+        const key = el.dataset.scrollKey;
+        if (key in map) el.scrollTop = map[key];
+      });
+    }
+
+    // Sort priority: active/in-progress = 0 (top), ready = 1, staged = 2, complete = 3 (bottom)
+    function fileSortPriority(status) {
+      if (!status) return 1;
+      const s = status.toLowerCase();
+      if (s.includes('pushing') || s.includes('uploading') || s === 'locked') return 0;
+      if (s === 'ready') return 1;
+      if (s.includes('staged') || s.includes('success')) return 2;
+      if (s === 'transfer complete') return 3;
+      return 1; // default: treat as ready
+    }
+
     function render() {
       let totalUp = 0;
       let totalQueueSuccess = 0;
@@ -497,6 +525,9 @@
       $("devices").textContent = state.length;
       $("tauriCount").textContent = tauri.length;
 
+      // Capture scroll positions BEFORE re-render
+      const scrollSnapshot = saveScrolls();
+
       // Render Tauri Host cards
       if (tauri.length === 0) {
         $("tauriList").innerHTML = `<div class="panel empty-state" style="grid-column: 1 / -1;">No Active Tauri Staging Hosts.</div>`;
@@ -504,10 +535,13 @@
         $("tauriList").innerHTML = tauri.map((host) => {
           const isOnline = Date.now() - host.last_seen < 15000;
           const files = host.files || [];
-          const filesTable = files.length > 0 ? `
+          const hostKey = (host.host || host.id || 'host').replace(/[^a-z0-9]/gi, '_');
+          // Sort: active pinned top → ready → staged → complete at bottom
+          const sortedFiles = [...files].sort((a, b) => fileSortPriority(a.status) - fileSortPriority(b.status));
+          const filesTable = sortedFiles.length > 0 ? `
             <div style="margin-top: 16px; border-top: 1px solid #27272a; padding-top: 12px;">
-              <div class="muted" style="font-size: 11px; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Staging Files (${files.length})</div>
-              <div style="max-height: 150px; overflow-y: auto; border: 1px solid #1f1f23; border-radius: 6px; padding: 4px 8px; background: #0c0c0e;">
+              <div class="muted" style="font-size: 11px; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Staging Files (${sortedFiles.length})</div>
+              <div data-scroll-key="filelist-${hostKey}" style="max-height: 150px; overflow-y: auto; border: 1px solid #1f1f23; border-radius: 6px; padding: 4px 8px; background: #0c0c0e;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
                   <thead>
                     <tr style="border-bottom: 1px solid #1f1f23; text-align: left; color: #71717a;">
@@ -517,7 +551,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    ${files.map(f => {
+                    ${sortedFiles.map(f => {
                       const isComplete = f.status === 'Transfer Complete';
                       const isInProgress = f.status.includes('Pushing') || f.status.includes('Uploading');
                       const isSuccess = f.status.includes('Staged') || f.status.includes('Success');
@@ -549,7 +583,13 @@
             <div class="panel">
               <div class="card-title">
                 <strong>${host.host || host.id || "-"}</strong>
-                <span class="badge ${isOnline ? 'ok' : 'bad'}">${isOnline ? 'Online' : 'Offline'}</span>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <span class="badge ${isOnline ? 'ok' : 'bad'}">${isOnline ? 'Online' : 'Offline'}</span>
+                  <button onclick="refreshTauri('${host.id}')" title="Refresh ADB devices on this Tauri host"
+                    style="background:#1d4ed8;color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;line-height:1.6;">
+                    ↻ Refresh
+                  </button>
+                </div>
               </div>
               <div class="kv">
                 <div class="muted">Platform</div><div class="value">${host.platform || "-"}</div>
@@ -660,6 +700,9 @@
           `;
         }).join("") : `<tr><td colspan="9" class="empty-state">Waiting For Android Data Stream...</td></tr>`;
 
+      // Restore scroll positions AFTER re-render (requestAnimationFrame ensures DOM is painted)
+      requestAnimationFrame(() => restoreScrolls(scrollSnapshot));
+
       draw();
     }
 
@@ -672,6 +715,11 @@
           _ws.send(JSON.stringify({ type: "command", target: d.id, command: "upload" }));
         }
       });
+    }
+
+    function refreshTauri(hostId) {
+      if (!_ws || _ws.readyState !== 1) return alert("WebSocket not connected");
+      _ws.send(JSON.stringify({ type: "command", target: hostId || "all", command: "tauri_refresh" }));
     }
 
     function connect() {

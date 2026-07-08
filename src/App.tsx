@@ -302,6 +302,16 @@ export default function App() {
             if (selectedRemote) {
               setNetwork(selectedRemote.samples || []);
             }
+          } else if (msg.type === "command" && msg.command === "tauri_refresh") {
+            // Web monitor requested a device refresh
+            console.info("[bridge-ui] Remote refresh requested via web monitor");
+            appendLog("Remote refresh requested via web monitor");
+            invoke<Device[]>("get_devices")
+              .then((list) => {
+                setDevices(list);
+                appendLog(`Remote refresh ok count=${list.length}`);
+              })
+              .catch((e) => appendLog(`Remote refresh failed ${String(e)}`));
           }
         } catch (err) {
           console.error("Error parsing ws message", err);
