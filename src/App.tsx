@@ -30,20 +30,20 @@ const statusClass = (status: string | undefined | null) => {
   if (!status || typeof status !== "string") {
     return "border-zinc-800 bg-zinc-900 text-zinc-400";
   }
-  if (status.includes("Staging Push In Progress")) {
+  if (status.includes("Pushing to Phone")) {
     return "border-blue-800 bg-blue-950 text-blue-300 animate-pulse";
   }
-  if (status.includes("SMB Transfer In Progress")) {
+  if (status.includes("Uploading to Samba")) {
     return "border-cyan-800 bg-cyan-950 text-cyan-300 animate-pulse";
   }
   switch (status) {
-    case "ready":
+    case "Ready":
       return "border-zinc-800 bg-zinc-900 text-zinc-400";
-    case "Android Push Successful":
+    case "Staged on Phone":
       return "border-amber-800 bg-amber-950 text-amber-300";
-    case "SMB Transfer Complete":
+    case "Transfer Complete":
       return "border-green-800 bg-green-950 text-green-300";
-    case "locked":
+    case "Locked":
       return "border-red-800 bg-red-950 text-red-300";
     default:
       return "border-zinc-800 bg-zinc-900 text-zinc-400";
@@ -84,10 +84,10 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   return (
     <section className="mb-3 rounded border border-zinc-800 bg-zinc-900 p-2 font-mono">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">[ SYS.NETWORK_METRICS_CURVE ]</h2>
+        <h2 className="text-xs font-semibold text-zinc-400">Realtime Network Traffic</h2>
         <div className="flex gap-4 text-[10px] tracking-wider">
-          <span className="text-green-300">RX: {speed(last.rx_bps)}</span>
-          <span className="text-blue-300">TX: {speed(last.tx_bps)}</span>
+          <span className="text-green-300">Download: {speed(last.rx_bps)}</span>
+          <span className="text-blue-300">Upload: {speed(last.tx_bps)}</span>
         </div>
       </div>
       <svg className="h-24 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
@@ -533,15 +533,15 @@ export default function App() {
             <img src={logo} alt="FireFiles Logo" className="h-9 w-9" />
             <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">FireFiles</h1>
           </div>
-          <div className="flex items-center gap-4 font-mono text-[11px] uppercase tracking-wider">
-            <span className={`rounded border px-2 py-1 font-bold ${active ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
-              DAEMON: {active ? "READY" : selected ? "STORAGE_LOW" : "IDLE"}
+          <div className="flex items-center gap-4 text-xs font-semibold">
+            <span className={`rounded border px-2 py-1 ${active ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
+              Bridge Service: {active ? "Ready" : selected ? "Storage Low" : "Idle"}
             </span>
-            <span className={`rounded border px-2 py-1 font-bold ${selectedDevice?.apk_installed ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
-              APK_BRIDGE: {selectedDevice?.apk_installed ? "INSTALLED" : "MISSING"}
+            <span className={`rounded border px-2 py-1 ${selectedDevice?.apk_installed ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
+              Android App: {selectedDevice?.apk_installed ? "Installed" : "Not Installed"}
             </span>
             <span className={active ? "text-green-400 font-bold" : "text-zinc-400"}>
-              {active ? "ADB_TCP: ESTABLISHED" : selected ? "WARN: STORAGE_LOW" : "ADB_TCP: DISCONNECTED"}
+              {active ? "USB Link: Connected" : selected ? "Warning: Storage Low" : "USB Link: Offline"}
             </span>
             <button
               onClick={() => setShowSettings(true)}
@@ -557,26 +557,26 @@ export default function App() {
       </section>
 
       {/* Remote WebSocket Devices */}
-      <section className="mb-6 font-mono">
+      <section className="mb-6">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold uppercase tracking-widest text-zinc-200">[ SYS.REMOTE_NODES ]</h2>
+          <h2 className="text-lg font-bold text-zinc-200">Connected Remote Devices</h2>
           <span className={ws ? "rounded border border-green-800 bg-green-950 px-2 py-1 text-xs text-green-300" : "rounded border border-red-800 bg-red-950 px-2 py-1 text-xs text-red-300"}>
-            WSS: {ws ? "CONNECTED" : "DISCONNECTED"}
+            Cloud Connection: {ws ? "Online" : "Offline"}
           </span>
         </div>
         <div className="overflow-x-auto rounded border border-zinc-800">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="bg-zinc-900 text-xs font-semibold uppercase tracking-wider text-zinc-400">
               <tr>
-                <th className="p-3">HW_MODEL</th>
-                <th className="p-3">DEV_UUID</th>
-                <th className="p-3">SMB_TARGET_URI</th>
-                <th className="p-3">SMB_STAT</th>
-                <th className="p-3">USB_LINK</th>
-                <th className="p-3">TRGT_STAT</th>
-                <th className="p-3">LATEST_OBJ</th>
-                <th className="p-3">WS_LINK</th>
-                <th className="p-3">ACTIONS</th>
+                <th className="p-3">Device Model</th>
+                <th className="p-3">Device ID</th>
+                <th className="p-3">Samba Target</th>
+                <th className="p-3">Samba Status</th>
+                <th className="p-3">USB Status</th>
+                <th className="p-3">Selection</th>
+                <th className="p-3">Latest File</th>
+                <th className="p-3">Cloud Status</th>
+                <th className="p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -685,44 +685,44 @@ export default function App() {
 
       <NetworkChart samples={network} />
 
-      <section className="mb-4 rounded border border-zinc-800 bg-zinc-900 font-mono">
+      <section className="mb-4 rounded border border-zinc-800 bg-zinc-900">
         <div className="flex cursor-pointer items-center justify-between p-3 hover:bg-zinc-800/50" onClick={() => setFilelistOpen(!filelistOpen)}>
           <div className="flex items-center gap-2">
             <span className="text-lg">📁</span>
-            <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">[ SYS.LOCAL_STAGING ] <span className="text-zinc-500 font-normal lowercase tracking-normal">URI: {info?.source_dir || "N/A"}</span></h2>
+            <h2 className="text-sm font-semibold text-zinc-300">Local Staging Folder <span className="text-zinc-500 font-normal text-xs ml-2">Path: {info?.source_dir || "N/A"}</span></h2>
           </div>
-          <span className="text-xs text-zinc-500 uppercase">{filelistOpen ? "▲ COLLAPSE" : "▼ EXPAND"}</span>
+          <span className="text-xs text-zinc-500">{filelistOpen ? "▲ Collapse" : "▼ Expand"}</span>
         </div>
         
         {filelistOpen && (
           <div className="border-t border-zinc-800 p-3">
             <div className="mb-4 flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex gap-6 text-[11px] font-bold uppercase tracking-wider">
+              <div className="flex gap-6 text-xs text-zinc-300 font-medium">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" className="accent-blue-600" checked={autoPush} onChange={(e) => {
                     setAutoPush(e.target.checked);
                     localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
                   }} />
-                  AUTO_SYNC
+                  Auto Push
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer text-amber-500">
                   <input type="checkbox" className="accent-amber-600" checked={forceTransfer} onChange={(e) => setForceTransfer(e.target.checked)} />
-                  FORCE_OVERWRITE
+                  Force Transfer (Overwrite)
                 </label>
               </div>
               <div className="flex gap-2">
                 <button
                   disabled={!deviceActionReady || (!forceTransfer && !files.some((f) => f.status === "ready" && !pushedFiles.has(f.name) && !sambaFiles.some((sf) => sf.name === f.name)))}
                   onClick={pushAllPending}
-                  className="rounded border border-blue-800 bg-blue-950 px-3 py-1 text-[10px] font-bold uppercase text-blue-300 hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded bg-blue-650 px-3 py-1.5 text-xs font-bold text-blue-100 hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  EXEC_BATCH_SYNC
+                  Push All Pending
                 </button>
                 <button
                   onClick={browseSource}
-                  className="rounded border border-zinc-700 bg-zinc-800 px-3 py-1 text-[10px] font-bold uppercase text-zinc-300 hover:bg-zinc-700"
+                  className="rounded bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700"
                 >
-                  CHDIR...
+                  Change Folder...
                 </button>
               </div>
             </div>
@@ -736,15 +736,15 @@ export default function App() {
                   const isUploadingThis = activeRemote?.current_file === f.name;
                   const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
 
-                  let displayStatus = f.status;
+                  let displayStatus = f.status === "ready" ? "Ready" : f.status === "locked" ? "Locked" : f.status;
                   if (isPushingThis) {
-                    displayStatus = `Staging Push In Progress (${transfer.percent}%)`;
+                    displayStatus = `Pushing to Phone (${transfer.percent}%)`;
                   } else if (isUploadingThis) {
-                    displayStatus = `SMB Transfer In Progress (${activeRemote.upload_percent}%)`;
+                    displayStatus = `Uploading to Samba (${activeRemote.upload_percent}%)`;
                   } else if (isUploaded) {
-                    displayStatus = "SMB Transfer Complete";
+                    displayStatus = "Transfer Complete";
                   } else if (isPushed) {
-                    displayStatus = "Android Push Successful";
+                    displayStatus = "Staged on Phone";
                   }
 
                   const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
@@ -768,11 +768,11 @@ export default function App() {
                             {displayStatus}
                           </span>
                           <button
-                            disabled={!selectedDevice || (displayStatus !== "ready" && !forceTransfer) || isPushingThis}
+                            disabled={!selectedDevice || (displayStatus !== "Ready" && !forceTransfer) || isPushingThis}
                             onClick={() => push(f.name)}
-                            className="w-24 rounded border border-blue-800 bg-blue-950 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="w-24 rounded border border-blue-850 bg-blue-950 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            {forceTransfer ? "EXEC_FORCE" : "EXEC_PUSH"}
+                            {forceTransfer ? "Force Push" : "Push"}
                           </button>
                         </div>
                       </div>
@@ -792,13 +792,13 @@ export default function App() {
         </section>
 
         {/* Accordion Debug Log */}
-        <section className="rounded border border-zinc-800 bg-zinc-900 font-mono">
+        <section className="rounded border border-zinc-800 bg-zinc-900">
         <div className="flex cursor-pointer items-center justify-between p-3 hover:bg-zinc-800/50" onClick={() => setDebugOpen(!debugOpen)}>
           <div className="flex items-center gap-2">
             <span className="text-lg">📜</span>
-            <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">[ SYS.DIAGNOSTICS_LOG ]</h2>
+            <h2 className="text-sm font-semibold text-zinc-300">System Log & Diagnostics</h2>
           </div>
-          <span className="text-xs text-zinc-500 uppercase">{debugOpen ? "▲ COLLAPSE" : "▼ EXPAND"}</span>
+          <span className="text-xs text-zinc-500">{debugOpen ? "▲ Collapse" : "▼ Expand"}</span>
         </div>
           
           {debugOpen && (
