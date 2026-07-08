@@ -30,18 +30,18 @@ const statusClass = (status: string | undefined | null) => {
   if (!status || typeof status !== "string") {
     return "border-zinc-800 bg-zinc-900 text-zinc-400";
   }
-  if (status.includes("inprogress staging push")) {
+  if (status.includes("Staging Push In Progress")) {
     return "border-blue-800 bg-blue-950 text-blue-300 animate-pulse";
   }
-  if (status.includes("inprogress transfer to samba")) {
+  if (status.includes("SMB Transfer In Progress")) {
     return "border-cyan-800 bg-cyan-950 text-cyan-300 animate-pulse";
   }
   switch (status) {
     case "ready":
       return "border-zinc-800 bg-zinc-900 text-zinc-400";
-    case "pushed to android successful":
+    case "Android Push Successful":
       return "border-amber-800 bg-amber-950 text-amber-300";
-    case "transfer samba complete":
+    case "SMB Transfer Complete":
       return "border-green-800 bg-green-950 text-green-300";
     case "locked":
       return "border-red-800 bg-red-950 text-red-300";
@@ -589,9 +589,19 @@ export default function App() {
                     <td className="p-3 text-zinc-400 text-xs max-w-[200px] truncate" title={d.id}>{d.id}</td>
                     <td className="p-3 text-zinc-300 text-xs">{d.target || "-"}</td>
                     <td className="p-3">
-                      <span className={`rounded border px-2 py-0.5 text-xs ${d.samba === "connected" ? "border-green-800 bg-green-950 text-green-300" : "border-red-800 bg-red-950 text-red-300"}`}>
-                        Samba {d.samba || "not connected"}
-                      </span>
+                      {d.samba_status.includes("Samba connected") ? (
+                        <span className="rounded border border-green-800 bg-green-950 px-2 py-1 text-xs text-green-300">
+                          Connected
+                        </span>
+                      ) : d.samba_status.includes("error") ? (
+                        <span className="rounded border border-red-800 bg-red-950 px-2 py-1 text-xs text-red-300">
+                          Error
+                        </span>
+                      ) : (
+                        <span className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-500">
+                          Disconnected
+                        </span>
+                      )}
                     </td>
                     <td className="p-3">
                       <span className={`rounded border px-2 py-0.5 text-xs ${usbOnline ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-500"}`}>
@@ -711,13 +721,13 @@ export default function App() {
 
                   let displayStatus = f.status;
                   if (isPushingThis) {
-                    displayStatus = `inprogress staging push (${transfer.percent}%)`;
+                    displayStatus = `Staging Push In Progress (${transfer.percent}%)`;
                   } else if (isUploadingThis) {
-                    displayStatus = `inprogress transfer to samba (${activeRemote.upload_percent}%)`;
+                    displayStatus = `SMB Transfer In Progress (${activeRemote.upload_percent}%)`;
                   } else if (isUploaded) {
-                    displayStatus = "transfer samba complete";
+                    displayStatus = "SMB Transfer Complete";
                   } else if (isPushed) {
-                    displayStatus = "pushed to android successful";
+                    displayStatus = "Android Push Successful";
                   }
 
                   const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
