@@ -522,42 +522,6 @@ export default function App() {
   const selectedDevice = devices.find((d) => d.is_selected_bridge);
   const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint);
   const deviceActionReady = Boolean(selectedDevice);
-  const isLinux = info?.platform === "linux";
-
-  if (isLinux) {
-    return (
-      <main className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
-        <section className="mb-4 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Samba Files</h1>
-          <p className="text-sm text-zinc-400">{info?.samba_dir}</p>
-        </section>
-        <NetworkChart samples={network} />
-        <table className="w-full border-collapse overflow-hidden rounded-lg border border-zinc-800 text-left">
-          <thead className="bg-zinc-900 text-sm text-zinc-400">
-            <tr>
-              <th className="p-3">File</th>
-              <th className="p-3">Size</th>
-              <th className="p-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sambaFiles.map((f) => (
-              <tr key={f.name} className="border-t border-zinc-800">
-                <td className="p-3">{f.name}</td>
-                <td className="p-3">{fileGb(f.size)}</td>
-                <td className="p-3">{f.status}</td>
-              </tr>
-            ))}
-            {!sambaFiles.length && (
-              <tr>
-                <td className="p-3 text-zinc-500" colSpan={3}>No .tar.md5 files found</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
