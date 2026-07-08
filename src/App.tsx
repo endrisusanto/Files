@@ -291,9 +291,8 @@ export default function App() {
             setRemoteDevices(msg.devices || []);
             const selectedRemoteId = localStorage.getItem("selected_remote_id");
             const selectedRemote = (msg.devices || []).find((d: any) => d.id === selectedRemoteId);
-            if (selectedRemote && selectedRemote.samples && selectedRemote.samples.length > 0) {
-              const lastSample = selectedRemote.samples[selectedRemote.samples.length - 1];
-              setNetwork((list) => [...list.slice(-299), { rx_bps: lastSample.rx_bps, tx_bps: lastSample.tx_bps }]);
+            if (selectedRemote) {
+              setNetwork(selectedRemote.samples || []);
             }
           }
         } catch (err) {
