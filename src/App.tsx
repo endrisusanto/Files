@@ -589,11 +589,11 @@ export default function App() {
                     <td className="p-3 text-zinc-400 text-xs max-w-[200px] truncate" title={d.id}>{d.id}</td>
                     <td className="p-3 text-zinc-300 text-xs">{d.target || "-"}</td>
                     <td className="p-3">
-                      {d.samba_status.includes("Samba connected") ? (
+                      {d.samba === "connected" ? (
                         <span className="rounded border border-green-800 bg-green-950 px-2 py-1 text-xs text-green-300">
                           Connected
                         </span>
-                      ) : d.samba_status.includes("error") ? (
+                      ) : d.samba && d.samba.toLowerCase().includes("error") ? (
                         <span className="rounded border border-red-800 bg-red-950 px-2 py-1 text-xs text-red-300">
                           Error
                         </span>
@@ -681,7 +681,7 @@ export default function App() {
         </div>
       </section>
 
-      <NetworkChart samples={network} limit={300} />
+      <NetworkChart samples={network} />
 
       <section className="mb-4 rounded border border-zinc-800 bg-zinc-900 font-mono">
         <div className="flex cursor-pointer items-center justify-between p-3 hover:bg-zinc-800/50" onClick={() => setFilelistOpen(!filelistOpen)}>
@@ -707,6 +707,21 @@ export default function App() {
                   <input type="checkbox" className="accent-amber-600" checked={forceTransfer} onChange={(e) => setForceTransfer(e.target.checked)} />
                   FORCE_OVERWRITE
                 </label>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  disabled={!deviceActionReady || (!forceTransfer && !files.some((f) => f.status === "ready" && !pushedFiles.has(f.name) && !sambaFiles.some((sf) => sf.name === f.name)))}
+                  onClick={pushAllPending}
+                  className="rounded border border-blue-800 bg-blue-950 px-3 py-1 text-[10px] font-bold uppercase text-blue-300 hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  EXEC_BATCH_SYNC
+                </button>
+                <button
+                  onClick={openDir}
+                  className="rounded border border-zinc-700 bg-zinc-800 px-3 py-1 text-[10px] font-bold uppercase text-zinc-300 hover:bg-zinc-700"
+                >
+                  CHDIR...
+                </button>
               </div>
             </div>
               
