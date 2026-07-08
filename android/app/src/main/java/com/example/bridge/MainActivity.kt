@@ -479,7 +479,7 @@ class MainActivity : Activity() {
                     put("model", Build.MODEL)
                     put("rx_bps", rx)
                     put("tx_bps", tx)
-                    put("samba", if (badge.text.contains("ready")) "connected" else "not connected")
+                    put("samba", if (badge.text.contains("ready", ignoreCase = true)) "connected" else "not connected")
                     put("target", BridgeService.target(this@MainActivity))
                     put("latest", latest)
                     put("current_file", BridgeService.currentFile)
