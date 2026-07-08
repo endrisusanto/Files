@@ -340,15 +340,15 @@ export default function App() {
           const isUploadingThis = activeRemote?.current_file === f.name;
           const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
 
-          let displayStatus = f.status;
+          let displayStatus = f.status === "ready" ? "Ready" : f.status === "locked" ? "Locked" : f.status;
           if (isPushingThis) {
-            displayStatus = `inprogress staging push to android (${transfer.percent}%)`;
+            displayStatus = `Pushing to Phone (${transfer.percent}%)`;
           } else if (isUploadingThis) {
-            displayStatus = `inprogress transfer to samba (${activeRemote.upload_percent}%)`;
+            displayStatus = `Uploading to Samba (${activeRemote.upload_percent}%)`;
           } else if (isUploaded) {
-            displayStatus = "transfer samba complete";
+            displayStatus = "Transfer Complete";
           } else if (isPushed) {
-            displayStatus = "pushed to android successful";
+            displayStatus = "Staged on Phone";
           }
 
           return {
