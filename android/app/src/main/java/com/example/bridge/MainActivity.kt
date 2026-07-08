@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.drawable.GradientDrawable
 import android.net.TrafficStats
 import android.os.Build
 import android.os.Bundle
@@ -48,6 +50,24 @@ class MainActivity : Activity() {
     @Volatile private var wsConnected = false
     private var lastWsAttempt = 0L
 
+    private fun styleButton(button: Button, isPrimary: Boolean) {
+        val gd = GradientDrawable().apply {
+            if (isPrimary) {
+                setColor(0xff2563eb.toInt())
+                setStroke(2, 0xff3b82f6.toInt())
+            } else {
+                setColor(0xff27272a.toInt())
+                setStroke(2, 0xff3f3f46.toInt())
+            }
+            cornerRadius = 16f
+        }
+        button.background = gd
+        button.setTextColor(Color.WHITE)
+        button.textSize = 12f
+        button.transformationMethod = null
+        button.setPadding(24, 20, 24, 20)
+    }
+
     private val sampleNetwork = object : Runnable {
         override fun run() {
             val rx = TrafficStats.getTotalRxBytes()
@@ -70,6 +90,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Request no title bar feature to prevent native Android ActionBar overlapping
         requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            window.statusBarColor = 0xff09090b.toInt()
+            window.navigationBarColor = 0xff09090b.toInt()
+        }
         super.onCreate(savedInstanceState)
         Log.i(tag, "MainActivity onCreate")
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -78,87 +102,158 @@ class MainActivity : Activity() {
         }
 
         badge = TextView(this).apply {
-            text = "APK: checking"
-            textSize = 14f
-            setTextColor(0xffd4d4d8.toInt())
-            setBackgroundColor(0xff27272a.toInt())
-            setPadding(24, 12, 24, 12)
+            text = "APK: Checking"
+            textSize = 13f
+            setTextColor(0xff86efac.toInt())
+            val bg = GradientDrawable().apply {
+                setColor(0xff27272a.toInt())
+                cornerRadius = 999f
+                setStroke(2, 0xff3f3f46.toInt())
+            }
+            background = bg
+            setPadding(32, 10, 32, 10)
         }
         status = TextView(this).apply {
-            textSize = 16f
-            setLineSpacing(6f, 1.05f)
-            setTextColor(0xffd4d4d8.toInt())
+            textSize = 13f
+            setLineSpacing(8f, 1.0f)
+            setTextColor(0xffa1a1aa.toInt())
         }
         debugLog = TextView(this).apply {
-            textSize = 12f
+            textSize = 11f
             setLineSpacing(4f, 1.0f)
-            setTextColor(0xffd4d4d8.toInt())
-            setBackgroundColor(0xff18181b.toInt())
-            setPadding(20, 20, 20, 20)
+            setTextColor(0xffa1a1aa.toInt())
         }
         networkChart = NetworkChartView(this)
+
         val upload = Button(this).apply {
             text = "Upload All Files"
             setOnClickListener { startAllUpload() }
+            styleButton(this, true)
         }
         val testSamba = Button(this).apply {
-            text = "Test Upload test.txt"
+            text = "Test Upload"
             setOnClickListener { testUpload() }
+            styleButton(this, false)
         }
         val settings = Button(this).apply {
             text = "Samba Settings"
             setOnClickListener { showSambaSettings() }
+            styleButton(this, false)
         }
         val refresh = Button(this).apply {
             text = "Refresh"
             setOnClickListener { refreshStatus() }
+            styleButton(this, false)
         }
 
-        val content = LinearLayout(this).apply {
+        // Left Panel (Column 1)
+        val leftColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(30, 30, 30, 30)
-            setBackgroundColor(0xff09090b.toInt())
+            gravity = Gravity.LEFT
+            
             addView(TextView(this@MainActivity).apply {
                 text = "Android File Bridge"
-                textSize = 20f
+                textSize = 22f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
                 setTextColor(0xfffafafa.toInt())
+                setPadding(0, 0, 0, 8)
+            }, LinearLayout.LayoutParams(-1, -2))
+
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.LEFT
                 setPadding(0, 0, 0, 16)
+                addView(badge)
             }, LinearLayout.LayoutParams(-1, -2))
-            addView(badge, LinearLayout.LayoutParams(-2, -2).apply {
-                bottomMargin = 16
-            })
-            addView(status, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = 20
-            })
-            addView(networkChart, LinearLayout.LayoutParams(-1, 140).apply {
-                bottomMargin = 16
-            })
-            addView(upload, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = 10
-            })
-            addView(testSamba, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = 10
-            })
-            addView(settings, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = 10
-            })
-            addView(refresh, LinearLayout.LayoutParams(-1, -2))
+
+            // Status Panel Card
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                val bg = GradientDrawable().apply {
+                    setColor(0xff18181b.toInt())
+                    cornerRadius = 16f
+                    setStroke(2, 0xff27272a.toInt())
+                }
+                background = bg
+                setPadding(24, 24, 24, 24)
+                addView(status)
+            }, LinearLayout.LayoutParams(-1, -2))
+
+            // Buttons 2x2 Grid
+            val row1 = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(upload, LinearLayout.LayoutParams(0, -2, 1.0f).apply { rightMargin = 8 })
+                addView(testSamba, LinearLayout.LayoutParams(0, -2, 1.0f))
+            }
+            val row2 = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(settings, LinearLayout.LayoutParams(0, -2, 1.0f).apply { rightMargin = 8 })
+                addView(refresh, LinearLayout.LayoutParams(0, -2, 1.0f))
+            }
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 24, 0, 0)
+                addView(row1, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
+                addView(row2, LinearLayout.LayoutParams(-1, -2))
+            }, LinearLayout.LayoutParams(-1, -2))
+        }
+
+        // Right Panel (Column 2)
+        val rightColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.LEFT
+
             addView(TextView(this@MainActivity).apply {
-                text = "Debug Log"
-                textSize = 18f
+                text = "Realtime Network Traffic"
+                textSize = 14f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
                 setTextColor(0xfffafafa.toInt())
-                setPadding(0, 32, 0, 12)
+                setPadding(0, 0, 0, 12)
             }, LinearLayout.LayoutParams(-1, -2))
+
+            addView(networkChart, LinearLayout.LayoutParams(-1, 200).apply {
+                bottomMargin = 24
+            })
+
+            addView(TextView(this@MainActivity).apply {
+                text = "System Log"
+                textSize = 14f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                setTextColor(0xfffafafa.toInt())
+                setPadding(0, 0, 0, 12)
+            }, LinearLayout.LayoutParams(-1, -2))
+
             addView(ScrollView(this@MainActivity).apply {
-                setBackgroundColor(0xff18181b.toInt())
+                val logBg = GradientDrawable().apply {
+                    setColor(0xff18181b.toInt())
+                    cornerRadius = 16f
+                    setStroke(2, 0xff27272a.toInt())
+                }
+                background = logBg
+                setPadding(20, 20, 20, 20)
                 addView(debugLog)
-            }, LinearLayout.LayoutParams(-1, 320))
+            }, LinearLayout.LayoutParams(-1, 300))
+        }
+
+        val rootLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(40, 40, 40, 40)
+            setBackgroundColor(0xff09090b.toInt())
+            fitsSystemWindows = true
+
+            val leftParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
+                rightMargin = 40
+            }
+            val rightParams = LinearLayout.LayoutParams(0, -2, 1.2f)
+
+            addView(leftColumn, leftParams)
+            addView(rightColumn, rightParams)
         }
 
         setContentView(ScrollView(this).apply {
+            fitsSystemWindows = true
             setBackgroundColor(0xff09090b.toInt())
-            addView(content)
+            addView(rootLayout)
         })
         handler.post(sampleNetwork)
         appendLog("APK started")
@@ -255,18 +350,18 @@ class MainActivity : Activity() {
         Log.i(tag, "Refreshing status")
         localDir.mkdirs()
         val file = latestFile()
-        val sambaLine = "Samba: checking"
+        val sambaLine = "Samba Connection: Checking"
         status.text = listOfNotNull(
             message,
-            "Tauri: staging ${if (localDir.canWrite()) "writable" else "not writable"} (${localDir.listFiles()?.size ?: 0} files)",
+            "Staging Directory: ${if (localDir.canWrite()) "Writable" else "Not Writable"} (${localDir.listFiles()?.size ?: 0} Files)",
             sambaLine,
-            "WebSocket: ${if (wsConnected) "connected" else "not connected"}",
-            "Staging: ${localDir.absolutePath}",
-            "Latest: ${file?.name ?: "-"}",
-            "Target: ${BridgeService.target(this)}"
+            "Cloud Connection: ${if (wsConnected) "Connected" else "Not Connected"}",
+            "Local Path: ${localDir.absolutePath}",
+            "Latest File: ${file?.name ?: "-"}",
+            "Samba Target: ${BridgeService.target(this)}"
         ).joinToString("\n")
         appendLog("Status refreshed")
-        badge.text = "APK: checking Samba"
+        badge.text = "APK: Checking Samba"
         badge.setTextColor(0xffd4d4d8.toInt())
         Thread {
             val ok = try {
@@ -280,9 +375,9 @@ class MainActivity : Activity() {
                 false
             }
             runOnUiThread {
-                badge.text = if (ok) "APK: Samba ready" else "APK: Samba unreachable"
+                badge.text = if (ok) "APK: Samba Ready" else "APK: Samba Unreachable"
                 badge.setTextColor(if (ok) 0xff86efac.toInt() else 0xfffca5a5.toInt())
-                status.text = status.text.toString().replace(sambaLine, if (ok) "Samba: connected" else "Samba: not connected")
+                status.text = status.text.toString().replace(sambaLine, if (ok) "Samba Connection: Connected" else "Samba Connection: Not Connected")
             }
         }.start()
     }
@@ -306,8 +401,7 @@ class MainActivity : Activity() {
                 wsConnected = true
                 runOnUiThread {
                     status.text = status.text.toString()
-                        .replace("WebSocket: not connected", "WebSocket: connected")
-                        .replace("WebSocket: connected", "WebSocket: connected")
+                        .replace("Cloud Connection: Not Connected", "Cloud Connection: Connected")
                 }
                 appendLog("WebSocket connected to $wsUrl")
             }
@@ -352,8 +446,7 @@ class MainActivity : Activity() {
                 okWebSocket = null
                 runOnUiThread {
                     status.text = status.text.toString()
-                        .replace("WebSocket: connected", "WebSocket: not connected")
-                        .replace("WebSocket: not connected", "WebSocket: not connected")
+                        .replace("Cloud Connection: Connected", "Cloud Connection: Not Connected")
                 }
                 appendLog("WebSocket failure: ${t.message}")
             }
@@ -363,8 +456,7 @@ class MainActivity : Activity() {
                 okWebSocket = null
                 runOnUiThread {
                     status.text = status.text.toString()
-                        .replace("WebSocket: connected", "WebSocket: not connected")
-                        .replace("WebSocket: not connected", "WebSocket: not connected")
+                        .replace("Cloud Connection: Connected", "Cloud Connection: Not Connected")
                 }
                 appendLog("WebSocket closed: $reason")
             }
@@ -440,12 +532,13 @@ class MainActivity : Activity() {
         }
 
         override fun onDraw(canvas: Canvas) {
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
+            val rect = RectF(0f, 0f, width.toFloat(), height.toFloat())
+            canvas.drawRoundRect(rect, 16f, 16f, bgPaint)
             val maxBytes = max(1L, networkHistory.flatMap { listOf(it.first, it.second) }.maxOrNull() ?: 1L)
             drawCurve(canvas, true, maxBytes, downPaint)
             drawCurve(canvas, false, maxBytes, upPaint)
             val last = networkHistory.lastOrNull() ?: Pair(0L, 0L)
-            canvas.drawText("Down ${mbps(last.first)} MB/s   Up ${mbps(last.second)} MB/s", 16f, 38f, textPaint)
+            canvas.drawText("Down ${mbps(last.first)} MB/s   Up ${mbps(last.second)} MB/s", 24f, 44f, textPaint)
         }
 
         private fun drawCurve(canvas: Canvas, down: Boolean, maxBytes: Long, paint: Paint) {
