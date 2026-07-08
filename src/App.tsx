@@ -53,7 +53,10 @@ const statusClass = (status: string | undefined | null) => {
 function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   const width = 600;
   const height = 80;
-  const points = samples.slice(-300);
+  const points = [
+    ...Array.from({ length: 300 }, () => ({ rx_bps: 0, tx_bps: 0 })),
+    ...samples
+  ].slice(-300);
   const max = Math.max(1, ...points.flatMap((p) => [p.rx_bps, p.tx_bps]));
   
   const path = (key: keyof NetworkSample) => {
