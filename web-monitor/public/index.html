@@ -68,18 +68,19 @@
 
     .flex-cards {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column; /* ponytail: stack vertically, no grid */
       gap: 12px;
       margin-bottom: 16px;
     }
 
     .flex-cards .panel {
-      flex: 1 1 280px;
+      flex: none; /* ponytail: full width, no grow */
+      width: 100%;
     }
 
     .bottom-split {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: 1fr; /* ponytail: always single column */
       gap: 16px;
       margin-top: 16px;
     }
@@ -251,7 +252,8 @@
         font-size: 18px;
       }
       .flex-cards .panel {
-        flex: 1 1 100%;
+        flex: none;
+        width: 100%;
       }
       .bottom-split {
         grid-template-columns: 1fr;
@@ -552,11 +554,14 @@
                   </thead>
                   <tbody>
                     ${sortedFiles.map(f => {
-                      const isComplete = f.status === 'Transfer Complete';
-                      const isInProgress = f.status.includes('Pushing') || f.status.includes('Uploading');
-                      const isSuccess = f.status.includes('Staged') || f.status.includes('Success');
-                      const isLocked = f.status === 'Locked';
-                      const statusClass = isComplete ? 'ok' : isInProgress ? 'info' : isSuccess ? 'warn' : isLocked ? 'bad' : '';
+                      const s = f.status || '';
+                      const isComplete = s === 'Transfer Complete';
+                      const isAlready = s === 'Already in Destination';
+                      const isInProgress = s.includes('Pushing') || s.includes('Uploading');
+                      const isSuccess = s.includes('Staged') || s.includes('Success');
+                      const isLocked = s === 'Locked';
+                      // ponytail: statusClass derived from pre-resolved status string from tauri
+                      const statusClass = isComplete ? 'ok' : isAlready ? 'warn' : isInProgress ? 'info' : isSuccess ? 'warn' : isLocked ? 'bad' : '';
                       const fileGbSize = (f.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
                       return `
                         <tr style="border-bottom: 1px solid #1f1f23;">

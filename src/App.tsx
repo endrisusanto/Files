@@ -43,6 +43,9 @@ const statusClass = (status: string | undefined | null) => {
       return "border-amber-800 bg-amber-950 text-amber-300";
     case "Transfer Complete":
       return "border-green-800 bg-green-950 text-green-300";
+    case "Already in Destination":
+      // ponytail: file pre-existed in samba folder, skippable
+      return "border-violet-800 bg-violet-950 text-violet-300";
     case "Locked":
       return "border-red-800 bg-red-950 text-red-300";
     default:
@@ -360,6 +363,9 @@ export default function App() {
             displayStatus = `Pushing to Phone (${transfer.percent}%)`;
           } else if (isUploadingThis) {
             displayStatus = `Uploading to Samba (${activeRemote.upload_percent}%)`;
+          } else if (inSamba && !isPushed) {
+            // ponytail: file already in samba folder before FireFiles pushed it
+            displayStatus = "Already in Destination";
           } else if (isUploaded) {
             displayStatus = "Transfer Complete";
           } else if (isPushed) {
@@ -756,6 +762,9 @@ export default function App() {
                     displayStatus = `Pushing to Phone (${transfer.percent}%)`;
                   } else if (isUploadingThis) {
                     displayStatus = `Uploading to Samba (${activeRemote.upload_percent}%)`;
+                  } else if (inSamba && !isPushed) {
+                    // ponytail: already in samba folder, not pushed via FireFiles
+                    displayStatus = "Already in Destination";
                   } else if (isUploaded) {
                     displayStatus = "Transfer Complete";
                   } else if (isPushed) {
