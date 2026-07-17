@@ -611,6 +611,20 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         &queue_success.to_string(),
     ])?;
     println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
+
+    // ponytail: move file to BACKUP on successful push to clean up source directory
+    let backup_dir = source_dir(&config).join("BACKUP");
+    if let Err(e) = fs::create_dir_all(&backup_dir) {
+        eprintln!("[bridge-tauri] failed to create BACKUP dir: {e}");
+    } else {
+        let backup_path = backup_dir.join(&file_name);
+        if let Err(e) = fs::rename(&source, &backup_path) {
+            eprintln!("[bridge-tauri] failed to move file to BACKUP: {e}");
+        } else {
+            println!("[bridge-tauri] moved {file_name} to BACKUP");
+        }
+    }
+
     Ok(())
 }
 

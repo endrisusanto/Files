@@ -90,9 +90,29 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Request no title bar feature to prevent native Android ActionBar overlapping
         requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+
+        // ponytail: hide status bar and navigation bar for immersive fullscreen
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.let { controller ->
+                controller.hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            window.statusBarColor = 0xff09090b.toInt()
-            window.navigationBarColor = 0xff09090b.toInt()
+            window.statusBarColor = Color.TRANSPARENT
+            window.navigationBarColor = Color.TRANSPARENT
         }
         super.onCreate(savedInstanceState)
         Log.i(tag, "MainActivity onCreate")
@@ -239,7 +259,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(40, 40, 40, 40)
             setBackgroundColor(0xff09090b.toInt())
-            fitsSystemWindows = true
+            fitsSystemWindows = false
 
             val leftParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
                 rightMargin = 40
@@ -251,7 +271,7 @@ class MainActivity : Activity() {
         }
 
         setContentView(ScrollView(this).apply {
-            fitsSystemWindows = true
+            fitsSystemWindows = false
             isFillViewport = true
             setBackgroundColor(0xff09090b.toInt())
             addView(rootLayout)
