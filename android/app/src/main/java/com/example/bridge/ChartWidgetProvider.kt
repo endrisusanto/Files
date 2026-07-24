@@ -66,17 +66,51 @@ class ChartWidgetProvider : AppWidgetProvider() {
 
             if (devicesJson != null && devicesJson.length() > 0) {
                 var maxBps = 1.0
+                var totalTxBps = 0.0
+                var activeFile = ""
+
                 for (i in 0 until devicesJson.length()) {
                     val dev = devicesJson.optJSONObject(i) ?: continue
+                    val latest = dev.optString("latest", "")
+                    if (latest.isNotEmpty() && latest != "-") {
+                        activeFile = latest
+                    }
+
                     val samples = dev.optJSONArray("samples") ?: continue
+                    if (samples.length() > 0) {
+                        val lastSample = samples.optJSONObject(samples.length() - 1)
+                        totalTxBps += lastSample?.optDouble("tx_bps", 0.0) ?: 0.0
+                    }
+
                     for (j in 0 until samples.length()) {
                         val tx = samples.optJSONObject(j)?.optDouble("tx_bps", 0.0) ?: 0.0
                         if (tx > maxBps) maxBps = tx
                     }
                 }
 
-                val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                // Draw Top-Right Total Speed
+                val totalSpeedText = String.format("Total: %.2f MB/s", totalTxBps / (1024 * 1024))
+                val totalSpeedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.parseColor("#4ade80")
                     textSize = 22f
+                    typeface = Typeface.DEFAULT_BOLD
+                    textAlign = Paint.Align.RIGHT
+                }
+                canvas.drawText(totalSpeedText, width - 16f, 32f, totalSpeedPaint)
+
+                // Draw Active File Transferring Name
+                if (activeFile.isNotEmpty()) {
+                    val filePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.parseColor("#38bdf8")
+                        textSize = 18f
+                        typeface = Typeface.DEFAULT_BOLD
+                    }
+                    val displayFile = if (activeFile.length > 25) activeFile.substring(0, 22) + "..." else activeFile
+                    canvas.drawText("📄 $displayFile", 16f, height - 12f, filePaint)
+                }
+
+                val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    textSize = 20f
                     typeface = Typeface.DEFAULT_BOLD
                 }
 
@@ -112,7 +146,7 @@ class ChartWidgetProvider : AppWidgetProvider() {
                         val s = samples.optJSONObject(startIndex + j) ?: continue
                         val tx = s.optDouble("tx_bps", 0.0)
                         val x = j * width.toFloat() / (sampleCount - 1)
-                        val y = height - ((tx / maxBps) * (height * 0.82f)).toFloat()
+                        val y = height - ((tx / maxBps) * (height * 0.75f)).toFloat()
 
                         if (j == 0) {
                             linePath.moveTo(x, y)
@@ -134,7 +168,7 @@ class ChartWidgetProvider : AppWidgetProvider() {
 
                     val label = dev.optString("model", "Device ${i + 1}")
                     textPaint.color = strokeColor
-                    canvas.drawText(label, 16f, 30f + (i * 26f), textPaint)
+                    canvas.drawText(label, 16f, 30f + (i * 24f), textPaint)
                 }
             }
 

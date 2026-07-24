@@ -75,14 +75,48 @@ class NetworkChartView @JvmOverloads constructor(
         if (devices.length() == 0) return
 
         var maxBps = 1.0
+        var totalTxBps = 0.0
+        var activeFile = ""
+
         for (i in 0 until devices.length()) {
             val dev = devices.optJSONObject(i) ?: continue
+            val latest = dev.optString("latest", "")
+            if (latest.isNotEmpty() && latest != "-") {
+                activeFile = latest
+            }
+
             val samples = dev.optJSONArray("samples") ?: continue
+            if (samples.length() > 0) {
+                val lastSample = samples.optJSONObject(samples.length() - 1)
+                totalTxBps += lastSample?.optDouble("tx_bps", 0.0) ?: 0.0
+            }
+
             for (j in 0 until samples.length()) {
                 val s = samples.optJSONObject(j) ?: continue
                 val tx = s.optDouble("tx_bps", 0.0)
                 if (tx > maxBps) maxBps = tx
             }
+        }
+
+        // Draw Top-Right Total Speed
+        val totalSpeedText = String.format("Total: %.2f MB/s", totalTxBps / (1024 * 1024))
+        val totalSpeedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#4ade80")
+            textSize = 28f
+            typeface = Typeface.DEFAULT_BOLD
+            textAlign = Paint.Align.RIGHT
+        }
+        canvas.drawText(totalSpeedText, w - 20f, 40f, totalSpeedPaint)
+
+        // Draw Active File Transferring Name
+        if (activeFile.isNotEmpty()) {
+            val filePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#38bdf8")
+                textSize = 24f
+                typeface = Typeface.DEFAULT_BOLD
+            }
+            val displayFile = if (activeFile.length > 30) activeFile.substring(0, 27) + "..." else activeFile
+            canvas.drawText("📄 $displayFile", 20f, h - 20f, filePaint)
         }
 
         for (i in 0 until devices.length()) {
