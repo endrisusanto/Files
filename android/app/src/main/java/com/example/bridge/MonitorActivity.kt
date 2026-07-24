@@ -3,19 +3,21 @@ package com.example.bridge
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.text.InputType
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.AttributeSet
 import android.util.TypedValue
-import android.view.Gravity
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.*
 import okhttp3.*
 import org.json.JSONArray
@@ -64,7 +66,6 @@ class NetworkChartView @JvmOverloads constructor(
 
         canvas.drawColor(Color.parseColor("#18181b"))
 
-        // Grid lines (5 horizontal lines)
         for (i in 1..4) {
             val y = (h / 5f) * i
             canvas.drawLine(0f, y, w, y, gridPaint)
@@ -148,6 +149,7 @@ class MonitorActivity : Activity() {
     private var lastTauriJson: JSONArray? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableFullscreenMode()
         super.onCreate(savedInstanceState)
 
         val root = ScrollView(this).apply {
@@ -248,7 +250,42 @@ class MonitorActivity : Activity() {
 
         setContentView(root)
 
+        requestBatteryOptimizationExemption()
         connectWebSocket()
+    }
+
+    private fun enableFullscreenMode() {
+        requestWindowFeature(Window.FEATURE_NO_TITLE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.let { controller ->
+                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            )
+        }
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun showSettingsDialog() {
@@ -368,7 +405,7 @@ class MonitorActivity : Activity() {
         renderTauriHosts(lastTauriJson)
         renderAndroidDevices(lastDevicesJson)
 
-        // Trigger Android Home Screen Widget updates
+        // Instant update Home Screen Widgets with caching
         ChartWidgetProvider.updateAll(this, lastDevicesJson)
         StagingWidgetProvider.updateAll(this, lastTauriJson)
     }

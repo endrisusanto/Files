@@ -17,6 +17,11 @@ class StagingWidgetProvider : AppWidgetProvider() {
 
     companion object {
         fun updateAll(context: Context, tauriJson: JSONArray?) {
+            if (tauriJson != null) {
+                val prefs = context.getSharedPreferences("monitor_cache", Context.MODE_PRIVATE)
+                prefs.edit().putString("last_tauri", tauriJson.toString()).apply()
+            }
+
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, StagingWidgetProvider::class.java))
             for (id in ids) {
@@ -24,8 +29,14 @@ class StagingWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, tauriJson: JSONArray?) {
+        private fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, inputJson: JSONArray?) {
             val views = RemoteViews(context.packageName, R.layout.widget_staging_layout)
+
+            val tauriJson = inputJson ?: run {
+                val prefs = context.getSharedPreferences("monitor_cache", Context.MODE_PRIVATE)
+                val str = prefs.getString("last_tauri", null)
+                if (str != null) try { JSONArray(str) } catch (e: Exception) { null } else null
+            }
 
             val sb = StringBuilder()
             if (tauriJson != null && tauriJson.length() > 0) {
