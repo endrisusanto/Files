@@ -1,6 +1,7 @@
 package com.example.bridge
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -136,8 +137,9 @@ class MonitorActivity : Activity() {
     private var webSocket: WebSocket? = null
     private val detailsState = mutableMapOf<String, Boolean>()
 
-    private lateinit var statusBadge: TextView
-    private lateinit var serverInput: EditText
+    private var serverUrl = "wss://files.endrisusanto.my.id/"
+    private var isWebOnline = false
+
     private lateinit var chartView: NetworkChartView
     private lateinit var tauriContainer: LinearLayout
     private lateinit var androidContainer: LinearLayout
@@ -159,10 +161,16 @@ class MonitorActivity : Activity() {
         }
         root.addView(mainLayout)
 
-        // Header Title
+        // Header Title with Settings Gear Icon ⚙
         val headerLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 0, 0, dp(16))
+        }
+
+        val headerTextContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
         val titleText = TextView(this).apply {
             text = "FireFiles Monitor"
@@ -171,60 +179,24 @@ class MonitorActivity : Activity() {
             setTypeface(null, Typeface.BOLD)
         }
         val subtitleText = TextView(this).apply {
-            text = "Realtime WebSocket Staging Dashboard (Native Kotlin)"
+            text = "Realtime WebSocket Staging Dashboard"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTextColor(Color.parseColor("#a1a1aa"))
         }
-        headerLayout.addView(titleText)
-        headerLayout.addView(subtitleText)
-        mainLayout.addView(headerLayout)
+        headerTextContainer.addView(titleText)
+        headerTextContainer.addView(subtitleText)
 
-        // Controls bar: Server Input + Connect + Upload All
-        val controlLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, 0, 0, dp(16))
-        }
-
-        serverInput = EditText(this).apply {
-            hint = "wss://files.endrisusanto.my.id/"
-            setText("wss://files.endrisusanto.my.id/")
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.parseColor("#71717a"))
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            background = createCardDrawable("#18181b", "#27272a")
-            setPadding(dp(10), dp(8), dp(10), dp(8))
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginEnd = dp(8)
-            }
-        }
-
-        val connectBtn = Button(this).apply {
-            text = "Connect"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-            setTextColor(Color.WHITE)
-            background = createCardDrawable("#2563eb", "#1d4ed8")
-            setPadding(dp(12), dp(6), dp(12), dp(6))
-            setOnClickListener { connectWebSocket() }
-        }
-
-        statusBadge = TextView(this).apply {
-            text = "Web Offline"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
-            setTypeface(null, Typeface.BOLD)
+        val settingsGearBtn = TextView(this).apply {
+            text = "⚙"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextColor(Color.parseColor("#a1a1aa"))
             setPadding(dp(8), dp(4), dp(8), dp(4))
-            background = createBadgeDrawable("#450a0a", "#991b1b")
-            setTextColor(Color.parseColor("#f87171"))
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                marginStart = dp(8)
-            }
+            setOnClickListener { showSettingsDialog() }
         }
 
-        controlLayout.addView(serverInput)
-        controlLayout.addView(connectBtn)
-        controlLayout.addView(statusBadge)
-        mainLayout.addView(controlLayout)
+        headerLayout.addView(headerTextContainer)
+        headerLayout.addView(settingsGearBtn)
+        mainLayout.addView(headerLayout)
 
         // Realtime Network Traffic Chart Header & Widget
         val chartHeader = TextView(this).apply {
@@ -279,11 +251,74 @@ class MonitorActivity : Activity() {
         connectWebSocket()
     }
 
+    private fun showSettingsDialog() {
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            setBackgroundColor(Color.parseColor("#18181b"))
+        }
+
+        val statusLabel = TextView(this).apply {
+            text = "Status: "
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        }
+        val badge = TextView(this).apply {
+            text = if (isWebOnline) "Web Online" else "Web Offline"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+            setTypeface(null, Typeface.BOLD)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+            if (isWebOnline) {
+                setTextColor(Color.parseColor("#4ade80"))
+                background = createBadgeDrawable("#052e16", "#166534")
+            } else {
+                setTextColor(Color.parseColor("#f87171"))
+                background = createBadgeDrawable("#450a0a", "#991b1b")
+            }
+        }
+        val statusRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(12))
+            addView(statusLabel)
+            addView(badge)
+        }
+
+        val inputLabel = TextView(this).apply {
+            text = "WSS Server Endpoint:"
+            setTextColor(Color.parseColor("#a1a1aa"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            setPadding(0, 0, 0, dp(4))
+        }
+
+        val input = EditText(this).apply {
+            setText(serverUrl)
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            background = createCardDrawable("#09090b", "#27272a")
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+        }
+
+        layout.addView(statusRow)
+        layout.addView(inputLabel)
+        layout.addView(input)
+
+        AlertDialog.Builder(this)
+            .setTitle("Monitor Settings")
+            .setView(layout)
+            .setPositiveButton("Connect / Save") { _, _ ->
+                serverUrl = input.text.toString().trim()
+                connectWebSocket()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun connectWebSocket() {
         webSocket?.close(1000, "Reconnecting")
-        var url = serverInput.text.toString().trim()
+        var url = serverUrl.trim()
         if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
-            url = "ws://$url"
+            url = "wss://$url"
         }
         if (!url.endsWith("/")) {
             url = "$url/"
@@ -293,9 +328,7 @@ class MonitorActivity : Activity() {
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 runOnUiThread {
-                    statusBadge.text = "Web Online"
-                    statusBadge.setTextColor(Color.parseColor("#4ade80"))
-                    statusBadge.background = createBadgeDrawable("#052e16", "#166534")
+                    isWebOnline = true
                 }
             }
 
@@ -318,17 +351,13 @@ class MonitorActivity : Activity() {
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 runOnUiThread {
-                    statusBadge.text = "Web Offline"
-                    statusBadge.setTextColor(Color.parseColor("#f87171"))
-                    statusBadge.background = createBadgeDrawable("#450a0a", "#991b1b")
+                    isWebOnline = false
                 }
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 runOnUiThread {
-                    statusBadge.text = "Web Offline"
-                    statusBadge.setTextColor(Color.parseColor("#f87171"))
-                    statusBadge.background = createBadgeDrawable("#450a0a", "#991b1b")
+                    isWebOnline = false
                 }
             }
         })
@@ -338,6 +367,10 @@ class MonitorActivity : Activity() {
         chartView.devicesData = lastDevicesJson
         renderTauriHosts(lastTauriJson)
         renderAndroidDevices(lastDevicesJson)
+
+        // Trigger Android Home Screen Widget updates
+        ChartWidgetProvider.updateAll(this, lastDevicesJson)
+        StagingWidgetProvider.updateAll(this, lastTauriJson)
     }
 
     private fun renderTauriHosts(array: JSONArray?) {
@@ -421,7 +454,6 @@ class MonitorActivity : Activity() {
                 card.addView(kvLayout)
             }
 
-            // Staging Files Table List View
             val files = host.optJSONArray("files")
             val filesTitle = TextView(this).apply {
                 text = "STAGING FILES (${files?.length() ?: 0})"

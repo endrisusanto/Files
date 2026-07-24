@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#18181b"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/widgetStagingTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="📂 Staging Files"
+        android:textColor="#4ade80"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widgetStagingContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:text="Waiting for staging data..."
+        android:textColor="#e4e4e7"
+        android:textSize="11sp"
+        android:layout_marginTop="6dp" />
+</LinearLayout>
