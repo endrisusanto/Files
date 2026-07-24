@@ -187,8 +187,8 @@ class MonitorActivity : Activity() {
         }
 
         serverInput = EditText(this).apply {
-            hint = "ws://192.168.1.10:8080"
-            setText("ws://127.0.0.1:8080")
+            hint = "wss://files.endrisusanto.my.id/"
+            setText("wss://files.endrisusanto.my.id/")
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTextColor(Color.WHITE)
             setHintTextColor(Color.parseColor("#71717a"))
@@ -209,20 +209,6 @@ class MonitorActivity : Activity() {
             setOnClickListener { connectWebSocket() }
         }
 
-        val uploadBtn = Button(this).apply {
-            text = "⬆ Upload All"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-            setTextColor(Color.WHITE)
-            background = createCardDrawable("#166534", "#15803d")
-            setPadding(dp(12), dp(6), dp(12), dp(6))
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                marginStart = dp(8)
-            }
-            setOnClickListener {
-                webSocket?.send("""{"type":"command","target":"all","command":"upload"}""")
-            }
-        }
-
         statusBadge = TextView(this).apply {
             text = "Web Offline"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
@@ -237,7 +223,6 @@ class MonitorActivity : Activity() {
 
         controlLayout.addView(serverInput)
         controlLayout.addView(connectBtn)
-        controlLayout.addView(uploadBtn)
         controlLayout.addView(statusBadge)
         mainLayout.addView(controlLayout)
 

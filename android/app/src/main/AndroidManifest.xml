@@ -22,7 +22,6 @@
 
         <activity
             android:name=".MonitorActivity"
-            android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="true" />
 
