@@ -149,8 +149,8 @@ class MonitorActivity : Activity() {
     private var lastTauriJson: JSONArray? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableFullscreenMode()
         super.onCreate(savedInstanceState)
+        enableFullscreenMode()
 
         val root = ScrollView(this).apply {
             setBackgroundColor(Color.parseColor("#09090b"))
@@ -255,33 +255,41 @@ class MonitorActivity : Activity() {
     }
 
     private fun enableFullscreenMode() {
-        requestWindowFeature(Window.FEATURE_NO_TITLE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false)
+                window.insetsController?.let { controller ->
+                    controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                    controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                )
             }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            )
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
     private fun requestBatteryOptimizationExemption() {
         try {
-            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
             if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:$packageName")
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    startActivity(fallbackIntent)
                 }
-                startActivity(intent)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -405,7 +413,6 @@ class MonitorActivity : Activity() {
         renderTauriHosts(lastTauriJson)
         renderAndroidDevices(lastDevicesJson)
 
-        // Instant update Home Screen Widgets with caching
         ChartWidgetProvider.updateAll(this, lastDevicesJson)
         StagingWidgetProvider.updateAll(this, lastTauriJson)
     }
