@@ -294,53 +294,11 @@
       </div>
     </header>
 
-    <section class="grid">
-      <div class="panel">
-        <div class="muted">Android Devices</div>
-        <div id="devices" class="metric">0</div>
-      </div>
-      <div class="panel">
-        <div class="muted">Tauri Hosts</div>
-        <div id="tauriCount" class="metric">0</div>
-      </div>
-      <div class="panel">
-        <div class="muted">Transfer Success</div>
-        <div id="queueRatio" class="metric" style="font-size: 20px;">0 / 0</div>
-        <div class="muted" style="font-size: 11px; margin-top: 4px;">Files Uploaded</div>
-      </div>
-      <div class="panel">
-        <div class="muted">Total Upload</div>
-        <div id="up" class="metric">0.00</div>
-        <div class="muted" style="font-size: 11px; margin-top: 4px;">MB/s</div>
-      </div>
-    </section>
 
     <h2>Realtime Network Traffic</h2>
     <canvas id="chart" width="1100" height="200"></canvas>
 
-    <h2>Connected Remote Devices</h2>
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Device Model</th>
-            <th>Samba Status</th>
-            <th>Cloud Status</th>
-            <th>Network Speed</th>
-            <th>Current Progress</th>
-            <th>Queue Progress</th>
-            <th>Samba Target</th>
-            <th>Latest File</th>
-            <th>Data Points</th>
-          </tr>
-        </thead>
-        <tbody id="rows">
-          <tr>
-            <td colspan="9" class="empty-state">Waiting For Android Data Stream...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+
 
     <div class="bottom-split">
       <div>
@@ -363,20 +321,20 @@
     const mb = (v) => (v / 1024 / 1024).toFixed(2);
     let state = [];
     let tauri = [];
+    let detailsState = {};
 
-    // Helper for generating progress rings
-    function getProgressRing(percent) {
-      const radius = 10;
-      const circumference = 2 * Math.PI * radius;
-      const offset = circumference - (percent / 100) * circumference;
-      return `
-        <svg width="24" height="24" viewBox="0 0 28 28" style="transform: rotate(-90deg);">
-          <circle cx="14" cy="14" r="${radius}" stroke="#27272a" stroke-width="2.5" fill="none" />
-          <circle cx="14" cy="14" r="${radius}" stroke="#4ade80" stroke-width="2.5" fill="none"
-            stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" style="transition: stroke-dashoffset 0.35s;" />
-        </svg>
-      `;
+    function toggleDetails(el, key) {
+      detailsState[key] = !detailsState[key];
+      const isOpen = detailsState[key];
+      if (el) el.textContent = isOpen ? '▼ Hide Device Info' : '▶ Show Device Info';
+      const kv = el?.nextElementSibling;
+      if (kv) {
+        kv.style.display = isOpen ? 'grid' : 'none';
+        kv.style.marginBottom = isOpen ? (key.startsWith('tauri') ? '12px' : '8px') : '0px';
+      }
     }
+
+
 
     // Distinct color palette for per-device upload lines
     const DEVICE_COLORS = [
@@ -508,6 +466,8 @@
       });
     }
 
+
+
     // Sort priority: active/in-progress = 0 (top), ready = 1, staged = 2, complete = 3 (bottom)
     function fileSortPriority(status) {
       if (!status) return 1;
@@ -524,8 +484,7 @@
       let totalQueueSuccess = 0;
       let totalQueueTotal = 0;
 
-      $("devices").textContent = state.length;
-      $("tauriCount").textContent = tauri.length;
+
 
       // Capture scroll positions BEFORE re-render
       const scrollSnapshot = saveScrolls();
@@ -590,13 +549,13 @@
                 <strong>${host.host || host.id || "-"}</strong>
                 <div style="display:flex; gap:6px; align-items:center;">
                   <span class="badge ${isOnline ? 'ok' : 'bad'}">${isOnline ? 'Online' : 'Offline'}</span>
-                  <button onclick="refreshTauri('${host.id}')" title="Refresh ADB devices on this Tauri host"
-                    style="background:#1d4ed8;color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;line-height:1.6;">
-                    ↻ Refresh
-                  </button>
                 </div>
               </div>
-              <div class="kv">
+              <!-- ponytail: toggleable device info -->
+              <div onclick="toggleDetails(this, 'tauri-${hostKey}')" style="cursor:pointer; font-size:11px; color:#a1a1aa; margin-bottom:8px; user-select:none;">
+                ${detailsState['tauri-' + hostKey] ? '▼ Hide Device Info' : '▶ Show Device Info'}
+              </div>
+              <div class="kv" style="display: ${detailsState['tauri-' + hostKey] ? 'grid' : 'none'}; ${detailsState['tauri-' + hostKey] ? 'margin-bottom: 12px;' : ''}">
                 <div class="muted">Platform</div><div class="value">${host.platform || "-"}</div>
                 <div class="muted">Local Source</div><div class="value"><code>${host.source_dir || "-"}</code></div>
                 <div class="muted">Samba Target</div><div class="value"><code>${host.samba_dir || "-"}</code></div>
@@ -626,7 +585,11 @@
                 <strong>${d.model || d.id || "-"}</strong>
                 <span class="badge ${isOnline ? 'ok' : 'bad'}">${isOnline ? 'Online' : 'Offline'}</span>
               </div>
-              <div class="kv">
+              <!-- ponytail: toggleable device info -->
+              <div onclick="toggleDetails(this, 'android-${(d.id || d.model).replace(/[^a-z0-9]/gi, '_')}')" style="cursor:pointer; font-size:11px; color:#a1a1aa; margin-bottom:8px; user-select:none;">
+                ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? '▼ Hide Device Info' : '▶ Show Device Info'}
+              </div>
+              <div class="kv" style="display: ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? 'grid' : 'none'}; ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? 'margin-bottom: 8px;' : ''}">
                 <div class="muted">Samba Status</div>
                 <div class="value">
                   <span class="badge ${d.samba === 'connected' ? 'ok' : 'bad'}">
@@ -639,71 +602,15 @@
                  <div class="value">
                    <span style="color: #60a5fa; font-weight: 700;">⬆ ${mb(lastSample.tx_bps)} MB/s</span>
                  </div>
-                <div class="muted">Upload Queue</div>
-                <div class="value">
-                  ${d.queue_total > 0 ? `
-                    <span style="font-weight: 700; color: #4ade80;">${d.queue_success} / ${d.queue_total}</span>
-                    <span class="muted" style="font-size: 12px;"> (${Math.round(d.queue_success * 100 / d.queue_total)}%)</span>
-                    ${d.current_file ? `<div class="muted" style="font-size: 11px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Uploading: ${d.current_file} (${d.upload_percent}%)</div>` : ''}
-                  ` : '<span class="muted">Idle (Empty Queue)</span>'}
-                </div>
               </div>
             </div>
           `;
         }).join("");
       }
 
-      $("up").textContent = mb(totalUp);
-      $("queueRatio").textContent = totalQueueTotal > 0 ? `${totalQueueSuccess} / ${totalQueueTotal}` : '0 / 0';
 
-      // Render table rows
-        $("rows").innerHTML = state.length ? state.map((d) => {
-          const lastSample = d.samples?.at(-1) || { rx_bps: 0, tx_bps: 0 };
-          const isOnline = Date.now() - d.last_seen < 6000;
 
-          const uploadPercent = d.upload_percent || 0;
-          const currentFile = d.current_file || "";
-          const queueSuccess = d.queue_success || 0;
-          const queueTotal = d.queue_total || 0;
 
-          const uploadProgressHtml = currentFile ? `
-            <div style="display: flex; align-items: center; gap: 8px;">
-              ${getProgressRing(uploadPercent)}
-              <span style="font-weight: 600;">${uploadPercent}%</span>
-            </div>
-          ` : `<span class="muted">-</span>`;
-
-          const queueProgressHtml = queueTotal > 0 ? `
-            <div>
-              <span style="font-weight: 700; color: #4ade80;">${queueSuccess} / ${queueTotal}</span>
-              <span class="muted" style="font-size: 11px; font-weight: normal;"> (${Math.round(queueSuccess * 100 / queueTotal)}%)</span>
-            </div>
-          ` : `<span class="muted">-</span>`;
-
-          return `
-            <tr>
-              <td><strong>${d.model || d.id || "-"}</strong></td>
-              <td>
-                <span class="badge ${d.samba === 'connected' ? 'ok' : 'bad'}">
-                  ${d.samba === 'connected' ? 'Connected' : d.samba ? d.samba.charAt(0).toUpperCase() + d.samba.slice(1) : 'Disconnected'}
-                </span>
-              </td>
-              <td>
-                <span class="badge ${isOnline ? 'ok' : 'bad'}">
-                  ${isOnline ? "Online" : "Offline"}
-                </span>
-              </td>
-              <td>
-                <span style="color: #60a5fa; font-weight: 700; font-family: monospace;">⬆ ${mb(lastSample.tx_bps)} MB/s</span>
-              </td>
-              <td>${uploadProgressHtml}</td>
-              <td>${queueProgressHtml}</td>
-              <td><code>${d.target || "-"}</code></td>
-              <td><code>${d.latest || "-"}</code></td>
-              <td>${d.samples?.length || 0}</td>
-            </tr>
-          `;
-        }).join("") : `<tr><td colspan="9" class="empty-state">Waiting For Android Data Stream...</td></tr>`;
 
       // Restore scroll positions AFTER re-render (requestAnimationFrame ensures DOM is painted)
       requestAnimationFrame(() => restoreScrolls(scrollSnapshot));
@@ -746,7 +653,7 @@
         if (msg.type === "state") {
           state = msg.devices;
           tauri = msg.tauri || [];
-          render();
+          draw();
         }
       };
     }

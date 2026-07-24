@@ -11,19 +11,20 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Android File Bridge"
+        android:label="${appLabel}"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|keyboardHidden"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="true" />
+
+        <activity
+            android:name=".MonitorActivity"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="true" />
 
         <service
             android:name=".BridgeService"

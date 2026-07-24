@@ -78,12 +78,14 @@ jobs:
       - run: gradle :android:app:assembleRelease
 
       - name: Pack APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk "android-file-bridge-${GITHUB_REF_NAME}-android.apk"
+        run: |
+          cp android/app/build/outputs/apk/bridge/release/app-bridge-release.apk "android-file-bridge-${GITHUB_REF_NAME}-bridge.apk"
+          cp android/app/build/outputs/apk/monitor/release/app-monitor-release.apk "android-file-bridge-${GITHUB_REF_NAME}-monitor.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: android-file-bridge-apk
-          path: android-file-bridge-*-android.apk
+          name: android-file-bridge-apks
+          path: android-file-bridge-*-*.apk
 
   release:
     needs:

@@ -24,6 +24,20 @@ android {
         versionName "0.1.100"
     }
 
+    flavorDimensions "mode"
+    productFlavors {
+        bridge {
+            dimension "mode"
+            applicationId "com.example.bridge"
+            manifestPlaceholders = [appLabel: "FireFiles Bridge"]
+        }
+        monitor {
+            dimension "mode"
+            applicationId "com.example.bridge.monitor"
+            manifestPlaceholders = [appLabel: "FireFiles Monitor"]
+        }
+    }
+
     buildTypes {
         release {
             signingConfig signingConfigs.debug

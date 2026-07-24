@@ -42,7 +42,7 @@ if git rev-parse "v${version}" >/dev/null 2>&1; then
   exit 1
 fi
 
-git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json android/app/build.gradle
+git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json android/app/build.gradle android/app/src
 git commit -m "chore: release v${version}" || true
 git tag "v${version}"
 git push
