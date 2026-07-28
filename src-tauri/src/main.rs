@@ -374,6 +374,8 @@ fn watch_source(app: AppHandle) {
             return;
         }
         while rx.recv().is_ok() {
+            thread::sleep(Duration::from_millis(200));
+            while rx.try_recv().is_ok() {}
             let _ = app.emit("files", bridge_files(&source_dir(&config)));
         }
     });
@@ -388,6 +390,8 @@ fn watch_samba(app: AppHandle) {
             return;
         }
         while rx.recv().is_ok() {
+            thread::sleep(Duration::from_millis(200));
+            while rx.try_recv().is_ok() {}
             let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
         }
     });

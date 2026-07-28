@@ -1,0 +1,401 @@
+{
+  "communities": {
+    "0": [
+      "app",
+      "apphandle",
+      "arc",
+      "mutex",
+      "option",
+      "pathbuf",
+      "r",
+      "result",
+      "src_tauri_src_main",
+      "src_tauri_src_main_adb",
+      "src_tauri_src_main_app_info",
+      "src_tauri_src_main_appinfo",
+      "src_tauri_src_main_bridge_files",
+      "src_tauri_src_main_command",
+      "src_tauri_src_main_config",
+      "src_tauri_src_main_debug_adb",
+      "src_tauri_src_main_deviceinfo",
+      "src_tauri_src_main_emit_loop",
+      "src_tauri_src_main_file_is_available",
+      "src_tauri_src_main_get_adb_path",
+      "src_tauri_src_main_get_device_details",
+      "src_tauri_src_main_get_devices",
+      "src_tauri_src_main_get_phone_files",
+      "src_tauri_src_main_get_remote_file_size",
+      "src_tauri_src_main_hide_main_window",
+      "src_tauri_src_main_list_devices",
+      "src_tauri_src_main_localfile",
+      "src_tauri_src_main_main",
+      "src_tauri_src_main_pick_source_dir",
+      "src_tauri_src_main_pipe_progress",
+      "src_tauri_src_main_push_file",
+      "src_tauri_src_main_push_file_blocking",
+      "src_tauri_src_main_select_bridge",
+      "src_tauri_src_main_set_source_dir",
+      "src_tauri_src_main_setup_tray",
+      "src_tauri_src_main_show_main_window",
+      "src_tauri_src_main_source_dir",
+      "src_tauri_src_main_transferprogress",
+      "src_tauri_src_main_watch_adb_devices",
+      "src_tauri_src_main_watch_samba",
+      "src_tauri_src_main_watch_source",
+      "string",
+      "vec"
+    ],
+    "1": [
+      "autoprefixer",
+      "package",
+      "package_dependencies",
+      "package_dependencies_autoprefixer",
+      "package_dependencies_postcss",
+      "package_dependencies_react",
+      "package_dependencies_react_dom",
+      "package_dependencies_tailwindcss",
+      "package_dependencies_tauri_apps_api",
+      "package_dependencies_tauri_apps_cli",
+      "package_dependencies_typescript",
+      "package_dependencies_vite",
+      "package_dependencies_vitejs_plugin_react",
+      "package_devdependencies",
+      "package_scripts",
+      "package_scripts_build",
+      "package_scripts_dev",
+      "package_scripts_tauri",
+      "package_type",
+      "package_version",
+      "postcss",
+      "react",
+      "react_dom",
+      "tailwindcss",
+      "tauri_apps_api",
+      "tauri_apps_cli",
+      "typescript",
+      "vite",
+      "vitejs_plugin_react"
+    ],
+    "2": [
+      "android_app_src_main_java_com_example_bridge_monitoractivity",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_kt_activity",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_kt_bundle",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_kt_jsonarray",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_kt_view",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_kt_websocket",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_connectwebsocket",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_createbadgedrawable",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_createcarddrawable",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_createkvrow",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_dp",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_enablefullscreenmode",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_oncreate",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_ondestroy",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_renderandroiddevices",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_rendertaurihosts",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_renderui",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_requestbatteryoptimizationexemption",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity_showsettingsdialog",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_networkchartview",
+      "linearlayout",
+      "textview"
+    ],
+    "3": [
+      "ref_dom",
+      "ref_dom_iterable",
+      "ref_es2020",
+      "ref_src",
+      "tsconfig",
+      "tsconfig_compileroptions",
+      "tsconfig_compileroptions_allowjs",
+      "tsconfig_compileroptions_allowsyntheticdefaultimports",
+      "tsconfig_compileroptions_esmoduleinterop",
+      "tsconfig_compileroptions_forceconsistentcasinginfilenames",
+      "tsconfig_compileroptions_isolatedmodules",
+      "tsconfig_compileroptions_jsx",
+      "tsconfig_compileroptions_lib",
+      "tsconfig_compileroptions_module",
+      "tsconfig_compileroptions_moduleresolution",
+      "tsconfig_compileroptions_noemit",
+      "tsconfig_compileroptions_resolvejsonmodule",
+      "tsconfig_compileroptions_skiplibcheck",
+      "tsconfig_compileroptions_strict",
+      "tsconfig_compileroptions_target",
+      "tsconfig_compileroptions_usedefineforclassfields",
+      "tsconfig_include",
+      "tsconfig_references"
+    ],
+    "4": [
+      "android_app_src_main_java_com_example_bridge_mainactivity_kt_activity",
+      "android_app_src_main_java_com_example_bridge_mainactivity_kt_bundle",
+      "android_app_src_main_java_com_example_bridge_mainactivity_kt_websocket",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_appendlog",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_closewebsocket",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_connectwebsocketok",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_latestfile",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_md5files",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_oncreate",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_ondestroy",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_refreshstatus",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_sendwebsocketsample",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_showsambasettings",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_startallupload",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_stylebutton",
+      "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity_testupload",
+      "button",
+      "gradientdrawable",
+      "networkchartview"
+    ],
+    "5": [
+      "android_app_src_main_java_com_example_bridge_bridgeservice",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_bridgeservice",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_bridgeservice_notification",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_bridgeservice_onbind",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_bridgeservice_onstartcommand",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_bridgeservice_retry",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_bridgeservice_upload",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_checksamba",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_guestauth",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_host",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_kt_context",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_savetarget",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_share",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_target",
+      "android_app_src_main_java_com_example_bridge_bridgeservice_uploadtestfile",
+      "ibinder",
+      "intent",
+      "notification",
+      "service"
+    ],
+    "6": [
+      "ref_icons_128x128_2x_png",
+      "ref_icons_128x128_png",
+      "ref_icons_32x32_png",
+      "ref_icons_icon_ico",
+      "src_tauri_tauri_conf",
+      "src_tauri_tauri_conf_app",
+      "src_tauri_tauri_conf_app_windows",
+      "src_tauri_tauri_conf_build",
+      "src_tauri_tauri_conf_build_beforebuildcommand",
+      "src_tauri_tauri_conf_build_beforedevcommand",
+      "src_tauri_tauri_conf_build_devurl",
+      "src_tauri_tauri_conf_build_frontenddist",
+      "src_tauri_tauri_conf_bundle",
+      "src_tauri_tauri_conf_bundle_active",
+      "src_tauri_tauri_conf_bundle_icon",
+      "src_tauri_tauri_conf_identifier",
+      "src_tauri_tauri_conf_productname",
+      "src_tauri_tauri_conf_schema",
+      "src_tauri_tauri_conf_version"
+    ],
+    "7": [
+      "web_monitor_server",
+      "web_monitor_server_androidsockets",
+      "web_monitor_server_app",
+      "web_monitor_server_attachandroid",
+      "web_monitor_server_attachbrowser",
+      "web_monitor_server_broadcast",
+      "web_monitor_server_clients",
+      "web_monitor_server_devices",
+      "web_monitor_server_handshake",
+      "web_monitor_server_mime_types",
+      "web_monitor_server_port",
+      "web_monitor_server_readframe",
+      "web_monitor_server_send",
+      "web_monitor_server_tauri",
+      "web_monitor_server_ws_port"
+    ],
+    "8": [
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider",
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider_chartwidgetprovider",
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider_chartwidgetprovider_onupdate",
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider_kt_appwidgetmanager",
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider_kt_appwidgetprovider",
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider_kt_context",
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider_kt_intarray",
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider_kt_jsonarray",
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider_updateall",
+      "android_app_src_main_java_com_example_bridge_chartwidgetprovider_updatewidget",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_kt_canvas",
+      "android_app_src_main_java_com_example_bridge_monitoractivity_networkchartview_ondraw",
+      "paint",
+      "path"
+    ],
+    "9": [
+      "src_app",
+      "src_app_app",
+      "src_app_appinfo",
+      "src_app_device",
+      "src_app_filegb",
+      "src_app_localfile",
+      "src_app_networkchart",
+      "src_app_networksample",
+      "src_app_speed",
+      "src_app_statusclass",
+      "src_app_transfer",
+      "src_main"
+    ],
+    "10": [
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider",
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider_kt_appwidgetmanager",
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider_kt_appwidgetprovider",
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider_kt_context",
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider_kt_intarray",
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider_kt_jsonarray",
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider_stagingwidgetprovider",
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider_stagingwidgetprovider_onupdate",
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider_updateall",
+      "android_app_src_main_java_com_example_bridge_stagingwidgetprovider_updatewidget"
+    ],
+    "11": [
+      "ref_vite_config_ts",
+      "tsconfig_node",
+      "tsconfig_node_compileroptions",
+      "tsconfig_node_compileroptions_allowsyntheticdefaultimports",
+      "tsconfig_node_compileroptions_composite",
+      "tsconfig_node_compileroptions_module",
+      "tsconfig_node_compileroptions_moduleresolution",
+      "tsconfig_node_include"
+    ],
+    "12": [
+      "android_app_src_main_java_com_example_bridge_mainactivity",
+      "android_app_src_main_java_com_example_bridge_mainactivity_kt_canvas",
+      "android_app_src_main_java_com_example_bridge_mainactivity_kt_view",
+      "android_app_src_main_java_com_example_bridge_mainactivity_networkchartview",
+      "android_app_src_main_java_com_example_bridge_mainactivity_networkchartview_drawcurve",
+      "android_app_src_main_java_com_example_bridge_mainactivity_networkchartview_mbps",
+      "android_app_src_main_java_com_example_bridge_mainactivity_networkchartview_ondraw"
+    ],
+    "13": [
+      "scripts_release",
+      "scripts_release_sh__entry"
+    ],
+    "14": [
+      "src_tauri_build",
+      "src_tauri_build_main"
+    ],
+    "15": [
+      "android_app_build"
+    ],
+    "16": [
+      "build"
+    ],
+    "17": [
+      "postcss_config"
+    ],
+    "18": [
+      "settings"
+    ],
+    "19": [
+      "tailwind_config"
+    ],
+    "20": [
+      "vite_config"
+    ]
+  },
+  "cohesion": {
+    "0": 0.1450719822812846,
+    "1": 0.06896551724137931,
+    "2": 0.233201581027668,
+    "3": 0.08695652173913043,
+    "4": 0.24736842105263157,
+    "5": 0.22807017543859648,
+    "6": 0.10526315789473684,
+    "7": 0.20952380952380953,
+    "8": 0.21978021978021978,
+    "9": 0.21212121212121213,
+    "10": 0.3333333333333333,
+    "11": 0.25,
+    "12": 0.42857142857142855,
+    "13": 1.0,
+    "14": 1.0,
+    "15": 1.0,
+    "16": 1.0,
+    "17": 1.0,
+    "18": 1.0,
+    "19": 1.0,
+    "20": 1.0
+  },
+  "gods": [
+    {
+      "id": "android_app_src_main_java_com_example_bridge_monitoractivity_monitoractivity",
+      "label": "MonitorActivity",
+      "degree": 19
+    },
+    {
+      "id": "android_app_src_main_java_com_example_bridge_mainactivity_mainactivity",
+      "label": "MainActivity",
+      "degree": 18
+    },
+    {
+      "id": "tsconfig_compileroptions",
+      "label": "compilerOptions",
+      "degree": 16
+    },
+    {
+      "id": "src_tauri_src_main_push_file_blocking",
+      "label": "push_file_blocking()",
+      "degree": 12
+    },
+    {
+      "id": "src_tauri_src_main_config",
+      "label": "Config",
+      "degree": 10
+    },
+    {
+      "id": "src_tauri_src_main_list_devices",
+      "label": "list_devices()",
+      "degree": 10
+    },
+    {
+      "id": "src_tauri_src_main_bridge_files",
+      "label": "bridge_files()",
+      "degree": 9
+    },
+    {
+      "id": "android_app_src_main_java_com_example_bridge_chartwidgetprovider_updatewidget",
+      "label": "updateWidget()",
+      "degree": 8
+    },
+    {
+      "id": "src_tauri_src_main_adb",
+      "label": "adb()",
+      "degree": 8
+    },
+    {
+      "id": "android_app_src_main_java_com_example_bridge_bridgeservice_bridgeservice",
+      "label": "BridgeService",
+      "degree": 7
+    }
+  ],
+  "surprises": [
+    {
+      "source": "MainActivity",
+      "target": "TextView",
+      "source_files": [
+        "android/app/src/main/java/com/example/bridge/MainActivity.kt",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "note": "Bridges community 4 \u2192 community 2"
+    },
+    {
+      "source": "bridge_files()",
+      "target": "Path",
+      "source_files": [
+        "src-tauri/src/main.rs",
+        ""
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "note": "Bridges community 0 \u2192 community 8"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

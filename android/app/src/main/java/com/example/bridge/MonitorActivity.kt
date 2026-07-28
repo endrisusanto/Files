@@ -181,6 +181,8 @@ class MonitorActivity : Activity() {
 
     private var lastDevicesJson: JSONArray? = null
     private var lastTauriJson: JSONArray? = null
+    private var lastFullRenderAt = 0L
+    private var lastWidgetUpdateAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -414,13 +416,22 @@ class MonitorActivity : Activity() {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val json = JSONObject(text)
-                    if (json.optString("type") == "state") {
+                    if (json.optString("type") == "snapshot" || json.optString("type") == "state") {
                         val devices = json.optJSONArray("devices")
                         val tauri = json.optJSONArray("tauri")
                         runOnUiThread {
                             lastDevicesJson = devices
                             lastTauriJson = tauri
-                            renderUI()
+                            renderThrottled()
+                        }
+                    } else if (json.optString("type") == "telemetry") {
+                        val device = json.optJSONObject("device") ?: return
+                        val sample = json.optJSONObject("sample") ?: return
+                        runOnUiThread { applyTelemetry(device, sample) }
+                    } else if (json.optString("type") == "tauri") {
+                        runOnUiThread {
+                            lastTauriJson = json.optJSONArray("tauri")
+                            renderThrottled()
                         }
                     }
                 } catch (e: Exception) {
@@ -447,8 +458,43 @@ class MonitorActivity : Activity() {
         renderTauriHosts(lastTauriJson)
         renderAndroidDevices(lastDevicesJson)
 
-        ChartWidgetProvider.updateAll(this, lastDevicesJson)
-        StagingWidgetProvider.updateAll(this, lastTauriJson)
+        val now = System.currentTimeMillis()
+        if (now - lastWidgetUpdateAt >= 15_000L) {
+            lastWidgetUpdateAt = now
+            ChartWidgetProvider.updateAll(this, lastDevicesJson)
+            StagingWidgetProvider.updateAll(this, lastTauriJson)
+        }
+    }
+
+    private fun renderThrottled() {
+        val now = System.currentTimeMillis()
+        if (now - lastFullRenderAt < 3_000L) return
+        lastFullRenderAt = now
+        renderUI()
+    }
+
+    private fun applyTelemetry(device: JSONObject, sample: JSONObject) {
+        val devices = lastDevicesJson ?: JSONArray()
+        val id = device.optString("id", device.optString("model"))
+        var index = -1
+        for (i in 0 until devices.length()) {
+            if (devices.optJSONObject(i)?.optString("id", devices.optJSONObject(i)?.optString("model")) == id) {
+                index = i
+                break
+            }
+        }
+
+        val current = if (index >= 0) devices.optJSONObject(index) ?: JSONObject() else JSONObject()
+        val samples = current.optJSONArray("samples") ?: JSONArray()
+        val nextSamples = JSONArray()
+        val start = maxOf(0, samples.length() - 59)
+        for (i in start until samples.length()) nextSamples.put(samples.opt(i))
+        nextSamples.put(sample)
+
+        val updated = JSONObject(device.toString()).put("samples", nextSamples)
+        if (index >= 0) devices.put(index, updated) else devices.put(updated)
+        lastDevicesJson = devices
+        chartView.devicesData = devices
     }
 
     private fun renderTauriHosts(array: JSONArray?) {

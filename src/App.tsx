@@ -132,6 +132,8 @@ export default function App() {
     pushedFilesRef.current = pushedFiles;
   }, [pushedFiles]);
   const isPushingRef = useRef(false);
+  const isRefreshingDevicesRef = useRef(false);
+  const isRefreshingPhoneFilesRef = useRef(false);
   const sambaFilesRef = useRef<LocalFile[]>([]);
   useEffect(() => {
     sambaFilesRef.current = sambaFiles;
@@ -192,11 +194,14 @@ export default function App() {
     }, 10000);
 
     const phoneFilesInterval = setInterval(() => {
+      if (isRefreshingPhoneFilesRef.current) return;
+      isRefreshingPhoneFilesRef.current = true;
       invoke<string[]>("get_phone_files")
         .then((list) => {
           setPhoneFiles(new Set(list));
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { isRefreshingPhoneFilesRef.current = false; });
     }, 5000);
 
     const devicesInterval = setInterval(() => {
@@ -298,12 +303,28 @@ export default function App() {
       socket.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.type === "state") {
+          if (msg.type === "snapshot" || msg.type === "state") {
             setRemoteDevices(msg.devices || []);
             const selectedRemoteId = localStorage.getItem("selected_remote_id");
             const selectedRemote = (msg.devices || []).find((d: any) => d.id === selectedRemoteId);
             if (selectedRemote) {
               setNetwork(selectedRemote.samples || []);
+            }
+          } else if (msg.type === "telemetry") {
+            const device = msg.device || {};
+            const sample = msg.sample;
+            setRemoteDevices((current) => {
+              const index = current.findIndex((d) => d.id === device.id);
+              const previous = index >= 0 ? current[index] : {};
+              const samples = sample
+                ? [...((previous as any).samples || []).slice(-59), sample]
+                : (previous as any).samples || [];
+              const next = { ...previous, ...device, samples };
+              if (index < 0) return [...current, next];
+              return current.map((item, i) => i === index ? next : item);
+            });
+            if (device.id === localStorage.getItem("selected_remote_id") && sample) {
+              setNetwork((current) => [...current.slice(-59), sample]);
             }
           } else if (msg.type === "command" && msg.command === "tauri_refresh") {
             // Web monitor requested a device refresh
@@ -399,6 +420,8 @@ export default function App() {
   }, [ws, info, devices, files, remoteDevices, transfer, phoneFiles]);
 
   async function refreshDevices() {
+    if (isRefreshingDevicesRef.current) return;
+    isRefreshingDevicesRef.current = true;
     setError("");
     console.info("[bridge-ui] refresh devices");
     appendLog("refresh devices");
@@ -411,6 +434,8 @@ export default function App() {
       console.error("[bridge-ui] refresh devices failed", e);
       appendLog(`refresh devices failed ${String(e)}`);
       setError(String(e));
+    } finally {
+      isRefreshingDevicesRef.current = false;
     }
   }
 

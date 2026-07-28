@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#18181b"
+    android:background="#09090b"
     android:padding="12dp">
 
     <TextView
@@ -11,16 +11,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="📂 Staging Files"
-        android:textColor="#4ade80"
+        android:textColor="#f97316"
         android:textSize="13sp"
         android:textStyle="bold" />
 
-    <TextView
+    <LinearLayout
         android:id="@+id/widgetStagingContent"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:text="Waiting for staging data..."
-        android:textColor="#e4e4e7"
-        android:textSize="11sp"
-        android:layout_marginTop="6dp" />
+        android:orientation="vertical"
+        android:layout_marginTop="8dp" />
 </LinearLayout>

@@ -25,13 +25,36 @@ const androidSockets = new Map();
 
 function send(socket, value) {
   const data = Buffer.from(JSON.stringify(value));
-  const header = data.length < 126 ? Buffer.from([0x81, data.length]) : Buffer.from([0x81, 126, data.length >> 8, data.length & 255]);
+  if (!socket.writable || socket.writableLength > 1_000_000) return socket.destroy();
+  const header = data.length < 126
+    ? Buffer.from([0x81, data.length])
+    : data.length <= 0xffff
+      ? Buffer.from([0x81, 126, data.length >> 8, data.length & 255])
+      : Buffer.concat([Buffer.from([0x81, 127]), Buffer.alloc(8)]);
+  if (data.length > 0xffff) header.writeBigUInt64BE(BigInt(data.length), 2);
   socket.write(Buffer.concat([header, data]));
 }
 
-function broadcast() {
-  const payload = { type: "state", devices: [...devices.values()], tauri: [...tauri.values()] };
-  for (const client of clients) send(client, payload);
+function publicDevice(device) {
+  const { samples, last_sample, ...value } = device;
+  return value;
+}
+
+function broadcast(value) {
+  for (const client of clients) send(client, value);
+}
+
+function broadcastSnapshot() {
+  broadcast({
+    type: "snapshot",
+    devices: [...devices.values()].map(publicDevice),
+    tauri: [...tauri.values()],
+  });
+}
+
+function broadcastTelemetry(device) {
+  const { samples, last_sample, ...value } = device;
+  broadcast({ type: "telemetry", device: value, sample: last_sample });
 }
 
 function handshake(req, socket) {
@@ -74,18 +97,19 @@ function attachAndroid(req, socket) {
     try {
       const sample = JSON.parse(text);
       const id = sample.id || sample.fingerprint || sample.model || randomUUID();
-      const current = devices.get(id) || { id, samples: [] };
+      const current = devices.get(id) || { id };
+      const telemetry = { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 };
       devices.set(id, {
         ...current,
         ...sample,
         id,
         connected: true,
         last_seen: Date.now(),
-        samples: [...current.samples.slice(-299), { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 }],
+        last_sample: telemetry,
       });
       socket.deviceId = id;
       androidSockets.set(id, socket);
-      broadcast();
+      broadcastTelemetry(devices.get(id));
     } catch {}
   });
   socket.on("close", () => {
@@ -94,14 +118,18 @@ function attachAndroid(req, socket) {
       const current = devices.get(socket.deviceId);
       if (current) devices.set(socket.deviceId, { ...current, connected: false });
     }
-    broadcast();
+    broadcastSnapshot();
   });
 }
 
 function attachBrowser(req, socket) {
   handshake(req, socket);
   clients.add(socket);
-  send(socket, { type: "state", devices: [...devices.values()], tauri: [...tauri.values()] });
+  send(socket, {
+    type: "snapshot",
+    devices: [...devices.values()].map(publicDevice),
+    tauri: [...tauri.values()],
+  });
   
   socket.on("data", (chunk) => {
     const text = readFrame(chunk);
@@ -112,7 +140,7 @@ function attachBrowser(req, socket) {
         const id = msg.id || msg.host || "tauri";
         socket.tauriId = id;
         tauri.set(id, { ...msg, id, last_seen: Date.now() });
-        broadcast();
+        broadcast({ type: "tauri", tauri: [...tauri.values()] });
       } else if (msg.type === "command" && msg.target && msg.command) {
         // Route to Android device
         const androidSocket = androidSockets.get(msg.target);
@@ -134,7 +162,7 @@ function attachBrowser(req, socket) {
     if (socket.tauriId) {
       tauri.delete(socket.tauriId);
     }
-    broadcast();
+    broadcastSnapshot();
   });
 }
 
@@ -147,7 +175,7 @@ const app = http.createServer((req, res) => {
         const data = JSON.parse(body);
         const id = data.id || data.host || "tauri";
         tauri.set(id, { ...data, id, last_seen: Date.now() });
-        broadcast();
+        broadcast({ type: "tauri", tauri: [...tauri.values()] });
         res.end("ok");
       } catch {
         res.writeHead(400).end("bad json");

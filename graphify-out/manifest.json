@@ -1,0 +1,112 @@
+{
+  "android/app/build.gradle": {
+    "mtime": 1784909223.1462462,
+    "ast_hash": "b971bf9e88cb131976a3a070303d1a32",
+    "semantic_hash": "b971bf9e88cb131976a3a070303d1a32"
+  },
+  "android/app/src/main/java/com/example/bridge/BridgeService.kt": {
+    "mtime": 1783424764.3721888,
+    "ast_hash": "9aaf2223fe93b5409fb065a91713b5a7",
+    "semantic_hash": "9aaf2223fe93b5409fb065a91713b5a7"
+  },
+  "android/app/src/main/java/com/example/bridge/ChartWidgetProvider.kt": {
+    "mtime": 1784906088.8508136,
+    "ast_hash": "5ef1d18a0a4f9517adb4f8c369908314",
+    "semantic_hash": "5ef1d18a0a4f9517adb4f8c369908314"
+  },
+  "android/app/src/main/java/com/example/bridge/MainActivity.kt": {
+    "mtime": 1784261876.8550649,
+    "ast_hash": "be6b88cc66b0f70a9054400e7cc28831",
+    "semantic_hash": "be6b88cc66b0f70a9054400e7cc28831"
+  },
+  "android/app/src/main/java/com/example/bridge/MonitorActivity.kt": {
+    "mtime": 1784906097.9162762,
+    "ast_hash": "1b7b60ff60f8fe76d6b9910a68b51473",
+    "semantic_hash": "1b7b60ff60f8fe76d6b9910a68b51473"
+  },
+  "android/app/src/main/java/com/example/bridge/StagingWidgetProvider.kt": {
+    "mtime": 1784902362.4201174,
+    "ast_hash": "47390794138d84710dac62e0d90d2169",
+    "semantic_hash": "47390794138d84710dac62e0d90d2169"
+  },
+  "build.gradle": {
+    "mtime": 1783068525.5248544,
+    "ast_hash": "eb888ccff7ac8d9c1fcf118b45134303",
+    "semantic_hash": "eb888ccff7ac8d9c1fcf118b45134303"
+  },
+  "package.json": {
+    "mtime": 1784909223.1462462,
+    "ast_hash": "e90319a6c887a40880ab9b9beadf264f",
+    "semantic_hash": "e90319a6c887a40880ab9b9beadf264f"
+  },
+  "postcss.config.js": {
+    "mtime": 1783067295.2297199,
+    "ast_hash": "c735540bb63936a123bc867d950c9f69",
+    "semantic_hash": "c735540bb63936a123bc867d950c9f69"
+  },
+  "scripts/release.sh": {
+    "mtime": 1784899568.5417373,
+    "ast_hash": "fcfa95301ea36302ed3fd95f103de9e4",
+    "semantic_hash": "fcfa95301ea36302ed3fd95f103de9e4"
+  },
+  "settings.gradle": {
+    "mtime": 1783068525.4228492,
+    "ast_hash": "787252a9d5a5c07d885fc206166c1e27",
+    "semantic_hash": "787252a9d5a5c07d885fc206166c1e27"
+  },
+  "src-tauri/build.rs": {
+    "mtime": 1783067284.6841516,
+    "ast_hash": "1be34a5c61c2c35365de3dab14298f0b",
+    "semantic_hash": "1be34a5c61c2c35365de3dab14298f0b"
+  },
+  "src-tauri/capabilities/default.json": {
+    "mtime": 1783475197.3206577,
+    "ast_hash": "0836fc439d83a86bde7f09f447bc97a6",
+    "semantic_hash": "0836fc439d83a86bde7f09f447bc97a6"
+  },
+  "src-tauri/src/main.rs": {
+    "mtime": 1784260974.5630388,
+    "ast_hash": "66101058cf5cd130a958c19bd6fe63d5",
+    "semantic_hash": "66101058cf5cd130a958c19bd6fe63d5"
+  },
+  "src-tauri/tauri.conf.json": {
+    "mtime": 1784909223.1462462,
+    "ast_hash": "de9b4f1e67d309ed293f47e087963e75",
+    "semantic_hash": "de9b4f1e67d309ed293f47e087963e75"
+  },
+  "src/App.tsx": {
+    "mtime": 1783667261.554144,
+    "ast_hash": "4451855701fa40321da3588c04ad9dc1",
+    "semantic_hash": "4451855701fa40321da3588c04ad9dc1"
+  },
+  "src/main.tsx": {
+    "mtime": 1783391656.299341,
+    "ast_hash": "1f5d104a59bdb6cfbb084ebfb2b1d0a9",
+    "semantic_hash": "1f5d104a59bdb6cfbb084ebfb2b1d0a9"
+  },
+  "tailwind.config.js": {
+    "mtime": 1783476305.1717637,
+    "ast_hash": "c6502c2406758d51882acc67547a54d4",
+    "semantic_hash": "c6502c2406758d51882acc67547a54d4"
+  },
+  "tsconfig.json": {
+    "mtime": 1783072181.8925202,
+    "ast_hash": "7dbe80a92b653e763f75e6cda20ded39",
+    "semantic_hash": "7dbe80a92b653e763f75e6cda20ded39"
+  },
+  "tsconfig.node.json": {
+    "mtime": 1783072182.0075264,
+    "ast_hash": "42c71f3f9f64d94f8145887b59354846",
+    "semantic_hash": "42c71f3f9f64d94f8145887b59354846"
+  },
+  "vite.config.ts": {
+    "mtime": 1783387930.7391858,
+    "ast_hash": "18e72eaafe5aa6724f2f488b624cead3",
+    "semantic_hash": "18e72eaafe5aa6724f2f488b624cead3"
+  },
+  "web-monitor/server.js": {
+    "mtime": 1783503182.5150995,
+    "ast_hash": "e35f27c7706196aa1cb45324c210899f",
+    "semantic_hash": "e35f27c7706196aa1cb45324c210899f"
+  }
+}
