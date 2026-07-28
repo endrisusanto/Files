@@ -71,9 +71,15 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.10.2
+          gradle-version: 8.9
 
-      - run: gradle :android:app:assembleRelease
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;34.0.0"
+
+      - name: Build APKs
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g
+        run: gradle --no-daemon --no-parallel --max-workers=2 --stacktrace --console=plain :android:app:assembleRelease
 
       - name: Pack APK
         run: |
