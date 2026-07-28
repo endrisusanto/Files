@@ -13,6 +13,8 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.AttributeSet
@@ -170,6 +172,10 @@ class MonitorActivity : Activity() {
         .build()
 
     private var webSocket: WebSocket? = null
+    private val reconnectHandler = Handler(Looper.getMainLooper())
+    private var reconnectRunnable: Runnable? = null
+    private var reconnectDelay = 3_000L
+    private var destroyed = false
     private val detailsState = mutableMapOf<String, Boolean>()
 
     private var serverUrl = "wss://files.endrisusanto.my.id/"
@@ -408,6 +414,7 @@ class MonitorActivity : Activity() {
         val request = Request.Builder().url(url).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                reconnectDelay = 3_000L
                 runOnUiThread {
                     isWebOnline = true
                 }
@@ -443,14 +450,26 @@ class MonitorActivity : Activity() {
                 runOnUiThread {
                     isWebOnline = false
                 }
+                scheduleReconnect()
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 runOnUiThread {
                     isWebOnline = false
                 }
+                scheduleReconnect()
             }
         })
+    }
+
+    private fun scheduleReconnect() {
+        if (destroyed || reconnectRunnable != null) return
+        reconnectRunnable = Runnable {
+            reconnectRunnable = null
+            connectWebSocket()
+        }
+        reconnectHandler.postDelayed(reconnectRunnable!!, reconnectDelay)
+        reconnectDelay = minOf(30_000L, reconnectDelay * 2)
     }
 
     private fun renderUI() {
@@ -667,7 +686,7 @@ class MonitorActivity : Activity() {
             val id = d.optString("model", d.optString("id", "device"))
             val key = "android-$id"
             val lastSeen = d.optLong("last_seen", 0)
-            val isOnline = (System.currentTimeMillis() - lastSeen) < 6000
+            val isOnline = d.optBoolean("connected", true) && (System.currentTimeMillis() - lastSeen) < 15_000
 
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -783,6 +802,8 @@ class MonitorActivity : Activity() {
     }
 
     override fun onDestroy() {
+        destroyed = true
+        reconnectRunnable?.let(reconnectHandler::removeCallbacks)
         super.onDestroy()
         webSocket?.close(1000, "Activity Destroyed")
     }

@@ -627,7 +627,7 @@ export default function App() {
             </thead>
             <tbody>
               {remoteDevices.map((d) => {
-                const isOnline = d.connected !== false && Date.now() - d.last_seen < 10000;
+                const isOnline = d.connected !== false && Date.now() - d.last_seen < 15000;
                 // Check if this remote WebSocket device is also connected via USB/ADB locally
                 const usbOnline = devices.some((localDev) => localDev.fingerprint === d.id);
                 const isSelected = localStorage.getItem("selected_remote_id") === d.id;

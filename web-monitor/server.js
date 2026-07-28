@@ -113,12 +113,12 @@ function attachAndroid(req, socket) {
     } catch {}
   });
   socket.on("close", () => {
-    if (socket.deviceId) {
+    if (socket.deviceId && androidSockets.get(socket.deviceId) === socket) {
       androidSockets.delete(socket.deviceId);
       const current = devices.get(socket.deviceId);
       if (current) devices.set(socket.deviceId, { ...current, connected: false });
+      broadcastSnapshot();
     }
-    broadcastSnapshot();
   });
 }
 
