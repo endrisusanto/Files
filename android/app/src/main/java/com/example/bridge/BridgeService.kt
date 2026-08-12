@@ -86,7 +86,11 @@ class BridgeService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(tag, "BridgeService start startId=$startId")
-        startForeground(1, notification("Uploading to Samba"))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification("Uploading to Samba"), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(1, notification("Uploading to Samba"))
+        }
         executor.execute {
             val qTotal = intent?.getIntExtra("queue_total", 0) ?: 0
             val qSuccess = intent?.getIntExtra("queue_success", 0) ?: 0
