@@ -89,6 +89,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Keep screen bright while active
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         // Request no title bar feature to prevent native Android ActionBar overlapping
         requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
         Log.i(tag, "MainActivity onCreate")

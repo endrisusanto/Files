@@ -1,3 +1,66 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans transition-colors duration-200;
+  }
+}
+
+/* Light mode defaults */
+main {
+  font-family: 'Inter', sans-serif;
+  background: radial-gradient(circle at top left, rgba(37,99,235,0.12), transparent 40%), linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%);
+  color: #1f2937;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Dark mode overrides */
+main[data-theme="dark"] {
+  background: radial-gradient(circle at top left, rgba(37,99,235,0.15), transparent 45%), #0b0b0c;
+  color: #f4f4f5;
+}
+
+/* Card & Modal styles */
+.ff-card {
+  border-radius: 14px;
+  background-color: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.8);
+  box-shadow: 0 12px 30px rgba(25,41,71,0.06);
+  transition: all 0.25s ease;
+}
+
+main[data-theme="dark"] .ff-card {
+  background-color: #141416;
+  border-color: #27272a;
+  box-shadow: none;
+}
+
+/* Buttons */
+.ff-btn {
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
+
+/* Checkbox class matching design system */
+.ff-checkbox {
+  border-radius: 6px;
+  @apply accent-blue-600;
+}
+
+/* Topbar */
+.ff-topbar {
+  height: 76px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  background-color: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+main[data-theme="dark"] .ff-topbar {
+  background-color: rgba(11, 11, 12, 0.7);
+  border-bottom: 1px solid #27272a;
+}

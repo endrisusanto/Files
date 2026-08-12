@@ -3,7 +3,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"JetBrainsMono Nerd Font"', '"FiraCode Nerd Font"', '"Hack Nerd Font"', "monospace"],
+        sans: ['"Inter"', 'sans-serif'],
         mono: ['"JetBrainsMono Nerd Font"', '"FiraCode Nerd Font"', '"Hack Nerd Font"', "monospace"],
       },
     },

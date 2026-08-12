@@ -102,6 +102,45 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   );
 }
 
+function ProgressRing({ percent, label }: { percent: number; label: string }) {
+  const radius = 22;
+  const stroke = 3;
+  const normalizedRadius = radius - stroke * 2;
+  const circumference = normalizedRadius * 2 * Math.PI;
+  const strokeDashoffset = circumference - (percent / 100) * circumference;
+
+  return (
+    <div className="flex flex-col items-center justify-center w-14">
+      <div className="relative flex items-center justify-center h-11 w-11">
+        <svg height={radius * 2} width={radius * 2} className="transform -rotate-90">
+          <circle
+            stroke="rgba(156, 163, 175, 0.15)"
+            fill="transparent"
+            strokeWidth={stroke}
+            r={normalizedRadius}
+            cx={radius}
+            cy={radius}
+          />
+          <circle
+            stroke={percent >= 100 ? "#16a34a" : "#2563eb"}
+            fill="transparent"
+            strokeWidth={stroke}
+            strokeDasharray={circumference + ' ' + circumference}
+            style={{ strokeDashoffset }}
+            strokeLinecap="round"
+            r={normalizedRadius}
+            cx={radius}
+            cy={radius}
+            className="transition-all duration-300 ease-out"
+          />
+        </svg>
+        <span className="absolute text-[8px] font-bold text-gray-800 dark:text-zinc-300">{Math.round(percent)}%</span>
+      </div>
+      <span className="text-[9px] text-gray-500 dark:text-zinc-400 text-center font-medium mt-0.5 leading-none">{label}</span>
+    </div>
+  );
+}
+
 export default function App() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [files, setFiles] = useState<LocalFile[]>([]);
@@ -147,6 +186,16 @@ export default function App() {
   const [diagLoading, setDiagLoading] = useState(false);
   const [filelistOpen, setFilelistOpen] = useState(true);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem("theme") as 'light' | 'dark') || "dark";
+  });
+  const [debugTab, setDebugTab] = useState<'log' | 'progress'>('log');
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    localStorage.setItem("theme", next);
+  };
 
   function appendLog(line: string) {
     const text = `${new Date().toLocaleTimeString()} ${line}`;
@@ -368,7 +417,7 @@ export default function App() {
     if (!ws || !info) return;
     
     function sendStatus() {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws && info && ws.readyState === WebSocket.OPEN) {
         const selectedDevice = devices.find((d) => d.is_selected_bridge);
         const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint);
 
@@ -572,208 +621,276 @@ export default function App() {
   const deviceActionReady = Boolean(selectedDevice);
 
   return (
-    <main className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
-      <section className="mb-6">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="FireFiles Logo" className="h-9 w-9" />
-            <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">FireFiles</h1>
-          </div>
-          <div className="flex items-center gap-4 text-xs font-semibold">
-            <span className={`rounded border px-2 py-1 ${active ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
-              Bridge Service: {active ? "Ready" : selected ? "Storage Low" : "Idle"}
-            </span>
-            <span className={`rounded border px-2 py-1 ${selectedDevice?.apk_installed ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>
-              Android App: {selectedDevice?.apk_installed ? "Installed" : "Not Installed"}
-            </span>
-            <span className={active ? "text-green-400 font-bold" : "text-zinc-400"}>
-              {active ? "USB Link: Connected" : selected ? "Warning: Storage Low" : "USB Link: Offline"}
-            </span>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="rounded bg-zinc-900 p-2 text-zinc-400 hover:bg-zinc-800 border border-zinc-800 transition"
-              title="Settings"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
+    <main data-theme={theme} className="min-h-screen p-0 transition-colors duration-300">
+      {/* Topbar: 76px tall, backdrop blur, semi-transparent */}
+      <header className="ff-topbar sticky top-0 z-40 flex items-center justify-between px-6">
+        <div className="flex items-center gap-3">
+          <img src={logo} alt="FireFiles Logo" className="h-9 w-9" />
+          <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">FireFiles</h1>
         </div>
-      </section>
-
-      {/* Remote WebSocket Devices */}
-      <section className="mb-6">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-zinc-200">Connected Remote Devices</h2>
-          <span className={ws ? "rounded border border-green-800 bg-green-950 px-2 py-1 text-xs text-green-300" : "rounded border border-red-800 bg-red-950 px-2 py-1 text-xs text-red-300"}>
-            Cloud Connection: {ws ? "Online" : "Offline"}
+        <div className="flex items-center gap-4 text-xs font-semibold">
+          <span className={`rounded-full px-3 py-1 border transition-colors duration-200 ${
+            active 
+              ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
+              : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-500 dark:text-zinc-400"
+          }`}>
+            Bridge Service: {active ? "Ready" : selected ? "Storage Low" : "Idle"}
           </span>
-        </div>
-        <div className="overflow-x-auto rounded border border-zinc-800">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-zinc-900 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              <tr>
-                <th className="p-3">Device Model</th>
-                <th className="p-3">Device ID</th>
-                <th className="p-3">Samba Target</th>
-                <th className="p-3">Samba Status</th>
-                <th className="p-3">USB Status</th>
-                <th className="p-3">Selection</th>
-                <th className="p-3">Latest File</th>
-                <th className="p-3">Cloud Status</th>
-                <th className="p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {remoteDevices.map((d) => {
-                const isOnline = d.connected !== false && Date.now() - d.last_seen < 15000;
-                // Check if this remote WebSocket device is also connected via USB/ADB locally
-                const usbOnline = devices.some((localDev) => localDev.fingerprint === d.id);
-                const isSelected = localStorage.getItem("selected_remote_id") === d.id;
-                return (
-                  <tr key={d.id} className={`border-t border-zinc-800 ${isSelected ? "bg-green-950/10" : "bg-zinc-950 hover:bg-zinc-900/50"}`}>
-                    <td className="p-3 font-medium">{d.model || "-"}</td>
-                    <td className="p-3 text-zinc-400 text-xs max-w-[200px] truncate" title={d.id}>{d.id}</td>
-                    <td className="p-3 text-zinc-300 text-xs">{d.target || "-"}</td>
-                    <td className="p-3">
-                      {d.samba === "connected" ? (
-                        <span className="rounded border border-green-800 bg-green-950 px-2 py-1 text-xs text-green-300">
-                          Connected
-                        </span>
-                      ) : d.samba && d.samba.toLowerCase().includes("error") ? (
-                        <span className="rounded border border-red-800 bg-red-950 px-2 py-1 text-xs text-red-300">
-                          Error
-                        </span>
-                      ) : (
-                        <span className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-500">
-                          Disconnected
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <span className={`rounded border px-2 py-0.5 text-xs ${usbOnline ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-500"}`}>
-                        {usbOnline ? "Connected" : "Disconnected"}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <span className={`rounded border px-2 py-0.5 text-xs ${isSelected ? "border-blue-800 bg-blue-950 text-blue-300" : "border-zinc-800 bg-zinc-900 text-zinc-500"}`}>
-                        {isSelected ? "Selected" : "Idle"}
-                      </span>
-                    </td>
-                    <td className="p-3 text-xs text-zinc-400 max-w-[200px] truncate" title={d.latest}>{d.latest || "-"}</td>
-                    <td className="p-3">
-                      <span className={`rounded border px-2 py-0.5 text-xs ${isOnline ? "border-green-800 bg-green-950 text-green-300" : "border-zinc-800 bg-zinc-900 text-zinc-500"}`}>
-                        {isOnline ? "Online" : "Offline"}
-                      </span>
-                    </td>
-                    <td className="p-3 flex gap-2">
-                      <button
-                        onClick={() => {
-                          localStorage.setItem("selected_remote_id", d.id);
-                          // Auto-select USB/ADB bridge locally when user manually clicks Monitor
-                          selectBridge(d.id);
-                          appendLog(`Selected remote device for monitoring: ${d.model} (${d.id})`);
-                        }}
-                        className="w-28 rounded bg-blue-600 hover:bg-blue-500 px-2 py-1 text-xs font-bold text-white transition text-center"
-                      >
-                        Monitor
-                      </button>
-                      <button
-                        disabled={!isOnline || !ws}
-                        onClick={() => {
-                          if (ws) {
-                            ws.send(JSON.stringify({
-                              type: "command",
-                              target: d.id,
-                              command: "upload_all"
-                            }));
-                            appendLog(`Sent remote upload all command to device ${d.id}`);
-                          }
-                        }}
-                        className="w-28 rounded bg-blue-600 hover:bg-blue-500 px-2 py-1 text-xs font-bold text-white transition disabled:opacity-50 text-center"
-                      >
-                        Remote Upload All
-                      </button>
-                      <button
-                        disabled={!isOnline || !ws}
-                        onClick={() => {
-                          const host = window.prompt("Enter Samba Host IP:", d.target?.split("//")[1]?.split("/")[0] || "192.168.10.221");
-                          const share = window.prompt("Enter Samba Share Name:", d.target?.split("//")[1]?.split("/")[1] || "sambashare");
-                          if (host && share && ws) {
-                            ws.send(JSON.stringify({
-                              type: "command",
-                              target: d.id,
-                              command: "settings",
-                              host: host,
-                              share: share
-                            }));
-                            appendLog(`Sent remote settings command to device ${d.id}`);
-                          }
-                        }}
-                        className="w-28 rounded bg-blue-600 hover:bg-blue-500 px-2 py-1 text-xs font-bold text-white transition disabled:opacity-50 text-center"
-                      >
-                        Remote Settings
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {!remoteDevices.length && (
-                <tr>
-                  <td className="p-3 text-zinc-500" colSpan={9}>No remote WebSocket devices registered on server.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          <span className={`rounded-full px-3 py-1 border transition-colors duration-200 ${
+            selectedDevice?.apk_installed 
+              ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
+              : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-500 dark:text-zinc-400"
+          }`}>
+            Android App: {selectedDevice?.apk_installed ? "Installed" : "Not Installed"}
+          </span>
+          <span className={`transition-colors duration-200 ${active ? "text-[#16a34a] font-bold" : "text-gray-500 dark:text-zinc-400"}`}>
+            {active ? "USB Link: Connected" : selected ? "Warning: Storage Low" : "USB Link: Offline"}
+          </span>
+          
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="ff-btn p-2 border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-zinc-300 transition-colors duration-200"
+            title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {theme === 'dark' ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.46 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+              </svg>
+            )}
+          </button>
 
-      <NetworkChart samples={network} />
+          <button
+            onClick={() => setShowSettings(true)}
+            className="ff-btn p-2 border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-zinc-300 transition-colors duration-200"
+            title="Settings"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      </header>
 
-      <section className="mb-4 rounded border border-zinc-800 bg-zinc-900">
-        <div className="flex cursor-pointer items-center justify-between p-3 hover:bg-zinc-800/50" onClick={() => setFilelistOpen(!filelistOpen)}>
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📁</span>
-            <h2 className="text-sm font-semibold text-zinc-300">Local Staging Folder <span className="text-zinc-500 font-normal text-xs ml-2">Path: {info?.source_dir || "N/A"}</span></h2>
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        {/* Remote WebSocket Devices */}
+        <section className="ff-card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-zinc-100">Connected Remote Devices</h2>
+            <span className={`rounded-full px-3 py-1 border text-xs font-semibold ${
+              ws 
+                ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
+                : "border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]"
+            }`}>
+              Cloud Connection: {ws ? "Online" : "Offline"}
+            </span>
           </div>
-          <span className="text-xs text-zinc-500">{filelistOpen ? "▲ Collapse" : "▼ Expand"}</span>
-        </div>
-        
-        {filelistOpen && (
-          <div className="border-t border-zinc-800 p-3">
-            <div className="mb-4 flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex gap-6 text-xs text-zinc-300 font-medium">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="accent-blue-600" checked={autoPush} onChange={(e) => {
-                    setAutoPush(e.target.checked);
-                    localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
-                  }} />
-                  Auto Push
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer text-amber-500">
-                  <input type="checkbox" className="accent-amber-600" checked={forceTransfer} onChange={(e) => setForceTransfer(e.target.checked)} />
-                  Force Transfer (Overwrite)
-                </label>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  disabled={!deviceActionReady || (!forceTransfer && !files.some((f) => f.status === "ready" && !pushedFiles.has(f.name) && !sambaFiles.some((sf) => sf.name === f.name)))}
-                  onClick={pushAllPending}
-                  className="rounded bg-blue-650 px-3 py-1.5 text-xs font-bold text-blue-100 hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Push All Pending
-                </button>
-                <button
-                  onClick={browseSource}
-                  className="rounded bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700"
-                >
-                  Change Folder...
-                </button>
-              </div>
+          <div className="overflow-x-auto rounded-[10px] border border-gray-150 dark:border-zinc-800">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-gray-50 dark:bg-zinc-900 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-zinc-400">
+                <tr>
+                  <th className="p-3">Device Model</th>
+                  <th className="p-3">Device ID</th>
+                  <th className="p-3">Samba Target</th>
+                  <th className="p-3">Samba Status</th>
+                  <th className="p-3">USB Status</th>
+                  <th className="p-3">Selection</th>
+                  <th className="p-3">Latest File</th>
+                  <th className="p-3">Cloud Status</th>
+                  <th className="p-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-150 dark:divide-zinc-800 text-gray-700 dark:text-zinc-300">
+                {remoteDevices.map((d) => {
+                  const isOnline = d.connected !== false && Date.now() - d.last_seen < 15000;
+                  const usbOnline = devices.some((localDev) => localDev.fingerprint === d.id);
+                  const isSelected = localStorage.getItem("selected_remote_id") === d.id;
+                  return (
+                    <tr key={d.id} className={`transition ${isSelected ? "bg-[#2563eb]/5 dark:bg-[#2563eb]/10" : "hover:bg-gray-50 dark:hover:bg-zinc-900/50"}`}>
+                      <td className="p-3 font-semibold text-gray-900 dark:text-zinc-100">{d.model || "-"}</td>
+                      <td className="p-3 text-xs max-w-[200px] truncate text-gray-400 dark:text-zinc-500" title={d.id}>{d.id}</td>
+                      <td className="p-3 text-xs text-gray-500 dark:text-zinc-400">{d.target || "-"}</td>
+                      <td className="p-3">
+                        {d.samba === "connected" ? (
+                          <span className="rounded px-2 py-0.5 text-xs font-medium border border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]">
+                            Connected
+                          </span>
+                        ) : d.samba && d.samba.toLowerCase().includes("error") ? (
+                          <span className="rounded px-2 py-0.5 text-xs font-medium border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]">
+                            Error
+                          </span>
+                        ) : (
+                          <span className="rounded px-2 py-0.5 text-xs font-medium border border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-400 dark:text-zinc-500">
+                            Disconnected
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
+                          usbOnline 
+                            ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
+                            : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-450 dark:text-zinc-500"
+                        }`}>
+                          {usbOnline ? "Connected" : "Disconnected"}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
+                          isSelected 
+                            ? "border-[#2563eb] bg-[#2563eb]/10 text-[#2563eb]" 
+                            : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-450 dark:text-zinc-500"
+                        }`}>
+                          {isSelected ? "Selected" : "Idle"}
+                        </span>
+                      </td>
+                      <td className="p-3 text-xs max-w-[200px] truncate text-gray-500 dark:text-zinc-400" title={d.latest}>{d.latest || "-"}</td>
+                      <td className="p-3">
+                        <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
+                          isOnline 
+                            ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
+                            : "border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]"
+                        }`}>
+                          {isOnline ? "Online" : "Offline"}
+                        </span>
+                      </td>
+                      <td className="p-3 flex gap-2">
+                        <button
+                          onClick={() => {
+                            localStorage.setItem("selected_remote_id", d.id);
+                            selectBridge(d.id);
+                            appendLog(`Selected remote device for monitoring: ${d.model} (${d.id})`);
+                          }}
+                          className={`ff-btn px-3 py-1 text-xs text-center transition ${
+                            theme === 'dark' 
+                              ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
+                              : "bg-[#2563eb] text-white hover:bg-blue-700"
+                          }`}
+                        >
+                          Monitor
+                        </button>
+                        <button
+                          disabled={!isOnline || !ws}
+                          onClick={() => {
+                            if (ws) {
+                              ws.send(JSON.stringify({
+                                type: "command",
+                                target: d.id,
+                                command: "upload_all"
+                              }));
+                              appendLog(`Sent remote upload all command to device ${d.id}`);
+                            }
+                          }}
+                          className={`ff-btn px-3 py-1 text-xs text-center transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                            theme === 'dark' 
+                              ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
+                              : "bg-[#2563eb] text-white hover:bg-blue-700"
+                          }`}
+                        >
+                          Upload All
+                        </button>
+                        <button
+                          disabled={!isOnline || !ws}
+                          onClick={() => {
+                            const host = window.prompt("Enter Samba Host IP:", d.target?.split("//")[1]?.split("/")[0] || "192.168.10.221");
+                            const share = window.prompt("Enter Samba Share Name:", d.target?.split("//")[1]?.split("/")[1] || "sambashare");
+                            if (host && share && ws) {
+                              ws.send(JSON.stringify({
+                                type: "command",
+                                target: d.id,
+                                command: "settings",
+                                host: host,
+                                share: share
+                              }));
+                              appendLog(`Sent remote settings command to device ${d.id}`);
+                            }
+                          }}
+                          className="ff-btn border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 px-3 py-1 text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed text-center text-gray-700 dark:text-zinc-300"
+                        >
+                          Settings
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!remoteDevices.length && (
+                  <tr>
+                    <td className="p-3 text-gray-400 dark:text-zinc-500" colSpan={9}>No remote WebSocket devices registered on server.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <NetworkChart samples={network} />
+
+        {/* Local Staging Folder Card */}
+        <section className="ff-card overflow-hidden">
+          <div 
+            className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/40 transition" 
+            onClick={() => setFilelistOpen(!filelistOpen)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xl">📁</span>
+              <h2 className="text-sm font-bold text-gray-900 dark:text-zinc-100">
+                Local Staging Folder <span className="text-gray-500 dark:text-zinc-400 font-normal text-xs ml-2">Path: {info?.source_dir || "N/A"}</span>
+              </h2>
             </div>
-              
-              <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+            <span className="text-xs text-gray-400 dark:text-zinc-500">{filelistOpen ? "▲ Collapse" : "▼ Expand"}</span>
+          </div>
+          
+          {filelistOpen && (
+            <div className="border-t border-gray-150 dark:border-zinc-800 p-4">
+              <div className="mb-4 flex flex-wrap gap-4 items-center justify-between border-b border-gray-150 dark:border-zinc-800 pb-4">
+                <div className="flex gap-6 text-xs font-semibold text-gray-600 dark:text-zinc-400">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="ff-checkbox h-4 w-4" 
+                      checked={autoPush} 
+                      onChange={(e) => {
+                        setAutoPush(e.target.checked);
+                        localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
+                      }} 
+                    />
+                    Auto Push
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-[#fbbf24] dark:text-[#fbbf24]">
+                    <input 
+                      type="checkbox" 
+                      className="ff-checkbox h-4 w-4 accent-[#fbbf24]" 
+                      checked={forceTransfer} 
+                      onChange={(e) => setForceTransfer(e.target.checked)} 
+                    />
+                    Force Transfer (Overwrite)
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    disabled={!deviceActionReady || (!forceTransfer && !files.some((f) => f.status === "ready" && !pushedFiles.has(f.name) && !sambaFiles.some((sf) => sf.name === f.name)))}
+                    onClick={pushAllPending}
+                    className={`ff-btn px-4 py-2 text-xs transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                      theme === 'dark' 
+                        ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
+                        : "bg-[#2563eb] text-white hover:bg-blue-700"
+                    }`}
+                  >
+                    Push All Pending
+                  </button>
+                  <button
+                    onClick={browseSource}
+                    className="ff-btn border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 px-4 py-2 text-xs text-gray-700 dark:text-zinc-300 font-semibold"
+                  >
+                    Change Folder...
+                  </button>
+                </div>
+              </div>
+                
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1">
                 {(files || []).map((f) => {
                   const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
                   const isPushed = pushedFiles ? pushedFiles.has(f.name) : false;
@@ -788,7 +905,6 @@ export default function App() {
                   } else if (isUploadingThis) {
                     displayStatus = `Uploading to Samba (${activeRemote.upload_percent}%)`;
                   } else if (inSamba && !isPushed) {
-                    // ponytail: already in samba folder, not pushed via FireFiles
                     displayStatus = "Already in Destination";
                   } else if (isUploaded) {
                     displayStatus = "Transfer Complete";
@@ -796,83 +912,191 @@ export default function App() {
                     displayStatus = "Staged on Phone";
                   }
 
+                  const isCompleted = displayStatus === "Transfer Complete" || displayStatus === "Already in Destination";
                   const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
+
                   return (
-                    <div key={f.name} className="rounded border border-zinc-800 bg-zinc-950 p-2 text-xs">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="break-all font-medium text-zinc-200">{f.name}</p>
-                          <p className="text-[10px] text-zinc-500">{fileGb(f.size)}</p>
-                          {isPushingThis && (
-                            <div className="mt-1 w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
-                              <div 
-                                className="bg-blue-500 h-1 rounded-full transition-all duration-300" 
-                                style={{ width: `${progress}%` }}
-                              />
-                            </div>
-                          )}
+                    <div 
+                      key={f.name} 
+                      className={`ff-card p-3 flex flex-col justify-between transition-all duration-200 border ${
+                        isCompleted 
+                          ? "bg-[#16a34a] text-white border-transparent shadow-[0_4px_12px_rgba(22,163,74,0.2)]" 
+                          : "bg-white dark:bg-[#141416] text-gray-900 dark:text-zinc-150 border-gray-150 dark:border-zinc-800"
+                      }`}
+                    >
+                      <div className="min-w-0 mb-2">
+                        <p className="break-all font-semibold text-xs leading-tight">{f.name}</p>
+                        <p className={`text-[10px] mt-0.5 ${isCompleted ? "text-green-100" : "text-gray-400 dark:text-zinc-500"}`}>
+                          {fileGb(f.size)}
+                        </p>
+                      </div>
+
+                      {isPushingThis && (
+                        <div className="mb-3 w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-1 overflow-hidden">
+                          <div 
+                            className="bg-[#2563eb] h-1 rounded-full transition-all duration-300" 
+                            style={{ width: `${progress}%` }}
+                          />
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${statusClass(displayStatus)}`}>
-                            {displayStatus}
-                          </span>
-                          <button
-                            disabled={!selectedDevice || (displayStatus !== "Ready" && !forceTransfer) || isPushingThis}
-                            onClick={() => push(f.name)}
-                            className="w-24 rounded border border-blue-850 bg-blue-950 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {forceTransfer ? "Force Push" : "Push"}
-                          </button>
-                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between gap-3 mt-1 pt-2 border-t border-dashed border-gray-150 dark:border-zinc-800/80">
+                        <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                          isCompleted
+                            ? "bg-white/20 text-white"
+                            : statusClass(displayStatus)
+                        }`}>
+                          {displayStatus}
+                        </span>
+                        
+                        <button
+                          disabled={!selectedDevice || (displayStatus !== "Ready" && !forceTransfer) || isPushingThis}
+                          onClick={() => push(f.name)}
+                          className={`ff-btn px-3 py-1.5 text-[10px] uppercase tracking-wider font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                            isCompleted
+                              ? "bg-white/25 text-white hover:bg-white/35"
+                              : theme === 'dark' 
+                                ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
+                                : "bg-[#2563eb] text-white hover:bg-blue-700"
+                          }`}
+                        >
+                          {forceTransfer ? "Force Push" : "Push"}
+                        </button>
                       </div>
                     </div>
                   );
                 })}
-                {!files.length && <p className="rounded border border-zinc-800 bg-zinc-950 p-2 text-xs text-zinc-500 text-center">No .md5 files found</p>}
+                {!files.length && (
+                  <p className="col-span-full py-6 text-xs text-gray-400 dark:text-zinc-500 text-center font-medium">No .md5 files found</p>
+                )}
               </div>
 
-              <div className="mt-2 border-t border-zinc-800 pt-2 text-[10px] text-zinc-400 space-y-1">
+              <div className="mt-3 border-t border-gray-150 dark:border-zinc-800 pt-3 text-[10px] text-gray-500 dark:text-zinc-400 space-y-1">
                 <p>Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
                 <p className="break-all">Active Transfer: {transfer ? `${transfer.file} (${transfer.message})` : "None"}</p>
-                {error && <p className="text-red-400 font-semibold">{error}</p>}
+                {error && <p className="text-[#ef4444] font-semibold">{error}</p>}
               </div>
             </div>
           )}
         </section>
 
-        {/* Accordion Debug Log */}
-        <section className="rounded border border-zinc-800 bg-zinc-900">
-        <div className="flex cursor-pointer items-center justify-between p-3 hover:bg-zinc-800/50" onClick={() => setDebugOpen(!debugOpen)}>
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📜</span>
-            <h2 className="text-sm font-semibold text-zinc-300">System Log & Diagnostics</h2>
+        {/* 2-Tab Accordion Card (System Log & Transfer Progress) */}
+        <section className="ff-card overflow-hidden">
+          <div 
+            className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/40 transition" 
+            onClick={() => setDebugOpen(!debugOpen)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xl">📜</span>
+              <h2 className="text-sm font-bold text-gray-900 dark:text-zinc-100">System Log & Diagnostics</h2>
+            </div>
+            <span className="text-xs text-gray-400 dark:text-zinc-500">{debugOpen ? "▲ Collapse" : "▼ Expand"}</span>
           </div>
-          <span className="text-xs text-zinc-500">{debugOpen ? "▲ Collapse" : "▼ Expand"}</span>
-        </div>
           
           {debugOpen && (
-            <div className="p-3 border-t border-zinc-800 bg-zinc-950/40">
-              <textarea
-                readOnly
-                value={debugLog}
-                className="h-40 w-full resize-none rounded border border-zinc-800 bg-zinc-950 p-2 font-mono text-[10px] text-zinc-400 outline-none"
-              />
+            <div className="border-t border-gray-150 dark:border-zinc-800 p-4">
+              {/* Tab Headers */}
+              <div className="flex gap-4 border-b border-gray-150 dark:border-zinc-800 pb-3 mb-4">
+                <button 
+                  onClick={() => setDebugTab('log')}
+                  className={`pb-2 text-xs font-bold border-b-2 transition ${
+                    debugTab === 'log' 
+                      ? 'border-[#2563eb] text-[#2563eb]' 
+                      : 'border-transparent text-gray-400 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  System Logs
+                </button>
+                <button 
+                  onClick={() => setDebugTab('progress')}
+                  className={`pb-2 text-xs font-bold border-b-2 transition ${
+                    debugTab === 'progress' 
+                      ? 'border-[#2563eb] text-[#2563eb]' 
+                      : 'border-transparent text-gray-400 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  Transfer Progress List
+                </button>
+              </div>
+
+              {/* Tab 1 Content: Textarea log */}
+              {debugTab === 'log' && (
+                <div className="rounded-[10px] overflow-hidden border border-gray-150 dark:border-zinc-800">
+                  <textarea
+                    readOnly
+                    value={debugLog}
+                    className="h-44 w-full resize-none bg-gray-50 dark:bg-zinc-950 p-3 font-mono text-[10px] text-gray-600 dark:text-zinc-400 outline-none"
+                  />
+                </div>
+              )}
+
+              {/* Tab 2 Content: Files list with radial progress rings */}
+              {debugTab === 'progress' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+                  {(files || []).map((f) => {
+                    const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
+                    const isPushed = pushedFiles ? pushedFiles.has(f.name) : false;
+                    
+                    const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
+                    const isUploadingThis = activeRemote?.current_file === f.name;
+                    const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
+
+                    // Calculate push to phone percentage
+                    let phoneProgress = 0;
+                    if (isPushed || isUploaded) {
+                      phoneProgress = 100;
+                    } else if (isPushingThis) {
+                      phoneProgress = transfer.percent;
+                    }
+
+                    // Calculate push to samba percentage
+                    let sambaProgress = 0;
+                    if (isUploaded) {
+                      sambaProgress = 100;
+                    } else if (isUploadingThis) {
+                      sambaProgress = activeRemote.upload_percent;
+                    }
+
+                    return (
+                      <div 
+                        key={f.name} 
+                        className="flex items-center justify-between p-3 rounded-[10px] bg-gray-50 dark:bg-zinc-900/40 border border-gray-150 dark:border-zinc-800/80 transition"
+                      >
+                        <div className="min-w-0 flex-1 pr-3">
+                          <p className="text-xs font-bold text-gray-900 dark:text-zinc-200 truncate" title={f.name}>{f.name}</p>
+                          <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-0.5">{fileGb(f.size)}</p>
+                        </div>
+                        <div className="flex gap-3 flex-shrink-0">
+                          <ProgressRing percent={phoneProgress} label="Push Phone" />
+                          <ProgressRing percent={sambaProgress} label="Push Samba" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!files.length && (
+                    <p className="col-span-full py-8 text-xs text-gray-455 dark:text-zinc-500 text-center font-medium">
+                      No staging files available
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </section>
+      </div>
 
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-[14px] border border-gray-150 dark:border-zinc-800 bg-white dark:bg-[#141416] p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-zinc-100">Settings & Sideload Config</h3>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-zinc-100">Settings & Sideload Config</h3>
               <button
                 onClick={() => {
                   setSourcePath(info?.source_dir || "");
                   setShowSettings(false);
                 }}
-                className="text-zinc-400 hover:text-zinc-200"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-zinc-200 transition"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -882,18 +1106,18 @@ export default function App() {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Source Folder</label>
+                <label className="block text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider mb-1">Source Folder</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={sourcePath}
                     onChange={(e) => setSourcePath(e.target.value)}
                     placeholder="E:\SUBRO"
-                    className="flex-1 rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-blue-500"
+                    className="flex-1 rounded-[10px] border border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-950 px-3 py-2 text-sm text-gray-900 dark:text-zinc-100 outline-none focus:border-[#2563eb]"
                   />
                   <button
                     onClick={browseSource}
-                    className="rounded bg-zinc-800 px-3 py-2 text-sm font-semibold hover:bg-zinc-700 transition"
+                    className="ff-btn bg-gray-100 hover:bg-gray-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 border border-gray-200 dark:border-zinc-800 px-3 py-2 text-sm font-semibold transition text-gray-700 dark:text-zinc-300"
                   >
                     Browse
                   </button>
@@ -901,11 +1125,11 @@ export default function App() {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-zinc-800 pt-4">
+            <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-gray-150 dark:border-zinc-800 pt-4">
               <button
                 disabled={diagLoading}
                 onClick={handleDiagnose}
-                className="rounded bg-zinc-850 border border-zinc-700 px-3 py-1.5 text-xs font-semibold hover:bg-zinc-850 text-blue-400 transition"
+                className="ff-btn border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-[#2563eb] transition"
               >
                 {diagLoading ? "Diagnosing..." : "🔧 Diagnose ADB"}
               </button>
@@ -916,7 +1140,7 @@ export default function App() {
                     setDiagnostics("");
                     setShowSettings(false);
                   }}
-                  className="rounded bg-zinc-800 px-4 py-2 text-sm font-semibold hover:bg-zinc-700 text-zinc-300 transition"
+                  className="ff-btn bg-gray-100 hover:bg-gray-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 px-4 py-2 text-sm text-gray-750 dark:text-zinc-300 transition"
                 >
                   Cancel
                 </button>
@@ -927,7 +1151,11 @@ export default function App() {
                     setDiagnostics("");
                     setShowSettings(false);
                   }}
-                  className="rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 transition"
+                  className={`ff-btn px-4 py-2 text-sm font-bold transition ${
+                    theme === 'dark' 
+                      ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
+                      : "bg-[#2563eb] text-white hover:bg-blue-700"
+                  }`}
                 >
                   Save Changes
                 </button>
@@ -935,9 +1163,9 @@ export default function App() {
             </div>
 
             {diagnostics && (
-              <div className="mt-4 border-t border-zinc-800 pt-4">
-                <h4 className="text-xs font-bold text-zinc-400 uppercase mb-2 text-left">Diagnostic Logs:</h4>
-                <pre className="w-full text-left bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-300 p-3 rounded max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
+              <div className="mt-4 border-t border-gray-150 dark:border-zinc-800 pt-4">
+                <h4 className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-wider mb-2 text-left">Diagnostic Logs:</h4>
+                <pre className="w-full text-left bg-gray-50 dark:bg-zinc-950 border border-gray-150 dark:border-zinc-800 text-[10px] text-gray-650 dark:text-zinc-400 p-3 rounded-[10px] max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
                   {diagnostics}
                 </pre>
               </div>
