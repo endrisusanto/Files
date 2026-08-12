@@ -50,11 +50,15 @@ class MainActivity : Activity() {
     private lateinit var progressContainer: LinearLayout
     private lateinit var tabLogsBtn: TextView
     private lateinit var tabProgressBtn: TextView
+    private lateinit var rootLayout: LinearLayout
+    private lateinit var leftColumn: LinearLayout
+    private lateinit var rightColumn: LinearLayout
     private val debugLines = ArrayDeque<String>()
     private val transferProgressMap = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val fileExpectedSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val transferLastSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val transferLastTimeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val transferSpeedMap = java.util.concurrent.ConcurrentHashMap<String, String>()
     private var lastRx = 0L
     private var lastTx = 0L
     private val okHttpClient = OkHttpClient()
@@ -96,6 +100,33 @@ class MainActivity : Activity() {
                 lastTx = tx
             }
             if (activeTab == 1) {
+                val files = md5Files()
+                val now = System.currentTimeMillis()
+                for (file in files) {
+                    val expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                    val currentSize = file.length()
+                    val isFinished = (expectedSize > 0L && currentSize >= expectedSize) || (transferProgressMap[file.name] ?: 0 >= 100)
+                    
+                    if (isFinished) {
+                        transferSpeedMap.remove(file.name)
+                        transferLastSizeMap.remove(file.name)
+                        transferLastTimeMap.remove(file.name)
+                    } else {
+                        val lastSize = transferLastSizeMap[file.name] ?: 0L
+                        val lastTime = transferLastTimeMap[file.name] ?: 0L
+                        if (lastTime > 0L && now > lastTime && currentSize > lastSize) {
+                            val bytesPerSec = ((currentSize - lastSize) * 1000.0) / (now - lastTime)
+                            val mbPerSec = bytesPerSec / (1024.0 * 1024.0)
+                            if (mbPerSec >= 0.01) {
+                                transferSpeedMap[file.name] = " . %.2f MB/s".format(mbPerSec)
+                            } else {
+                                transferSpeedMap.remove(file.name)
+                            }
+                        }
+                        transferLastSizeMap[file.name] = currentSize
+                        transferLastTimeMap[file.name] = now
+                    }
+                }
                 updateProgressList()
             }
             handler.postDelayed(this, 1_000)
@@ -160,7 +191,7 @@ class MainActivity : Activity() {
         }
 
         // Left Panel (Column 1)
-        val leftColumn = LinearLayout(this).apply {
+        leftColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.LEFT
             
@@ -212,7 +243,7 @@ class MainActivity : Activity() {
         }
 
         // Right Panel (Column 2)
-        val rightColumn = LinearLayout(this).apply {
+        rightColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.LEFT
             
@@ -295,20 +326,12 @@ class MainActivity : Activity() {
             addView(contentFrame)
         }
 
-        val rootLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(40, 40, 40, 40)
+        rootLayout = LinearLayout(this).apply {
             setBackgroundColor(0xff09090b.toInt())
             fitsSystemWindows = false
-
-            val leftParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
-                rightMargin = 40
-            }
-            val rightParams = LinearLayout.LayoutParams(0, -1, 1.2f)
-
-            addView(leftColumn, leftParams)
-            addView(rightColumn, rightParams)
         }
+
+        adjustOrientationLayout()
 
         setContentView(ScrollView(this).apply {
             fitsSystemWindows = false
@@ -529,25 +552,7 @@ class MainActivity : Activity() {
                 }
                 val expectedSize = fileExpectedSizeMap[file.name] ?: 0L
                 val currentSize = file.length()
-                val now = System.currentTimeMillis()
-                val lastSize = transferLastSizeMap[file.name] ?: 0L
-                val lastTime = transferLastTimeMap[file.name] ?: 0L
-                
-                var speedStr = ""
-                if (lastTime > 0L && now > lastTime && currentSize > lastSize) {
-                    val bytesPerSec = ((currentSize - lastSize) * 1000.0) / (now - lastTime)
-                    val mbPerSec = bytesPerSec / (1024.0 * 1024.0)
-                    speedStr = if (mbPerSec >= 0.01) " . %.2f MB/s".format(mbPerSec) else ""
-                }
-                
-                val isFinished = (expectedSize > 0L && currentSize >= expectedSize) || (transferProgressMap[file.name] ?: 0 >= 100)
-                if (isFinished) {
-                    speedStr = ""
-                } else {
-                    transferLastSizeMap[file.name] = currentSize
-                    transferLastTimeMap[file.name] = now
-                }
-                
+                val speedStr = transferSpeedMap[file.name] ?: ""
                 val sizeText = if (expectedSize > 0L) {
                     "${formatFileSize(currentSize)} / ${formatFileSize(expectedSize)}$speedStr"
                 } else {
@@ -874,5 +879,43 @@ class MainActivity : Activity() {
             textPaint.color = Color.WHITE
             canvas.drawText("$progress%", cx, cy - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint)
         }
+    }
+
+    private fun adjustOrientationLayout() {
+        if (!::rootLayout.isInitialized || !::leftColumn.isInitialized || !::rightColumn.isInitialized) return
+        
+        rootLayout.removeAllViews()
+        val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        
+        if (isLandscape) {
+            rootLayout.orientation = LinearLayout.HORIZONTAL
+            rootLayout.setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+            
+            val leftParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
+                rightMargin = dpToPx(16)
+                topMargin = 0
+            }
+            val rightParams = LinearLayout.LayoutParams(0, -1, 1.2f)
+            
+            rootLayout.addView(leftColumn, leftParams)
+            rootLayout.addView(rightColumn, rightParams)
+        } else {
+            rootLayout.orientation = LinearLayout.VERTICAL
+            rootLayout.setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+            
+            val rightParams = LinearLayout.LayoutParams(-1, 0, 1.0f)
+            val leftParams = LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dpToPx(16)
+                rightMargin = 0
+            }
+            
+            rootLayout.addView(rightColumn, rightParams)
+            rootLayout.addView(leftColumn, leftParams)
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        adjustOrientationLayout()
     }
 }
