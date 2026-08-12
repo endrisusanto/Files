@@ -60,19 +60,19 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
     ...Array.from({ length: 300 }, () => ({ rx_bps: 0, tx_bps: 0 })),
     ...samples
   ].slice(-300);
-  const max = Math.max(1, ...points.flatMap((p) => [p.rx_bps, p.tx_bps]));
+  const max = Math.max(1, ...points.map((p) => p.tx_bps));
   
   const path = (key: keyof NetworkSample) => {
     if (points.length === 0) return "";
     let d = "";
     points.forEach((p, i) => {
       const x = points.length <= 1 ? 0 : (i / (points.length - 1)) * width;
-      const y = height - (p[key] / max) * height;
+      const y = height - (p[key as keyof NetworkSample] / max) * height;
       if (i === 0) {
         d += `M ${x.toFixed(1)} ${y.toFixed(1)}`;
       } else {
         const prevX = ((i - 1) / (points.length - 1)) * width;
-        const prevY = height - (points[i - 1][key] / max) * height;
+        const prevY = height - (points[i - 1][key as keyof NetworkSample] / max) * height;
         const cpX1 = prevX + (x - prevX) / 2;
         const cpY1 = prevY;
         const cpX2 = prevX + (x - prevX) / 2;
@@ -89,13 +89,11 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-xs font-semibold text-zinc-400">Realtime Network Traffic</h2>
         <div className="flex gap-4 text-[10px] tracking-wider">
-          <span className="text-green-300">Download: {speed(last.rx_bps)}</span>
           <span className="text-blue-300">Upload: {speed(last.tx_bps)}</span>
         </div>
       </div>
       <svg className="h-24 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
         <rect width={width} height={height} fill="#09090b" rx="2" />
-        <path d={path("rx_bps")} fill="none" stroke="#86efac" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
         <path d={path("tx_bps")} fill="none" stroke="#93c5fd" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
     </section>
@@ -152,6 +150,7 @@ export default function App() {
   const [debugLog, setDebugLog] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [remoteDevices, setRemoteDevices] = useState<any[]>([]);
+  const [remoteDevicesOpen, setRemoteDevicesOpen] = useState(false);
   const [autoPush, setAutoPush] = useState(() => {
     const val = localStorage.getItem("auto_push");
     if (val === null) {
@@ -676,156 +675,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Remote WebSocket Devices */}
-        <section className="ff-card p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-zinc-100">Connected Remote Devices</h2>
-            <span className={`rounded-full px-3 py-1 border text-xs font-semibold ${
-              ws 
-                ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
-                : "border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]"
-            }`}>
-              Cloud Connection: {ws ? "Online" : "Offline"}
-            </span>
-          </div>
-          <div className="overflow-x-auto rounded-[10px] border border-gray-150 dark:border-zinc-800">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-gray-50 dark:bg-zinc-900 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-zinc-400">
-                <tr>
-                  <th className="p-3">Device Model</th>
-                  <th className="p-3">Device ID</th>
-                  <th className="p-3">Samba Target</th>
-                  <th className="p-3">Samba Status</th>
-                  <th className="p-3">USB Status</th>
-                  <th className="p-3">Selection</th>
-                  <th className="p-3">Latest File</th>
-                  <th className="p-3">Cloud Status</th>
-                  <th className="p-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-150 dark:divide-zinc-800 text-gray-700 dark:text-zinc-300">
-                {remoteDevices.map((d) => {
-                  const isOnline = d.connected !== false && Date.now() - d.last_seen < 15000;
-                  const usbOnline = devices.some((localDev) => localDev.fingerprint === d.id);
-                  const isSelected = localStorage.getItem("selected_remote_id") === d.id;
-                  return (
-                    <tr key={d.id} className={`transition ${isSelected ? "bg-[#2563eb]/5 dark:bg-[#2563eb]/10" : "hover:bg-gray-50 dark:hover:bg-zinc-900/50"}`}>
-                      <td className="p-3 font-semibold text-gray-900 dark:text-zinc-100">{d.model || "-"}</td>
-                      <td className="p-3 text-xs max-w-[200px] truncate text-gray-400 dark:text-zinc-500" title={d.id}>{d.id}</td>
-                      <td className="p-3 text-xs text-gray-500 dark:text-zinc-400">{d.target || "-"}</td>
-                      <td className="p-3">
-                        {d.samba === "connected" ? (
-                          <span className="rounded px-2 py-0.5 text-xs font-medium border border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]">
-                            Connected
-                          </span>
-                        ) : d.samba && d.samba.toLowerCase().includes("error") ? (
-                          <span className="rounded px-2 py-0.5 text-xs font-medium border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]">
-                            Error
-                          </span>
-                        ) : (
-                          <span className="rounded px-2 py-0.5 text-xs font-medium border border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-400 dark:text-zinc-500">
-                            Disconnected
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
-                          usbOnline 
-                            ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
-                            : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-450 dark:text-zinc-500"
-                        }`}>
-                          {usbOnline ? "Connected" : "Disconnected"}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
-                          isSelected 
-                            ? "border-[#2563eb] bg-[#2563eb]/10 text-[#2563eb]" 
-                            : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-450 dark:text-zinc-500"
-                        }`}>
-                          {isSelected ? "Selected" : "Idle"}
-                        </span>
-                      </td>
-                      <td className="p-3 text-xs max-w-[200px] truncate text-gray-500 dark:text-zinc-400" title={d.latest}>{d.latest || "-"}</td>
-                      <td className="p-3">
-                        <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
-                          isOnline 
-                            ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
-                            : "border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]"
-                        }`}>
-                          {isOnline ? "Online" : "Offline"}
-                        </span>
-                      </td>
-                      <td className="p-3 flex gap-2">
-                        <button
-                          onClick={() => {
-                            localStorage.setItem("selected_remote_id", d.id);
-                            selectBridge(d.id);
-                            appendLog(`Selected remote device for monitoring: ${d.model} (${d.id})`);
-                          }}
-                          className={`ff-btn px-3 py-1 text-xs text-center transition ${
-                            theme === 'dark' 
-                              ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
-                              : "bg-[#2563eb] text-white hover:bg-blue-700"
-                          }`}
-                        >
-                          Monitor
-                        </button>
-                        <button
-                          disabled={!isOnline || !ws}
-                          onClick={() => {
-                            if (ws) {
-                              ws.send(JSON.stringify({
-                                type: "command",
-                                target: d.id,
-                                command: "upload_all"
-                              }));
-                              appendLog(`Sent remote upload all command to device ${d.id}`);
-                            }
-                          }}
-                          className={`ff-btn px-3 py-1 text-xs text-center transition disabled:opacity-40 disabled:cursor-not-allowed ${
-                            theme === 'dark' 
-                              ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
-                              : "bg-[#2563eb] text-white hover:bg-blue-700"
-                          }`}
-                        >
-                          Upload All
-                        </button>
-                        <button
-                          disabled={!isOnline || !ws}
-                          onClick={() => {
-                            const host = window.prompt("Enter Samba Host IP:", d.target?.split("//")[1]?.split("/")[0] || "192.168.10.221");
-                            const share = window.prompt("Enter Samba Share Name:", d.target?.split("//")[1]?.split("/")[1] || "sambashare");
-                            if (host && share && ws) {
-                              ws.send(JSON.stringify({
-                                type: "command",
-                                target: d.id,
-                                command: "settings",
-                                host: host,
-                                share: share
-                              }));
-                              appendLog(`Sent remote settings command to device ${d.id}`);
-                            }
-                          }}
-                          className="ff-btn border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 px-3 py-1 text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed text-center text-gray-700 dark:text-zinc-300"
-                        >
-                          Settings
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!remoteDevices.length && (
-                  <tr>
-                    <td className="p-3 text-gray-400 dark:text-zinc-500" colSpan={9}>No remote WebSocket devices registered on server.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
+      <div className="p-6 space-y-6 w-full">
         <NetworkChart samples={network} />
 
         {/* Local Staging Folder Card */}
@@ -1080,6 +930,169 @@ export default function App() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+        </section>
+
+        {/* Connected Remote Devices Accordion */}
+        <section className="ff-card overflow-hidden">
+          <div 
+            className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/40 transition"
+            onClick={() => setRemoteDevicesOpen(!remoteDevicesOpen)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🌐</span>
+              <h2 className="text-sm font-bold text-gray-900 dark:text-zinc-100">Connected Remote Devices</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className={`rounded-full px-2.5 py-0.5 border text-[10px] font-semibold ${
+                ws 
+                  ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
+                  : "border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]"
+              }`}>
+                Cloud: {ws ? "Online" : "Offline"}
+              </span>
+              <span className="text-xs text-gray-400 dark:text-zinc-500">{remoteDevicesOpen ? "▲ Collapse" : "▼ Expand"}</span>
+            </div>
+          </div>
+
+          {remoteDevicesOpen && (
+            <div className="border-t border-gray-150 dark:border-zinc-800 p-4">
+              <div className="overflow-x-auto rounded-[10px] border border-gray-150 dark:border-zinc-800">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="bg-gray-50 dark:bg-zinc-900 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-zinc-400">
+                    <tr>
+                      <th className="p-3">Device Model</th>
+                      <th className="p-3">Device ID</th>
+                      <th className="p-3">Samba Target</th>
+                      <th className="p-3">Samba Status</th>
+                      <th className="p-3">USB Status</th>
+                      <th className="p-3">Selection</th>
+                      <th className="p-3">Latest File</th>
+                      <th className="p-3">Cloud Status</th>
+                      <th className="p-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-150 dark:divide-zinc-800 text-gray-700 dark:text-zinc-300">
+                    {remoteDevices.map((d) => {
+                      const isOnline = d.connected !== false && Date.now() - d.last_seen < 15000;
+                      const usbOnline = devices.some((localDev) => localDev.fingerprint === d.id);
+                      const isSelected = localStorage.getItem("selected_remote_id") === d.id;
+                      return (
+                        <tr key={d.id} className={`transition ${isSelected ? "bg-[#2563eb]/5 dark:bg-[#2563eb]/10" : "hover:bg-gray-50 dark:hover:bg-zinc-900/50"}`}>
+                          <td className="p-3 font-semibold text-gray-900 dark:text-zinc-100">{d.model || "-"}</td>
+                          <td className="p-3 text-xs max-w-[200px] truncate text-gray-400 dark:text-zinc-500" title={d.id}>{d.id}</td>
+                          <td className="p-3 text-xs text-gray-500 dark:text-zinc-400">{d.target || "-"}</td>
+                          <td className="p-3">
+                            {d.samba === "connected" ? (
+                              <span className="rounded px-2 py-0.5 text-xs font-medium border border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]">
+                                Connected
+                              </span>
+                            ) : d.samba && d.samba.toLowerCase().includes("error") ? (
+                              <span className="rounded px-2 py-0.5 text-xs font-medium border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]">
+                                Error
+                              </span>
+                            ) : (
+                              <span className="rounded px-2 py-0.5 text-xs font-medium border border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-400 dark:text-zinc-500">
+                                Disconnected
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
+                              usbOnline 
+                                ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
+                                : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-450 dark:text-zinc-500"
+                            }`}>
+                              {usbOnline ? "Connected" : "Disconnected"}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
+                              isSelected 
+                                ? "border-[#2563eb] bg-[#2563eb]/10 text-[#2563eb]" 
+                                : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-450 dark:text-zinc-500"
+                            }`}>
+                              {isSelected ? "Selected" : "Idle"}
+                            </span>
+                          </td>
+                          <td className="p-3 text-xs max-w-[200px] truncate text-gray-500 dark:text-zinc-400" title={d.latest}>{d.latest || "-"}</td>
+                          <td className="p-3">
+                            <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
+                              isOnline 
+                                ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
+                                : "border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]"
+                            }`}>
+                              {isOnline ? "Online" : "Offline"}
+                            </span>
+                          </td>
+                          <td className="p-3 flex gap-2">
+                            <button
+                              onClick={() => {
+                                localStorage.setItem("selected_remote_id", d.id);
+                                selectBridge(d.id);
+                                appendLog(`Selected remote device for monitoring: ${d.model} (${d.id})`);
+                              }}
+                              className={`ff-btn px-3 py-1 text-xs text-center transition ${
+                                theme === 'dark' 
+                                  ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
+                                  : "bg-[#2563eb] text-white hover:bg-blue-700"
+                              }`}
+                            >
+                              Monitor
+                            </button>
+                            <button
+                              disabled={!isOnline || !ws}
+                              onClick={() => {
+                                if (ws) {
+                                  ws.send(JSON.stringify({
+                                    type: "command",
+                                    target: d.id,
+                                    command: "upload_all"
+                                  }));
+                                  appendLog(`Sent remote upload all command to device ${d.id}`);
+                                }
+                              }}
+                              className={`ff-btn px-3 py-1 text-xs text-center transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                                theme === 'dark' 
+                                  ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
+                                  : "bg-[#2563eb] text-white hover:bg-blue-700"
+                              }`}
+                            >
+                              Upload All
+                            </button>
+                            <button
+                              disabled={!isOnline || !ws}
+                              onClick={() => {
+                                const host = window.prompt("Enter Samba Host IP:", d.target?.split("//")[1]?.split("/")[0] || "192.168.10.221");
+                                const share = window.prompt("Enter Samba Share Name:", d.target?.split("//")[1]?.split("/")[1] || "sambashare");
+                                if (host && share && ws) {
+                                  ws.send(JSON.stringify({
+                                    type: "command",
+                                    target: d.id,
+                                    command: "settings",
+                                    host: host,
+                                    share: share
+                                  }));
+                                  appendLog(`Sent remote settings command to device ${d.id}`);
+                                }
+                              }}
+                              className="ff-btn border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 px-3 py-1 text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed text-center text-gray-700 dark:text-zinc-300"
+                            >
+                              Settings
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {!remoteDevices.length && (
+                      <tr>
+                        <td className="p-3 text-gray-400 dark:text-zinc-500" colSpan={9}>No remote WebSocket devices registered on server.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </section>

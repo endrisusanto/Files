@@ -19,8 +19,10 @@ import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -42,6 +44,12 @@ class MainActivity : Activity() {
     private lateinit var debugLog: TextView
     private lateinit var networkChart: NetworkChartView
     private lateinit var status: TextView
+    private var activeTab = 0
+    private lateinit var logsContainer: ScrollView
+    private lateinit var progressScrollView: ScrollView
+    private lateinit var progressContainer: LinearLayout
+    private lateinit var tabLogsBtn: TextView
+    private lateinit var tabProgressBtn: TextView
     private val debugLines = ArrayDeque<String>()
     private var lastRx = 0L
     private var lastTx = 0L
@@ -82,6 +90,9 @@ class MainActivity : Activity() {
                 }
                 lastRx = rx
                 lastTx = tx
+            }
+            if (activeTab == 1) {
+                updateProgressList()
             }
             handler.postDelayed(this, 1_000)
         }
@@ -200,7 +211,7 @@ class MainActivity : Activity() {
         val rightColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.LEFT
-
+            
             addView(TextView(this@MainActivity).apply {
                 text = "Realtime Network Traffic"
                 textSize = 14f
@@ -213,15 +224,45 @@ class MainActivity : Activity() {
                 bottomMargin = 24
             })
 
-            addView(TextView(this@MainActivity).apply {
-                text = "System Log"
-                textSize = 14f
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-                setTextColor(0xfffafafa.toInt())
-                setPadding(0, 0, 0, 12)
-            }, LinearLayout.LayoutParams(-1, -2))
+            // Tab bar
+            val tabLayout = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, 16)
+                
+                tabLogsBtn = TextView(this@MainActivity).apply {
+                    text = "System Logs"
+                    textSize = 14f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setTextColor(Color.WHITE)
+                    setPadding(0, 0, 24, 8)
+                    setOnClickListener {
+                        activeTab = 0
+                        updateTabVisibility()
+                    }
+                }
+                
+                tabProgressBtn = TextView(this@MainActivity).apply {
+                    text = "Transfer Progress"
+                    textSize = 14f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setTextColor(0xffa1a1aa.toInt())
+                    setPadding(0, 0, 0, 8)
+                    setOnClickListener {
+                        activeTab = 1
+                        updateTabVisibility()
+                    }
+                }
+                
+                addView(tabLogsBtn)
+                addView(tabProgressBtn)
+            }
+            addView(tabLayout, LinearLayout.LayoutParams(-1, -2))
 
-            addView(ScrollView(this@MainActivity).apply {
+            val contentFrame = FrameLayout(this@MainActivity).apply {
+                layoutParams = LinearLayout.LayoutParams(-1, 0, 1.0f)
+            }
+
+            logsContainer = ScrollView(this@MainActivity).apply {
                 val logBg = GradientDrawable().apply {
                     setColor(0xff18181b.toInt())
                     cornerRadius = 16f
@@ -230,7 +271,28 @@ class MainActivity : Activity() {
                 background = logBg
                 setPadding(20, 20, 20, 20)
                 addView(debugLog)
-            }, LinearLayout.LayoutParams(-1, 0, 1.0f))
+                visibility = View.VISIBLE
+            }
+
+            progressScrollView = ScrollView(this@MainActivity).apply {
+                val progressBg = GradientDrawable().apply {
+                    setColor(0xff18181b.toInt())
+                    cornerRadius = 16f
+                    setStroke(2, 0xff27272a.toInt())
+                }
+                background = progressBg
+                setPadding(20, 20, 20, 20)
+                
+                progressContainer = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                }
+                addView(progressContainer)
+                visibility = View.GONE
+            }
+
+            contentFrame.addView(logsContainer)
+            contentFrame.addView(progressScrollView)
+            addView(contentFrame)
         }
 
         val rootLayout = LinearLayout(this).apply {
@@ -368,6 +430,102 @@ class MainActivity : Activity() {
                 testUpload()
             }
             .show()
+    }
+
+    private fun updateTabVisibility() {
+        if (activeTab == 0) {
+            logsContainer.visibility = View.VISIBLE
+            progressScrollView.visibility = View.GONE
+            tabLogsBtn.setTextColor(Color.WHITE)
+            tabProgressBtn.setTextColor(0xffa1a1aa.toInt())
+        } else {
+            logsContainer.visibility = View.GONE
+            progressScrollView.visibility = View.VISIBLE
+            tabLogsBtn.setTextColor(0xffa1a1aa.toInt())
+            tabProgressBtn.setTextColor(Color.WHITE)
+            updateProgressList()
+        }
+    }
+
+    private fun updateProgressList() {
+        runOnUiThread {
+            progressContainer.removeAllViews()
+            val files = md5Files()
+            
+            if (files.isEmpty()) {
+                val emptyTv = TextView(this).apply {
+                    text = "No staging files found"
+                    textSize = 13f
+                    setTextColor(0xffa1a1aa.toInt())
+                    gravity = Gravity.CENTER
+                    setPadding(0, 40, 0, 40)
+                }
+                progressContainer.addView(emptyTv)
+                return@runOnUiThread
+            }
+            
+            val curFile = BridgeService.currentFile
+            val curProgress = BridgeService.currentProgress
+            
+            for (file in files) {
+                // Each file item row layout
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, 16, 0, 16)
+                }
+                
+                // File info
+                val infoLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
+                        rightMargin = 16
+                    }
+                }
+                val nameTv = TextView(this).apply {
+                    text = file.name
+                    textSize = 12f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setTextColor(Color.WHITE)
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    maxLines = 1
+                }
+                val sizeTv = TextView(this).apply {
+                    val kb = file.length() / 1024.0
+                    text = "%.2f KB".format(kb)
+                    textSize = 10f
+                    setTextColor(0xffa1a1aa.toInt())
+                }
+                infoLayout.addView(nameTv)
+                infoLayout.addView(sizeTv)
+                row.addView(infoLayout)
+                
+                // Push Phone progress ring (100% since it exists in staging folder)
+                val phoneRing = RingProgressView(this).apply {
+                    progress = 100
+                    layoutParams = LinearLayout.LayoutParams(96, 96).apply {
+                        rightMargin = 16
+                    }
+                }
+                row.addView(phoneRing)
+                
+                // Push Samba progress ring
+                val sambaRing = RingProgressView(this).apply {
+                    progress = if (file.name == curFile) curProgress else 0
+                    layoutParams = LinearLayout.LayoutParams(96, 96)
+                }
+                row.addView(sambaRing)
+                
+                progressContainer.addView(row)
+                
+                // Divider line
+                val divider = View(this).apply {
+                    setBackgroundColor(0xff27272a.toInt())
+                    layoutParams = LinearLayout.LayoutParams(-1, 2)
+                }
+                progressContainer.addView(divider)
+            }
+        }
     }
 
     private fun refreshStatus(message: String? = null) {
@@ -558,11 +716,10 @@ class MainActivity : Activity() {
         override fun onDraw(canvas: Canvas) {
             val rect = RectF(0f, 0f, width.toFloat(), height.toFloat())
             canvas.drawRoundRect(rect, 16f, 16f, bgPaint)
-            val maxBytes = max(1L, networkHistory.flatMap { listOf(it.first, it.second) }.maxOrNull() ?: 1L)
-            drawCurve(canvas, true, maxBytes, downPaint)
+            val maxBytes = max(1L, networkHistory.map { it.second }.maxOrNull() ?: 1L)
             drawCurve(canvas, false, maxBytes, upPaint)
             val last = networkHistory.lastOrNull() ?: Pair(0L, 0L)
-            canvas.drawText("Down ${mbps(last.first)} MB/s   Up ${mbps(last.second)} MB/s", 24f, 44f, textPaint)
+            canvas.drawText("Upload: ${mbps(last.second)} MB/s", 24f, 44f, textPaint)
         }
 
         private fun drawCurve(canvas: Canvas, down: Boolean, maxBytes: Long, paint: Paint) {
@@ -591,5 +748,48 @@ class MainActivity : Activity() {
         }
 
         private fun mbps(bytes: Long) = "%.2f".format(bytes / 1024.0 / 1024.0)
+    }
+
+    class RingProgressView(context: Context) : View(context) {
+        var progress: Int = 0
+            set(value) {
+                field = value
+                postInvalidate()
+            }
+        
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 6f
+        }
+        
+        private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 18f
+            textAlign = Paint.Align.CENTER
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val w = width.toFloat()
+            val h = height.toFloat()
+            val r = Math.min(w, h) / 2f - 8f
+            val cx = w / 2f
+            val cy = h / 2f
+            
+            // Draw track
+            paint.style = Paint.Style.STROKE
+            paint.color = Color.parseColor("#27272a")
+            canvas.drawCircle(cx, cy, r, paint)
+            
+            // Draw progress arc
+            paint.color = if (progress >= 100) Color.parseColor("#16a34a") else Color.parseColor("#2563eb")
+            val rect = RectF(cx - r, cy - r, cx + r, cy + r)
+            canvas.drawArc(rect, -90f, (progress * 3.6f), false, paint)
+            
+            // Draw text
+            textPaint.color = Color.WHITE
+            canvas.drawText("$progress%", cx, cy - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint)
+        }
     }
 }
