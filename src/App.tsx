@@ -771,11 +771,11 @@ export default function App() {
                       className={`ff-card p-3 flex flex-col justify-between transition-all duration-200 border ${
                         isCompleted 
                           ? "bg-[#16a34a] text-white border-transparent shadow-[0_4px_12px_rgba(22,163,74,0.2)]" 
-                          : "bg-white dark:bg-[#141416] text-gray-900 dark:text-zinc-150 border-gray-150 dark:border-zinc-800"
+                          : "bg-white dark:bg-[#141416] border-gray-150 dark:border-zinc-800"
                       }`}
                     >
                       <div className="min-w-0 mb-2">
-                        <p className="break-all font-semibold text-xs leading-tight">{f.name}</p>
+                        <p className={`break-all font-semibold text-xs leading-tight ${isCompleted ? "text-white" : "text-gray-900 dark:text-zinc-200"}`}>{f.name}</p>
                         <p className={`text-[10px] mt-0.5 ${isCompleted ? "text-green-100" : "text-gray-400 dark:text-zinc-500"}`}>
                           {fileGb(f.size)}
                         </p>
