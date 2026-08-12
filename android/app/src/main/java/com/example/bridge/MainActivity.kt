@@ -103,7 +103,19 @@ class MainActivity : Activity() {
                 val files = md5Files()
                 val now = System.currentTimeMillis()
                 for (file in files) {
-                    val expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                    var expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                    if (expectedSize == 0L) {
+                        val metaFile = File(file.parentFile, file.name + ".meta")
+                        if (metaFile.exists()) {
+                            try {
+                                val size = metaFile.readText().trim().toLong()
+                                if (size > 0L) {
+                                    fileExpectedSizeMap[file.name] = size
+                                    expectedSize = size
+                                }
+                            } catch (e: Exception) {}
+                        }
+                    }
                     val currentSize = file.length()
                     val isFinished = (expectedSize > 0L && currentSize >= expectedSize) || (transferProgressMap[file.name] ?: 0 >= 100)
                     
@@ -550,7 +562,19 @@ class MainActivity : Activity() {
                     ellipsize = android.text.TextUtils.TruncateAt.END
                     maxLines = 1
                 }
-                val expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                var expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                if (expectedSize == 0L) {
+                    val metaFile = File(file.parentFile, file.name + ".meta")
+                    if (metaFile.exists()) {
+                        try {
+                            val size = metaFile.readText().trim().toLong()
+                            if (size > 0L) {
+                                fileExpectedSizeMap[file.name] = size
+                                expectedSize = size
+                            }
+                        } catch (e: Exception) {}
+                    }
+                }
                 val currentSize = file.length()
                 val speedStr = transferSpeedMap[file.name] ?: ""
                 val sizeText = if (expectedSize > 0L) {

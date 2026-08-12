@@ -122,6 +122,10 @@ class BridgeService : Service() {
                     Log.i(tag, "Upload worker started file=${file.absolutePath}")
                     retry(3) { upload(file) }
                     if (file.exists() && !file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
+                    val metaFile = File(file.parentFile, file.name + ".meta")
+                    if (metaFile.exists()) {
+                        metaFile.delete()
+                    }
                     Log.i(tag, "Upload done and local file deleted: ${file.name}")
                     queueSuccess += 1
                 }

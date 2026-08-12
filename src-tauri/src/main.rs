@@ -532,6 +532,14 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         Err(_) => 1,
     };
 
+    let meta_path = format!("{}{}.meta", ANDROID_DIR, file_name);
+    let _ = adb(&[
+        "-s",
+        &device.id,
+        "shell",
+        &format!("echo {} > {}", total_size, meta_path),
+    ]);
+
     let _ = app.emit("transfer", TransferProgress {
         file: file_name.clone(),
         percent: 0,
