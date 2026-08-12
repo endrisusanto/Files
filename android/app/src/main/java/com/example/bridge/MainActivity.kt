@@ -280,13 +280,14 @@ class MainActivity : Activity() {
                 
                 progressContainer = LinearLayout(this@MainActivity).apply {
                     orientation = LinearLayout.VERTICAL
+                    layoutParams = ViewGroup.LayoutParams(-1, -2)
                 }
                 addView(progressContainer)
                 visibility = View.GONE
             }
 
-            contentFrame.addView(logsContainer)
-            contentFrame.addView(progressScrollView)
+            contentFrame.addView(logsContainer, FrameLayout.LayoutParams(-1, -1))
+            contentFrame.addView(progressScrollView, FrameLayout.LayoutParams(-1, -1))
             addView(contentFrame)
         }
 
@@ -460,6 +461,22 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun dpToPx(dp: Int): Int {
+        val density = resources.displayMetrics.density
+        return (dp * density).toInt()
+    }
+
+    private fun formatFileSize(size: Long): String {
+        val kb = size / 1024.0
+        val mb = kb / 1024.0
+        val gb = mb / 1024.0
+        return when {
+            gb >= 1.0 -> "%.2f GB".format(gb)
+            mb >= 1.0 -> "%.2f MB".format(mb)
+            else -> "%.2f KB".format(kb)
+        }
+    }
+
     private fun updateProgressList() {
         runOnUiThread {
             progressContainer.removeAllViews()
@@ -471,7 +488,7 @@ class MainActivity : Activity() {
                     textSize = 13f
                     setTextColor(0xffa1a1aa.toInt())
                     gravity = Gravity.CENTER
-                    setPadding(0, 40, 0, 40)
+                    setPadding(0, dpToPx(24), 0, dpToPx(24))
                 }
                 progressContainer.addView(emptyTv)
                 return@runOnUiThread
@@ -479,20 +496,23 @@ class MainActivity : Activity() {
             
             val curFile = BridgeService.currentFile
             val curProgress = BridgeService.currentProgress
+            val ringSize = dpToPx(48)
+            val ringMargin = dpToPx(8)
             
             for (file in files) {
                 // Each file item row layout
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, 16, 0, 16)
+                    setPadding(0, dpToPx(12), 0, dpToPx(12))
+                    layoutParams = LinearLayout.LayoutParams(-1, -2)
                 }
                 
                 // File info
                 val infoLayout = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     layoutParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
-                        rightMargin = 16
+                        rightMargin = dpToPx(12)
                     }
                 }
                 val nameTv = TextView(this).apply {
@@ -504,8 +524,7 @@ class MainActivity : Activity() {
                     maxLines = 1
                 }
                 val sizeTv = TextView(this).apply {
-                    val kb = file.length() / 1024.0
-                    text = "%.2f KB".format(kb)
+                    text = formatFileSize(file.length())
                     textSize = 10f
                     setTextColor(0xffa1a1aa.toInt())
                 }
@@ -516,8 +535,8 @@ class MainActivity : Activity() {
                 // Push Phone progress ring (100% since it exists in staging folder)
                 val phoneRing = RingProgressView(this).apply {
                     progress = 100
-                    layoutParams = LinearLayout.LayoutParams(96, 96).apply {
-                        rightMargin = 16
+                    layoutParams = LinearLayout.LayoutParams(ringSize, ringSize).apply {
+                        rightMargin = ringMargin
                     }
                 }
                 row.addView(phoneRing)
@@ -525,7 +544,7 @@ class MainActivity : Activity() {
                 // Push Samba progress ring
                 val sambaRing = RingProgressView(this).apply {
                     progress = if (file.name == curFile) curProgress else 0
-                    layoutParams = LinearLayout.LayoutParams(96, 96)
+                    layoutParams = LinearLayout.LayoutParams(ringSize, ringSize)
                 }
                 row.addView(sambaRing)
                 
@@ -534,7 +553,7 @@ class MainActivity : Activity() {
                 // Divider line
                 val divider = View(this).apply {
                     setBackgroundColor(0xff27272a.toInt())
-                    layoutParams = LinearLayout.LayoutParams(-1, 2)
+                    layoutParams = LinearLayout.LayoutParams(-1, dpToPx(1))
                 }
                 progressContainer.addView(divider)
             }
@@ -801,6 +820,8 @@ class MainActivity : Activity() {
             canvas.drawArc(rect, -90f, (progress * 3.6f), false, paint)
             
             // Draw text
+            val density = resources.displayMetrics.density
+            textPaint.textSize = 10f * density
             textPaint.color = Color.WHITE
             canvas.drawText("$progress%", cx, cy - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint)
         }
