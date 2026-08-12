@@ -467,6 +467,21 @@ export default function App() {
     return () => clearInterval(interval);
   }, [ws, info, devices, files, remoteDevices, transfer, phoneFiles]);
 
+  // Send active adb push progress to the Android device via WebSocket
+  useEffect(() => {
+    const selectedDevice = devices.find((d) => d.is_selected_bridge);
+    const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint);
+    if (ws && ws.readyState === WebSocket.OPEN && transfer && activeRemote) {
+      ws.send(JSON.stringify({
+        type: "command",
+        target: activeRemote.id,
+        command: "transfer_progress",
+        file: transfer.file,
+        percent: transfer.percent
+      }));
+    }
+  }, [ws, transfer, devices, remoteDevices]);
+
   async function refreshDevices() {
     if (isRefreshingDevicesRef.current) return;
     isRefreshingDevicesRef.current = true;

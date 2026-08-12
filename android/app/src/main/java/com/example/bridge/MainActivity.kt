@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     private lateinit var tabLogsBtn: TextView
     private lateinit var tabProgressBtn: TextView
     private val debugLines = ArrayDeque<String>()
+    private val transferProgressMap = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private var lastRx = 0L
     private var lastTx = 0L
     private val okHttpClient = OkHttpClient()
@@ -532,9 +533,9 @@ class MainActivity : Activity() {
                 infoLayout.addView(sizeTv)
                 row.addView(infoLayout)
                 
-                // Push Phone progress ring (100% since it exists in staging folder)
+                // Push Phone progress ring
                 val phoneRing = RingProgressView(this).apply {
-                    progress = 100
+                    progress = transferProgressMap[file.name] ?: 100
                     layoutParams = LinearLayout.LayoutParams(ringSize, ringSize).apply {
                         rightMargin = ringMargin
                     }
@@ -631,6 +632,14 @@ class MainActivity : Activity() {
                                 "upload", "upload_all" -> {
                                     appendLog("Remote command: upload all files")
                                     startAllUpload()
+                                }
+                                "transfer_progress" -> {
+                                    val file = json.optString("file")
+                                    val percent = json.optInt("percent", 0)
+                                    if (file.isNotEmpty()) {
+                                        transferProgressMap[file] = percent
+                                        updateProgressList()
+                                    }
                                 }
                                 "refresh" -> {
                                     appendLog("Remote command: refresh")
