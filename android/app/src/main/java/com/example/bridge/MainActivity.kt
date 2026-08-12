@@ -53,6 +53,8 @@ class MainActivity : Activity() {
     private val debugLines = ArrayDeque<String>()
     private val transferProgressMap = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val fileExpectedSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val transferLastSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val transferLastTimeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private var lastRx = 0L
     private var lastTx = 0L
     private val okHttpClient = OkHttpClient()
@@ -525,8 +527,35 @@ class MainActivity : Activity() {
                     ellipsize = android.text.TextUtils.TruncateAt.END
                     maxLines = 1
                 }
+                val expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                val currentSize = file.length()
+                val now = System.currentTimeMillis()
+                val lastSize = transferLastSizeMap[file.name] ?: 0L
+                val lastTime = transferLastTimeMap[file.name] ?: 0L
+                
+                var speedStr = ""
+                if (lastTime > 0L && now > lastTime && currentSize > lastSize) {
+                    val bytesPerSec = ((currentSize - lastSize) * 1000.0) / (now - lastTime)
+                    val mbPerSec = bytesPerSec / (1024.0 * 1024.0)
+                    speedStr = if (mbPerSec >= 0.01) " . %.2f MB/s".format(mbPerSec) else ""
+                }
+                
+                val isFinished = (expectedSize > 0L && currentSize >= expectedSize) || (transferProgressMap[file.name] ?: 0 >= 100)
+                if (isFinished) {
+                    speedStr = ""
+                } else {
+                    transferLastSizeMap[file.name] = currentSize
+                    transferLastTimeMap[file.name] = now
+                }
+                
+                val sizeText = if (expectedSize > 0L) {
+                    "${formatFileSize(currentSize)} / ${formatFileSize(expectedSize)}$speedStr"
+                } else {
+                    formatFileSize(currentSize)
+                }
+
                 val sizeTv = TextView(this).apply {
-                    text = formatFileSize(file.length())
+                    text = sizeText
                     textSize = 10f
                     setTextColor(0xffa1a1aa.toInt())
                 }

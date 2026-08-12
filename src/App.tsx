@@ -161,6 +161,9 @@ export default function App() {
   });
   const [pushedFiles, setPushedFiles] = useState<Set<string>>(new Set());
   const [phoneFiles, setPhoneFiles] = useState<Set<string>>(new Set());
+  const [pushSpeed, setPushSpeed] = useState("");
+  const lastTime = useRef(0);
+  const lastBytes = useRef(0);
   const filesRef = useRef<LocalFile[]>([]);
   useEffect(() => {
     filesRef.current = files;
@@ -296,6 +299,27 @@ export default function App() {
       listen<Transfer>("transfer", (e) => {
         console.info("[bridge-ui] transfer event", e.payload);
         appendLog(`transfer ${e.payload.file}: ${e.payload.message}`);
+        
+        // Calculate speed
+        const now = Date.now();
+        const fileObj = filesRef.current.find(f => f.name === e.payload.file);
+        if (fileObj) {
+          const currentBytes = (e.payload.percent / 100) * fileObj.size;
+          const timeDiff = now - lastTime.current;
+          if (timeDiff > 500 && currentBytes > lastBytes.current) {
+            const bytesPerSec = ((currentBytes - lastBytes.current) * 1000) / timeDiff;
+            const mbPerSec = bytesPerSec / (1024 * 1024);
+            setPushSpeed(mbPerSec >= 0.01 ? ` . ${mbPerSec.toFixed(2)} MB/s` : "");
+            lastTime.current = now;
+            lastBytes.current = currentBytes;
+          }
+        }
+        if (e.payload.percent >= 100) {
+          setPushSpeed("");
+          lastTime.current = 0;
+          lastBytes.current = 0;
+        }
+
         setTransfer((prev) => {
           if (prev && prev.file === e.payload.file && prev.percent === 100 && e.payload.percent < 100) {
             return prev;
@@ -929,7 +953,15 @@ export default function App() {
                       >
                         <div className="min-w-0 flex-1 pr-3">
                           <p className="text-xs font-bold text-gray-900 dark:text-zinc-200 truncate" title={f.name}>{f.name}</p>
-                          <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-0.5">{fileGb(f.size)}</p>
+                          <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-0.5">
+                            {isPushingThis ? (
+                              `${fileGb((transfer.percent / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed}`
+                            ) : isUploadingThis ? (
+                              `${fileGb((activeRemote.upload_percent / 100) * f.size)} / ${fileGb(f.size)}`
+                            ) : (
+                              fileGb(f.size)
+                            )}
+                          </p>
                         </div>
                         <div className="flex gap-3 flex-shrink-0">
                           <ProgressRing percent={phoneProgress} label="Push Phone" />
@@ -1145,7 +1177,7 @@ export default function App() {
                   />
                   <button
                     onClick={browseSource}
-                    className="ff-btn bg-gray-100 hover:bg-gray-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 border border-gray-200 dark:border-zinc-800 px-3 py-2 text-sm font-semibold transition text-gray-700 dark:text-zinc-300"
+                    className="ff-btn bg-white hover:bg-gray-100 text-gray-900 border border-gray-200 dark:border-zinc-800 px-3 py-2 text-sm font-semibold transition"
                   >
                     Browse
                   </button>
@@ -1157,7 +1189,7 @@ export default function App() {
               <button
                 disabled={diagLoading}
                 onClick={handleDiagnose}
-                className="ff-btn border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-[#2563eb] transition"
+                className="ff-btn bg-white hover:bg-gray-100 text-[#2563eb] border border-gray-200 dark:border-zinc-800 px-3 py-1.5 text-xs font-semibold transition"
               >
                 {diagLoading ? "Diagnosing..." : "🔧 Diagnose ADB"}
               </button>
@@ -1168,7 +1200,7 @@ export default function App() {
                     setDiagnostics("");
                     setShowSettings(false);
                   }}
-                  className="ff-btn bg-gray-100 hover:bg-gray-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 px-4 py-2 text-sm text-gray-750 dark:text-zinc-300 transition"
+                  className="ff-btn bg-white hover:bg-gray-100 text-gray-900 border border-gray-200 dark:border-zinc-800 px-4 py-2 text-sm font-semibold transition"
                 >
                   Cancel
                 </button>
@@ -1179,11 +1211,7 @@ export default function App() {
                     setDiagnostics("");
                     setShowSettings(false);
                   }}
-                  className={`ff-btn px-4 py-2 text-sm font-bold transition ${
-                    theme === 'dark' 
-                      ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 
-                      : "bg-[#2563eb] text-white hover:bg-blue-700"
-                  }`}
+                  className="ff-btn bg-white hover:bg-gray-100 text-gray-900 border border-gray-200 dark:border-zinc-800 px-4 py-2 text-sm font-bold transition"
                 >
                   Save Changes
                 </button>

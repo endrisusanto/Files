@@ -412,11 +412,9 @@ fn hide_main_window(app: &AppHandle) {
 
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
-    let close = MenuItemBuilder::with_id("close", "Close").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
     let menu = MenuBuilder::new(app)
         .item(&show)
-        .item(&close)
         .item(&quit)
         .build()?;
     let icon = app.default_window_icon().cloned().unwrap();
@@ -428,7 +426,6 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show" => show_main_window(app),
-            "close" => hide_main_window(app),
             "quit" => std::process::exit(0),
             _ => {}
         })
