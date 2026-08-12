@@ -31,7 +31,7 @@ class BridgeService : Service() {
     private val executor = Executors.newSingleThreadExecutor()
 
     companion object {
-        const val SMB_HOST = "192.168.10.221"
+        const val SMB_HOST = "192.168.10.177"
         const val SMB_SHARE = "sambashare"
 
         @Volatile var currentFile: String = ""

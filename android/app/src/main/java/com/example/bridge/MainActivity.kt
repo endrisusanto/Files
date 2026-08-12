@@ -345,12 +345,7 @@ class MainActivity : Activity() {
 
         adjustOrientationLayout()
 
-        setContentView(ScrollView(this).apply {
-            fitsSystemWindows = false
-            isFillViewport = true
-            setBackgroundColor(0xff09090b.toInt())
-            addView(rootLayout)
-        })
+        setContentView(rootLayout)
 
         // ponytail: hide status bar and navigation bar for immersive fullscreen (must be set after contentView)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -815,6 +810,9 @@ class MainActivity : Activity() {
             strokeWidth = 4f
             style = Paint.Style.STROKE
         }
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+        }
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xffd4d4d8.toInt()
             textSize = 30f
@@ -854,6 +852,21 @@ class MainActivity : Activity() {
                     path.cubicTo(cp1x, cp1y, cp2x, cp2y, x, y)
                 }
             }
+            
+            // Draw filled gradient first
+            val fillPath = android.graphics.Path(path).apply {
+                lineTo(width.toFloat(), height.toFloat())
+                lineTo(0f, height.toFloat())
+                close()
+            }
+            val shader = android.graphics.LinearGradient(
+                0f, 0f, 0f, height.toFloat(),
+                Color.argb(64, 147, 197, 253), Color.argb(0, 147, 197, 253),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+            fillPaint.shader = shader
+            canvas.drawPath(fillPath, fillPaint)
+            
             canvas.drawPath(path, paint)
         }
 

@@ -82,6 +82,11 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
     });
     return d;
   };
+  const fillPath = (key: keyof NetworkSample) => {
+    const linePath = path(key);
+    if (!linePath) return "";
+    return `${linePath} L ${width} ${height} L 0 ${height} Z`;
+  };
   const last = points[points.length - 1] ?? { rx_bps: 0, tx_bps: 0 };
 
   return (
@@ -94,6 +99,13 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
       </div>
       <svg className="h-24 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
         <rect width={width} height={height} fill="#09090b" rx="2" />
+        <defs>
+          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+        <path d={fillPath("tx_bps")} fill="url(#chartGrad)" />
         <path d={path("tx_bps")} fill="none" stroke="#93c5fd" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
     </section>
@@ -1111,7 +1123,7 @@ export default function App() {
                             <button
                               disabled={!isOnline || !ws}
                               onClick={() => {
-                                const host = window.prompt("Enter Samba Host IP:", d.target?.split("//")[1]?.split("/")[0] || "192.168.10.221");
+                                const host = window.prompt("Enter Samba Host IP:", d.target?.split("//")[1]?.split("/")[0] || "192.168.10.177");
                                 const share = window.prompt("Enter Samba Share Name:", d.target?.split("//")[1]?.split("/")[1] || "sambashare");
                                 if (host && share && ws) {
                                   ws.send(JSON.stringify({
