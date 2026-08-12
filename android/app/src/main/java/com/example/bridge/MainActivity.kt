@@ -231,10 +231,6 @@ class MainActivity : Activity() {
                 
                 tabLogsBtn = TextView(this@MainActivity).apply {
                     text = "System Logs"
-                    textSize = 14f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    setTextColor(Color.WHITE)
-                    setPadding(0, 0, 24, 8)
                     setOnClickListener {
                         activeTab = 0
                         updateTabVisibility()
@@ -243,18 +239,17 @@ class MainActivity : Activity() {
                 
                 tabProgressBtn = TextView(this@MainActivity).apply {
                     text = "Transfer Progress"
-                    textSize = 14f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    setTextColor(0xffa1a1aa.toInt())
-                    setPadding(0, 0, 0, 8)
                     setOnClickListener {
                         activeTab = 1
                         updateTabVisibility()
                     }
                 }
                 
-                addView(tabLogsBtn)
-                addView(tabProgressBtn)
+                styleTabButton(tabLogsBtn, true)
+                styleTabButton(tabProgressBtn, false)
+                
+                addView(tabLogsBtn, LinearLayout.LayoutParams(0, -2, 1.0f).apply { rightMargin = 8 })
+                addView(tabProgressBtn, LinearLayout.LayoutParams(0, -2, 1.0f))
             }
             addView(tabLayout, LinearLayout.LayoutParams(-1, -2))
 
@@ -432,17 +427,35 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun styleTabButton(button: TextView, isActive: Boolean) {
+        val gd = GradientDrawable().apply {
+            if (isActive) {
+                setColor(0xff2563eb.toInt())
+                setStroke(2, 0xff3b82f6.toInt())
+            } else {
+                setColor(0xff18181b.toInt())
+                setStroke(2, 0xff27272a.toInt())
+            }
+            cornerRadius = 16f
+        }
+        button.background = gd
+        button.setTextColor(Color.WHITE)
+        button.textSize = 12f
+        button.gravity = Gravity.CENTER
+        button.setPadding(24, 20, 24, 20)
+    }
+
     private fun updateTabVisibility() {
         if (activeTab == 0) {
             logsContainer.visibility = View.VISIBLE
             progressScrollView.visibility = View.GONE
-            tabLogsBtn.setTextColor(Color.WHITE)
-            tabProgressBtn.setTextColor(0xffa1a1aa.toInt())
+            styleTabButton(tabLogsBtn, true)
+            styleTabButton(tabProgressBtn, false)
         } else {
             logsContainer.visibility = View.GONE
             progressScrollView.visibility = View.VISIBLE
-            tabLogsBtn.setTextColor(0xffa1a1aa.toInt())
-            tabProgressBtn.setTextColor(Color.WHITE)
+            styleTabButton(tabLogsBtn, false)
+            styleTabButton(tabProgressBtn, true)
             updateProgressList()
         }
     }
