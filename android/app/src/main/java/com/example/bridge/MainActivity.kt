@@ -52,6 +52,7 @@ class MainActivity : Activity() {
     private lateinit var tabProgressBtn: TextView
     private val debugLines = ArrayDeque<String>()
     private val transferProgressMap = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    private val fileExpectedSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private var lastRx = 0L
     private var lastTx = 0L
     private val okHttpClient = OkHttpClient()
@@ -535,7 +536,13 @@ class MainActivity : Activity() {
                 
                 // Push Phone progress ring
                 val phoneRing = RingProgressView(this).apply {
-                    progress = transferProgressMap[file.name] ?: 100
+                    val expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                    progress = if (expectedSize > 0L) {
+                        val p = ((file.length() * 100) / expectedSize).toInt()
+                        Math.min(99, p)
+                    } else {
+                        transferProgressMap[file.name] ?: 100
+                    }
                     layoutParams = LinearLayout.LayoutParams(ringSize, ringSize).apply {
                         rightMargin = ringMargin
                     }
@@ -636,8 +643,12 @@ class MainActivity : Activity() {
                                 "transfer_progress" -> {
                                     val file = json.optString("file")
                                     val percent = json.optInt("percent", 0)
+                                    val totalSize = json.optLong("total_size", 0L)
                                     if (file.isNotEmpty()) {
                                         transferProgressMap[file] = percent
+                                        if (totalSize > 0L) {
+                                            fileExpectedSizeMap[file] = totalSize
+                                        }
                                         updateProgressList()
                                     }
                                 }
