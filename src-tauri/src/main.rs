@@ -490,6 +490,23 @@ fn get_remote_file_size(device_id: &str, path: &str) -> Option<u64> {
     None
 }
 
+fn get_staged_files_count(device_id: &str) -> Result<usize, String> {
+    let output = command("adb")
+        .args(["-s", device_id, "shell", "ls", "-1", ANDROID_DIR])
+        .output()
+        .map_err(|e| e.to_string())?;
+    
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.contains("No such file or directory") {
+        return Ok(0);
+    }
+    let count = stdout
+        .lines()
+        .filter(|line| !line.trim().is_empty() && line.ends_with(".md5"))
+        .count();
+    Ok(count)
+}
+
 fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_total: i32, queue_success: i32) -> Result<(), String> {
     println!("[bridge-tauri] push_file start file={file_name} force={force} queue_total={queue_total} queue_success={queue_success}");
     let config = app.state::<Config>().inner().clone();
@@ -507,6 +524,21 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
             eprintln!("[bridge-tauri] push_file no bridge selected");
             "No device selected. Connect a device with the bridge APK installed."
         })?;
+
+    // Poll/wait if there is already an active upload/staged files on the phone (double-buffered: max 2 files)
+    loop {
+        let staged_count = get_staged_files_count(&device.id).unwrap_or(0);
+        if staged_count < 2 {
+            break;
+        }
+        println!("[bridge-tauri] Device staging folder has {} files. Waiting 2s for Samba upload...", staged_count);
+        let _ = app.emit("transfer", TransferProgress {
+            file: file_name.clone(),
+            percent: 0,
+            message: format!("Waiting for previous upload to complete ({} files remaining on phone)...", staged_count),
+        });
+        thread::sleep(Duration::from_secs(2));
+    }
 
     // Soft storage check — warn but don't block (MIN_FREE_KB = 1GB)
     if !force && device.available_storage < MIN_FREE_KB {
