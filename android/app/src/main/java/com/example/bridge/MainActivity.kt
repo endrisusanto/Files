@@ -96,9 +96,6 @@ class MainActivity : Activity() {
         override fun run() {
             val rx = TrafficStats.getTotalRxBytes()
             val tx = TrafficStats.getTotalTxBytes()
-                if (lastRx > 0 && lastTx > 0) {
-                    val adbSpeed = adbPushSpeedMap.values.sum()
-                    val sample = Triple(max(0L, rx - lastRx), max(0L, tx - lastTx), adbSpeed)
             if (lastRx > 0 && lastTx > 0) {
                 val adbSpeed = adbPushSpeedMap.values.sum()
                 val sample = Triple(max(0L, rx - lastRx), max(0L, tx - lastTx), adbSpeed)
@@ -1406,5 +1403,5 @@ class MainActivity : Activity() {
         }
     }
 }
-}
+
 
