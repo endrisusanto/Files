@@ -21,7 +21,7 @@ type LocalFile = {
 };
 
 type Transfer = { file: string; percent: number; message: string };
-type NetworkSample = { rx_bps: number; tx_bps: number };
+type NetworkSample = { rx_bps: number; tx_bps: number; adb_push_bps?: number };
 type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean; hostname: string };
 
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
@@ -30,23 +30,20 @@ const statusClass = (status: string | undefined | null) => {
   if (!status || typeof status !== "string") {
     return "border-zinc-800 bg-zinc-900 text-zinc-400";
   }
-  if (status.includes("Pushing to Phone")) {
-    return "border-blue-800 bg-blue-950 text-blue-300 animate-pulse";
-  }
-  if (status.includes("Uploading to Samba")) {
-    return "border-cyan-800 bg-cyan-950 text-cyan-300 animate-pulse";
-  }
-  switch (status) {
-    case "Ready":
-      return "border-zinc-800 bg-zinc-900 text-zinc-400";
-    case "Staged on Phone":
+  switch (status.toLowerCase()) {
+    case "active":
+    case "connected":
+    case "ok":
+    case "ready":
+      return "border-emerald-800 bg-emerald-950 text-emerald-300";
+    case "connecting":
+    case "syncing":
+    case "pushing":
       return "border-amber-800 bg-amber-950 text-amber-300";
-    case "Transfer Complete":
-      return "border-green-800 bg-green-950 text-green-300";
-    case "Already in Destination":
-      // ponytail: file pre-existed in samba folder, skippable
-      return "border-violet-800 bg-violet-950 text-violet-300";
-    case "Locked":
+    case "error":
+    case "failed":
+    case "offline":
+    case "unreachable":
       return "border-red-800 bg-red-950 text-red-300";
     default:
       return "border-zinc-800 bg-zinc-900 text-zinc-400";
@@ -57,22 +54,24 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   const width = 600;
   const height = 80;
   const points = [
-    ...Array.from({ length: 300 }, () => ({ rx_bps: 0, tx_bps: 0 })),
+    ...Array.from({ length: 300 }, () => ({ rx_bps: 0, tx_bps: 0, adb_push_bps: 0 })),
     ...samples
   ].slice(-300);
-  const max = Math.max(1, ...points.map((p) => p.tx_bps));
+  const max = Math.max(1, ...points.map((p) => Math.max(p.tx_bps || 0, p.adb_push_bps || 0)));
   
   const path = (key: keyof NetworkSample) => {
     if (points.length === 0) return "";
     let d = "";
     points.forEach((p, i) => {
+      const val = (p[key] || 0) as number;
       const x = points.length <= 1 ? 0 : (i / (points.length - 1)) * width;
-      const y = height - (p[key as keyof NetworkSample] / max) * height;
+      const y = height - (val / max) * height;
       if (i === 0) {
         d += `M ${x.toFixed(1)} ${y.toFixed(1)}`;
       } else {
+        const prevVal = (points[i - 1][key] || 0) as number;
         const prevX = ((i - 1) / (points.length - 1)) * width;
-        const prevY = height - (points[i - 1][key as keyof NetworkSample] / max) * height;
+        const prevY = height - (prevVal / max) * height;
         const cpX1 = prevX + (x - prevX) / 2;
         const cpY1 = prevY;
         const cpX2 = prevX + (x - prevX) / 2;
@@ -87,26 +86,33 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
     if (!linePath) return "";
     return `${linePath} L ${width} ${height} L 0 ${height} Z`;
   };
-  const last = points[points.length - 1] ?? { rx_bps: 0, tx_bps: 0 };
+  const last = points[points.length - 1] ?? { rx_bps: 0, tx_bps: 0, adb_push_bps: 0 };
 
   return (
     <section className="mb-3 rounded border border-zinc-800 bg-zinc-900 p-2 font-mono">
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-xs font-semibold text-zinc-400">Realtime Network Traffic</h2>
         <div className="flex gap-4 text-[10px] tracking-wider">
-          <span className="text-blue-300">Upload: {speed(last.tx_bps)}</span>
+          <span className="text-blue-300">Samba Upload: {speed(last.tx_bps)}</span>
+          <span className="text-orange-400">ADB Push: {speed(last.adb_push_bps || 0)}</span>
         </div>
       </div>
       <svg className="h-24 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
         <rect width={width} height={height} fill="#09090b" rx="2" />
         <defs>
-          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="chartGradSamba" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.25" />
             <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.0" />
           </linearGradient>
+          <linearGradient id="chartGradAdb" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f97316" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
+          </linearGradient>
         </defs>
-        <path d={fillPath("tx_bps")} fill="url(#chartGrad)" />
+        <path d={fillPath("tx_bps")} fill="url(#chartGradSamba)" />
         <path d={path("tx_bps")} fill="none" stroke="#93c5fd" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <path d={fillPath("adb_push_bps")} fill="url(#chartGradAdb)" />
+        <path d={path("adb_push_bps")} fill="none" stroke="#f97316" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
     </section>
   );
@@ -174,6 +180,7 @@ export default function App() {
   const [pushedFiles, setPushedFiles] = useState<Set<string>>(new Set());
   const [phoneFiles, setPhoneFiles] = useState<Set<string>>(new Set());
   const [pushSpeed, setPushSpeed] = useState("");
+  const adbPushBpsRef = useRef(0);
   const lastTime = useRef(0);
   const lastBytes = useRef(0);
   const filesRef = useRef<LocalFile[]>([]);
@@ -322,12 +329,14 @@ export default function App() {
             const bytesPerSec = ((currentBytes - lastBytes.current) * 1000) / timeDiff;
             const mbPerSec = bytesPerSec / (1024 * 1024);
             setPushSpeed(mbPerSec >= 0.01 ? ` . ${mbPerSec.toFixed(2)} MB/s` : "");
+            adbPushBpsRef.current = mbPerSec >= 0.01 ? bytesPerSec : 0;
             lastTime.current = now;
             lastBytes.current = currentBytes;
           }
         }
         if (e.payload.percent >= 100) {
           setPushSpeed("");
+          adbPushBpsRef.current = 0;
           lastTime.current = 0;
           lastBytes.current = 0;
         }
@@ -350,6 +359,23 @@ export default function App() {
       clearInterval(devicesInterval);
       void Promise.all(unsubs).then((fns) => fns.forEach((fn) => fn()));
     };
+  }, []);
+
+  // Periodic network chart sampler for ADB Push speed
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const activeAdbBps = adbPushBpsRef.current;
+      setNetwork((current) => {
+        const last = current[current.length - 1] || { rx_bps: 0, tx_bps: 0, adb_push_bps: 0 };
+        const newSample: NetworkSample = {
+          rx_bps: last.rx_bps,
+          tx_bps: last.tx_bps,
+          adb_push_bps: activeAdbBps
+        };
+        return [...current.slice(-299), newSample];
+      });
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
