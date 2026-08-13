@@ -1317,9 +1317,57 @@ class MainActivity : Activity() {
             outlinePaint.strokeWidth = 3f
             canvas.drawRoundRect(bodyRect, 6f, 6f, outlinePaint)
             
-            val total = BridgeService.queueTotal
-            val success = BridgeService.queueSuccess
-            val percent = if (total > 0) (success.toFloat() / total.toFloat()) else 0f
+            var percent = 0f
+            val tauriFiles = lastTauriFiles
+            if (tauriFiles != null && tauriFiles.length() > 0) {
+                var totalRings = 0
+                var completedRings = 0f
+                for (i in 0 until tauriFiles.length()) {
+                    val f = tauriFiles.optJSONObject(i) ?: continue
+                    val fStatus = f.optString("status", "-")
+                    totalRings += 2
+                    
+                    if (fStatus == "Transfer Complete" || fStatus == "Already in Destination") {
+                        completedRings += 2f
+                    } else {
+                        var phoneProgress = 0
+                        var sambaProgress = 0
+                        if (fStatus.startsWith("Pushing to Phone")) {
+                            val re = Regex("""\((\d+)%\)""")
+                            val match = re.find(fStatus)
+                            phoneProgress = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        } else if (fStatus == "Staged on Phone") {
+                            phoneProgress = 100
+                        } else if (fStatus.startsWith("Uploading to Samba")) {
+                            phoneProgress = 100
+                            val re = Regex("""\((\d+)%\)""")
+                            val match = re.find(fStatus)
+                            sambaProgress = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        }
+                        completedRings += (phoneProgress / 100f) + (sambaProgress / 100f)
+                    }
+                }
+                if (totalRings > 0) {
+                    percent = completedRings / totalRings
+                }
+            } else {
+                val files = md5Files()
+                val totalRings = files.size * 2
+                var completedRings = 0f
+                val curFile = BridgeService.currentFile
+                val curProgress = BridgeService.currentProgress
+                for (file in files) {
+                    var expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                    if (expectedSize == 0L) expectedSize = file.length()
+                    val p = if (expectedSize > 0L) ((file.length() * 100) / expectedSize).toInt() else 100
+                    val phoneProgress = Math.min(100, p)
+                    val sambaProgress = if (file.name == curFile) curProgress else 0
+                    completedRings += (phoneProgress / 100f) + (sambaProgress / 100f)
+                }
+                if (totalRings > 0) {
+                    percent = completedRings / totalRings
+                }
+            }
             
             if (percent > 0f) {
                 val inset = 4f
