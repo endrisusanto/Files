@@ -579,7 +579,7 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
     });
 
     let mut child = command("adb")
-        .args(["-s", &device.id, "push"])
+        .args(["-s", &device.id, "push", "-p"])
         .arg(&source)
         .arg(ANDROID_DIR)
         .stderr(Stdio::piped())
