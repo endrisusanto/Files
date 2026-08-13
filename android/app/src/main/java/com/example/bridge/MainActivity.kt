@@ -53,6 +53,9 @@ class MainActivity : Activity() {
     private lateinit var rootLayout: LinearLayout
     private lateinit var leftColumn: LinearLayout
     private lateinit var rightColumn: LinearLayout
+    private lateinit var leftExpandBar: LinearLayout
+    private lateinit var collapseBtn: TextView
+    private lateinit var leftDetailsContainer: LinearLayout
     private val debugLines = ArrayDeque<String>()
     private val transferProgressMap = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val fileExpectedSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
@@ -207,7 +210,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.LEFT
             
-            val leftDetailsContainer = LinearLayout(this@MainActivity).apply {
+            leftDetailsContainer = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 
                 addView(LinearLayout(this@MainActivity).apply {
@@ -258,26 +261,32 @@ class MainActivity : Activity() {
                     textSize = 20f
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
                     setTextColor(0xfffafafa.toInt())
-                }
-                
-                val toggleBtn = TextView(this@MainActivity).apply {
-                    text = "[-] Minimize"
-                    textSize = 12f
-                    setTextColor(0xff3b82f6.toInt())
-                    setPadding(16, 8, 16, 8)
                     setOnClickListener {
-                        if (leftDetailsContainer.visibility == View.VISIBLE) {
-                            leftDetailsContainer.visibility = View.GONE
-                            text = "[+] Show Details"
-                        } else {
-                            leftDetailsContainer.visibility = View.VISIBLE
-                            text = "[-] Minimize"
+                        val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                        if (!isLandscape) {
+                            // In portrait, toggle details visibility
+                            if (leftDetailsContainer.visibility == View.VISIBLE) {
+                                leftDetailsContainer.visibility = View.GONE
+                            } else {
+                                leftDetailsContainer.visibility = View.VISIBLE
+                            }
                         }
                     }
                 }
                 
+                collapseBtn = TextView(this@MainActivity).apply {
+                    text = "Minimize"
+                    textSize = 12f
+                    setTextColor(0xff3b82f6.toInt())
+                    setPadding(16, 8, 16, 8)
+                    setOnClickListener {
+                        leftColumn.visibility = View.GONE
+                        leftExpandBar.visibility = View.VISIBLE
+                    }
+                }
+                
                 addView(titleTv, LinearLayout.LayoutParams(0, -2, 1.0f))
-                addView(toggleBtn, LinearLayout.LayoutParams(-2, -2))
+                addView(collapseBtn, LinearLayout.LayoutParams(-2, -2))
             }
             
             addView(titleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
@@ -366,6 +375,34 @@ class MainActivity : Activity() {
             contentFrame.addView(logsContainer, FrameLayout.LayoutParams(-1, -1))
             contentFrame.addView(progressScrollView, FrameLayout.LayoutParams(-1, -1))
             addView(contentFrame)
+        }
+
+        leftExpandBar = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(0xff18181b.toInt())
+            val gd = GradientDrawable().apply {
+                setColor(0xff18181b.toInt())
+                setStroke(2, 0xff27272a.toInt())
+            }
+            background = gd
+            setPadding(dpToPx(8), dpToPx(24), dpToPx(8), dpToPx(24))
+            visibility = View.GONE
+            
+            val verticalText = "Android File Bridge".map { if (it == ' ') "\n" else it.toString() }.joinToString("\n")
+            val verticalTitle = TextView(this@MainActivity).apply {
+                text = verticalText
+                textSize = 12f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                setTextColor(0xfffafafa.toInt())
+                gravity = Gravity.CENTER
+            }
+            addView(verticalTitle)
+            
+            setOnClickListener {
+                leftColumn.visibility = View.VISIBLE
+                leftExpandBar.visibility = View.GONE
+            }
         }
 
         rootLayout = LinearLayout(this).apply {
@@ -949,7 +986,7 @@ class MainActivity : Activity() {
     }
 
     private fun adjustOrientationLayout() {
-        if (!::rootLayout.isInitialized || !::leftColumn.isInitialized || !::rightColumn.isInitialized) return
+        if (!::rootLayout.isInitialized || !::leftColumn.isInitialized || !::rightColumn.isInitialized || !::leftExpandBar.isInitialized || !::collapseBtn.isInitialized || !::leftDetailsContainer.isInitialized) return
         
         rootLayout.removeAllViews()
         val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -958,17 +995,34 @@ class MainActivity : Activity() {
             rootLayout.orientation = LinearLayout.HORIZONTAL
             rootLayout.setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
             
+            collapseBtn.visibility = View.VISIBLE
+            leftDetailsContainer.visibility = View.VISIBLE
+            
+            val barParams = LinearLayout.LayoutParams(dpToPx(40), -1).apply {
+                rightMargin = dpToPx(16)
+            }
             val leftParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
                 rightMargin = dpToPx(16)
                 topMargin = 0
             }
             val rightParams = LinearLayout.LayoutParams(0, -1, 1.2f)
             
+            rootLayout.addView(leftExpandBar, barParams)
             rootLayout.addView(leftColumn, leftParams)
             rootLayout.addView(rightColumn, rightParams)
+            
+            if (leftColumn.visibility == View.GONE) {
+                leftExpandBar.visibility = View.VISIBLE
+            } else {
+                leftExpandBar.visibility = View.GONE
+            }
         } else {
             rootLayout.orientation = LinearLayout.VERTICAL
             rootLayout.setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+            
+            leftExpandBar.visibility = View.GONE
+            leftColumn.visibility = View.VISIBLE
+            collapseBtn.visibility = View.GONE
             
             val rightParams = LinearLayout.LayoutParams(-1, 0, 1.0f)
             val leftParams = LinearLayout.LayoutParams(-1, -2).apply {
