@@ -99,14 +99,17 @@ class MainActivity : Activity() {
                 if (lastRx > 0 && lastTx > 0) {
                     val adbSpeed = adbPushSpeedMap.values.sum()
                     val sample = Triple(max(0L, rx - lastRx), max(0L, tx - lastTx), adbSpeed)
-                    networkHistory.add(sample)
-                    if (networkHistory.size > 60) networkHistory.removeAt(0)
-                    networkChart.invalidate()
-                    sendWebSocketSample(sample.first, sample.second)
-                }
-                lastRx = rx
-                lastTx = tx
+            if (lastRx > 0 && lastTx > 0) {
+                val adbSpeed = adbPushSpeedMap.values.sum()
+                val sample = Triple(max(0L, rx - lastRx), max(0L, tx - lastTx), adbSpeed)
+                networkHistory.add(sample)
+                if (networkHistory.size > 60) networkHistory.removeAt(0)
+                networkChart.invalidate()
+                sendWebSocketSample(sample.first, sample.second)
             }
+            lastRx = rx
+            lastTx = tx
+            
             if (activeTab == 1) {
                 val files = md5Files()
                 val now = System.currentTimeMillis()
@@ -1403,3 +1406,5 @@ class MainActivity : Activity() {
         }
     }
 }
+}
+
