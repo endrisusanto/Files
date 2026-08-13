@@ -206,9 +206,18 @@ class MonitorActivity : Activity() {
 
         val mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setPadding(dp(16), dp(36), dp(16), dp(16))
         }
         root.addView(mainLayout)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            root.setOnApplyWindowInsetsListener { _, insets ->
+                val statusBarTop = insets.getInsets(WindowInsets.Type.statusBars()).top
+                val navBarBottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+                mainLayout.setPadding(dp(16), maxOf(dp(36), statusBarTop + dp(12)), dp(16), maxOf(dp(16), navBarBottom + dp(12)))
+                insets
+            }
+        }
 
         // Header Title with Settings Gear Icon ⚙
         val headerLayout = LinearLayout(this).apply {
