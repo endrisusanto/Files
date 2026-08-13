@@ -814,7 +814,20 @@ export default function App() {
                   }
 
                   const isCompleted = displayStatus === "Transfer Complete" || displayStatus === "Already in Destination";
-                  const progress = transfer?.file === f.name ? Math.max(0, Math.min(100, transfer.percent)) : 0;
+                  
+                  let phoneProgress = 0;
+                  if (isPushed || isUploaded) {
+                    phoneProgress = 100;
+                  } else if (isPushingThis) {
+                    phoneProgress = transfer.percent;
+                  }
+
+                  let sambaProgress = 0;
+                  if (isUploaded) {
+                    sambaProgress = 100;
+                  } else if (isUploadingThis) {
+                    sambaProgress = activeRemote.upload_percent;
+                  }
 
                   return (
                     <div 
@@ -828,16 +841,43 @@ export default function App() {
                       <div className="min-w-0 mb-2">
                         <p className={`break-all font-semibold text-xs leading-tight ${isCompleted ? "text-white" : "text-gray-900 dark:text-zinc-200"}`}>{f.name}</p>
                         <p className={`text-[10px] mt-0.5 ${isCompleted ? "text-green-100" : "text-gray-400 dark:text-zinc-500"}`}>
-                          {fileGb(f.size)}
+                          {isPushingThis ? (
+                            `${fileGb((transfer.percent / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed}`
+                          ) : isUploadingThis ? (
+                            `${fileGb((activeRemote.upload_percent / 100) * f.size)} / ${fileGb(f.size)}`
+                          ) : (
+                            fileGb(f.size)
+                          )}
                         </p>
                       </div>
 
-                      {isPushingThis && (
-                        <div className="mb-3 w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-1 overflow-hidden">
-                          <div 
-                            className="bg-[#2563eb] h-1 rounded-full transition-all duration-300" 
-                            style={{ width: `${progress}%` }}
-                          />
+                      {phoneProgress > 0 && phoneProgress < 100 && (
+                        <div className="mb-2 w-full">
+                          <div className="flex justify-between text-[9px] mb-0.5 text-gray-400 dark:text-zinc-500 font-bold uppercase tracking-wider">
+                            <span>Push to Phone</span>
+                            <span>{phoneProgress}%</span>
+                          </div>
+                          <div className="bg-gray-150 dark:bg-zinc-800/80 rounded-full h-1 overflow-hidden">
+                            <div 
+                              className="bg-[#2563eb] h-1 rounded-full transition-all duration-300" 
+                              style={{ width: `${phoneProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {sambaProgress > 0 && sambaProgress < 100 && (
+                        <div className="mb-2 w-full">
+                          <div className="flex justify-between text-[9px] mb-0.5 text-gray-400 dark:text-zinc-500 font-bold uppercase tracking-wider">
+                            <span>Upload to Samba</span>
+                            <span>{sambaProgress}%</span>
+                          </div>
+                          <div className="bg-gray-150 dark:bg-zinc-800/80 rounded-full h-1 overflow-hidden">
+                            <div 
+                              className="bg-[#16a34a] h-1 rounded-full transition-all duration-300" 
+                              style={{ width: `${sambaProgress}%` }}
+                            />
+                          </div>
                         </div>
                       )}
 
