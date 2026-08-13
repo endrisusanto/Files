@@ -389,15 +389,10 @@ class MainActivity : Activity() {
             setPadding(dpToPx(8), dpToPx(24), dpToPx(8), dpToPx(24))
             visibility = View.GONE
             
-            val verticalText = "Android File Bridge".map { if (it == ' ') "\n" else it.toString() }.joinToString("\n")
-            val verticalTitle = TextView(this@MainActivity).apply {
-                text = verticalText
-                textSize = 12f
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-                setTextColor(0xfffafafa.toInt())
-                gravity = Gravity.CENTER
+            val waveView = WaveBarView(this@MainActivity).apply {
+                layoutParams = LinearLayout.LayoutParams(-1, -1)
             }
-            addView(verticalTitle)
+            addView(waveView)
             
             setOnClickListener {
                 leftColumn.visibility = View.VISIBLE
@@ -411,6 +406,7 @@ class MainActivity : Activity() {
         }
 
         adjustOrientationLayout()
+        setupSwipeGestures()
 
         setContentView(rootLayout)
 
@@ -998,6 +994,10 @@ class MainActivity : Activity() {
             collapseBtn.visibility = View.VISIBLE
             leftDetailsContainer.visibility = View.VISIBLE
             
+            networkChart.layoutParams = LinearLayout.LayoutParams(-1, 0, 1.0f).apply {
+                bottomMargin = dpToPx(8)
+            }
+            
             val barParams = LinearLayout.LayoutParams(dpToPx(40), -1).apply {
                 rightMargin = dpToPx(16)
             }
@@ -1024,6 +1024,10 @@ class MainActivity : Activity() {
             leftColumn.visibility = View.VISIBLE
             collapseBtn.visibility = View.GONE
             
+            networkChart.layoutParams = LinearLayout.LayoutParams(-1, dpToPx(120)).apply {
+                bottomMargin = dpToPx(12)
+            }
+            
             val rightParams = LinearLayout.LayoutParams(-1, 0, 1.0f)
             val leftParams = LinearLayout.LayoutParams(-1, -2).apply {
                 topMargin = dpToPx(16)
@@ -1038,5 +1042,116 @@ class MainActivity : Activity() {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         adjustOrientationLayout()
+    }
+
+    private fun setupSwipeGestures() {
+        var startX = 0f
+        var startY = 0f
+        
+        val leftColumnTouchListener = View.OnTouchListener { v, event ->
+            val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            if (!isLandscape) return@OnTouchListener false
+            
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.x
+                    startY = event.y
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    val deltaX = event.x - startX
+                    val deltaY = event.y - startY
+                    if (deltaX < -150f && Math.abs(deltaY) < 150f) {
+                        leftColumn.visibility = View.GONE
+                        leftExpandBar.visibility = View.VISIBLE
+                        true
+                    } else {
+                        v.performClick()
+                        false
+                    }
+                }
+                else -> false
+            }
+        }
+        leftColumn.setOnTouchListener(leftColumnTouchListener)
+        
+        val expandBarTouchListener = View.OnTouchListener { v, event ->
+            val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            if (!isLandscape) return@OnTouchListener false
+            
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.x
+                    startY = event.y
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    val deltaX = event.x - startX
+                    val deltaY = event.y - startY
+                    if (deltaX > 100f && Math.abs(deltaY) < 150f) {
+                        leftColumn.visibility = View.VISIBLE
+                        leftExpandBar.visibility = View.GONE
+                        true
+                    } else {
+                        v.performClick()
+                        false
+                    }
+                }
+                else -> false
+            }
+        }
+        leftExpandBar.setOnTouchListener(expandBarTouchListener)
+    }
+
+    inner class WaveBarView(context: Context) : View(context) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(147, 197, 253)
+            strokeWidth = 6f
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+        }
+        private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(64, 37, 99, 235)
+            strokeWidth = 14f
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+        }
+        private var phase = 0f
+        
+        init {
+            post(object : Runnable {
+                override fun run() {
+                    phase += 0.05f
+                    if (phase > 2.0 * Math.PI) {
+                        phase -= (2.0 * Math.PI).toFloat()
+                    }
+                    invalidate()
+                    postDelayed(this, 30)
+                }
+            })
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val w = width.toFloat()
+            val h = height.toFloat()
+            val path = android.graphics.Path()
+            val shadowPath = android.graphics.Path()
+            
+            val cx = w / 2f
+            for (y in 0..height.toInt() step 10) {
+                val x = cx + Math.sin(y.toDouble() * 0.02 + phase).toFloat() * 12f
+                if (y == 0) {
+                    path.moveTo(x, y.toFloat())
+                    shadowPath.moveTo(x, y.toFloat())
+                } else {
+                    path.lineTo(x, y.toFloat())
+                    shadowPath.lineTo(x, y.toFloat())
+                }
+            }
+            
+            canvas.drawPath(shadowPath, shadowPaint)
+            canvas.drawPath(path, paint)
+        }
     }
 }
