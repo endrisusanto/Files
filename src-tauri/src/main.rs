@@ -528,7 +528,7 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
     // Poll/wait if there is already an active upload/staged files on the phone (double-buffered: max 2 files)
     loop {
         let staged_count = get_staged_files_count(&device.id).unwrap_or(0);
-        if staged_count < 2 {
+        if staged_count < 3 {
             break;
         }
         println!("[bridge-tauri] Device staging folder has {} files. Waiting 2s for Samba upload...", staged_count);

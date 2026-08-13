@@ -207,51 +207,81 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.LEFT
             
-            addView(TextView(this@MainActivity).apply {
-                text = "Android File Bridge"
-                textSize = 22f
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-                setTextColor(0xfffafafa.toInt())
-                setPadding(0, 0, 0, 8)
-            }, LinearLayout.LayoutParams(-1, -2))
-
-            addView(LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.LEFT
-                setPadding(0, 0, 0, 16)
-                addView(badge)
-            }, LinearLayout.LayoutParams(-1, -2))
-
-            // Status Panel Card
-            addView(LinearLayout(this@MainActivity).apply {
+            val leftDetailsContainer = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.VERTICAL
-                val bg = GradientDrawable().apply {
-                    setColor(0xff18181b.toInt())
-                    cornerRadius = 16f
-                    setStroke(2, 0xff27272a.toInt())
+                
+                addView(LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.LEFT
+                    setPadding(0, 0, 0, 16)
+                    addView(badge)
+                }, LinearLayout.LayoutParams(-1, -2))
+
+                // Status Panel Card
+                addView(LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    val bg = GradientDrawable().apply {
+                        setColor(0xff18181b.toInt())
+                        cornerRadius = 16f
+                        setStroke(2, 0xff27272a.toInt())
+                    }
+                    background = bg
+                    setPadding(24, 24, 24, 24)
+                    addView(status)
+                }, LinearLayout.LayoutParams(-1, -2))
+
+                // Buttons 2x2 Grid
+                val row1 = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    addView(upload, LinearLayout.LayoutParams(0, -2, 1.0f).apply { rightMargin = 8 })
+                    addView(testSamba, LinearLayout.LayoutParams(0, -2, 1.0f))
                 }
-                background = bg
-                setPadding(24, 24, 24, 24)
-                addView(status)
-            }, LinearLayout.LayoutParams(-1, -2))
+                val row2 = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    addView(settings, LinearLayout.LayoutParams(0, -2, 1.0f).apply { rightMargin = 8 })
+                    addView(refresh, LinearLayout.LayoutParams(0, -2, 1.0f))
+                }
+                addView(LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(0, 24, 0, 0)
+                    addView(row1, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
+                    addView(row2, LinearLayout.LayoutParams(-1, -2))
+                }, LinearLayout.LayoutParams(-1, -2))
+            }
 
-            // Buttons 2x2 Grid
-            val row1 = LinearLayout(this@MainActivity).apply {
+            val titleRow = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
-                addView(upload, LinearLayout.LayoutParams(0, -2, 1.0f).apply { rightMargin = 8 })
-                addView(testSamba, LinearLayout.LayoutParams(0, -2, 1.0f))
+                gravity = Gravity.CENTER_VERTICAL
+                
+                val titleTv = TextView(this@MainActivity).apply {
+                    text = "Android File Bridge"
+                    textSize = 20f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setTextColor(0xfffafafa.toInt())
+                }
+                
+                val toggleBtn = TextView(this@MainActivity).apply {
+                    text = "[-] Minimize"
+                    textSize = 12f
+                    setTextColor(0xff3b82f6.toInt())
+                    setPadding(16, 8, 16, 8)
+                    setOnClickListener {
+                        if (leftDetailsContainer.visibility == View.VISIBLE) {
+                            leftDetailsContainer.visibility = View.GONE
+                            text = "[+] Show Details"
+                        } else {
+                            leftDetailsContainer.visibility = View.VISIBLE
+                            text = "[-] Minimize"
+                        }
+                    }
+                }
+                
+                addView(titleTv, LinearLayout.LayoutParams(0, -2, 1.0f))
+                addView(toggleBtn, LinearLayout.LayoutParams(-2, -2))
             }
-            val row2 = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                addView(settings, LinearLayout.LayoutParams(0, -2, 1.0f).apply { rightMargin = 8 })
-                addView(refresh, LinearLayout.LayoutParams(0, -2, 1.0f))
-            }
-            addView(LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(0, 24, 0, 0)
-                addView(row1, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
-                addView(row2, LinearLayout.LayoutParams(-1, -2))
-            }, LinearLayout.LayoutParams(-1, -2))
+            
+            addView(titleRow, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
+            addView(leftDetailsContainer, LinearLayout.LayoutParams(-1, -2))
         }
 
         // Right Panel (Column 2)
