@@ -26,7 +26,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class NetworkChartView @JvmOverloads constructor(
+class MonitorNetworkChartView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
@@ -181,7 +181,7 @@ class MonitorActivity : Activity() {
     private var serverUrl = "wss://files.endrisusanto.my.id/"
     private var isWebOnline = false
 
-    private lateinit var chartView: NetworkChartView
+    private lateinit var chartView: MonitorNetworkChartView
     private lateinit var tauriContainer: LinearLayout
     private lateinit var androidContainer: LinearLayout
 
@@ -254,7 +254,7 @@ class MonitorActivity : Activity() {
         }
         mainLayout.addView(chartHeader)
 
-        chartView = NetworkChartView(this).apply {
+        chartView = MonitorNetworkChartView(this).apply {
             background = createCardDrawable("#18181b", "#27272a")
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(150)).apply {
                 bottomMargin = dp(16)
