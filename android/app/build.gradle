@@ -20,8 +20,8 @@ android {
         applicationId "com.example.bridge"
         minSdk 26
         targetSdk 35
-        versionCode 247
-        versionName "0.1.147"
+        versionCode 248
+        versionName "0.1.148"
     }
 
     flavorDimensions "mode"
