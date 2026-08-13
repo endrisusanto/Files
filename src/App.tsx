@@ -508,15 +508,28 @@ export default function App() {
     const selectedDevice = devices.find((d) => d.is_selected_bridge);
     const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint);
     if (ws && ws.readyState === WebSocket.OPEN && transfer && activeRemote) {
+      const fObj = (files || []).find((f) => f.name === transfer.file);
+      const totalSize = fObj ? fObj.size : 0;
+      
+      let speedMbps = 0;
+      if (pushSpeed) {
+        const match = pushSpeed.match(/([\d.]+)\s*MB\/s/);
+        if (match) {
+          speedMbps = parseFloat(match[1]);
+        }
+      }
+
       ws.send(JSON.stringify({
         type: "command",
         target: activeRemote.id,
         command: "transfer_progress",
         file: transfer.file,
-        percent: transfer.percent
+        percent: transfer.percent,
+        total_size: totalSize,
+        speed_mbps: speedMbps
       }));
     }
-  }, [ws, transfer, devices, remoteDevices]);
+  }, [ws, transfer, devices, remoteDevices, pushSpeed, files]);
 
   async function refreshDevices() {
     if (isRefreshingDevicesRef.current) return;

@@ -39,7 +39,7 @@ import kotlin.math.max
 class MainActivity : Activity() {
     private val tag = "Bridge"
     private val handler = Handler(Looper.getMainLooper())
-    private val networkHistory = mutableListOf<Pair<Long, Long>>()
+    private val networkHistory = mutableListOf<Triple<Long, Long, Long>>()
     private val localDir by lazy { File(getExternalFilesDir(null), "SUBRO") }
     private lateinit var badge: TextView
     private lateinit var debugLog: TextView
@@ -66,6 +66,7 @@ class MainActivity : Activity() {
     private val transferLastSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val transferLastTimeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val transferSpeedMap = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val adbPushSpeedMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private var lastRx = 0L
     private var lastTx = 0L
     private val okHttpClient = OkHttpClient()
@@ -95,9 +96,9 @@ class MainActivity : Activity() {
         override fun run() {
             val rx = TrafficStats.getTotalRxBytes()
             val tx = TrafficStats.getTotalTxBytes()
-            if (rx != TrafficStats.UNSUPPORTED.toLong() && tx != TrafficStats.UNSUPPORTED.toLong()) {
                 if (lastRx > 0 && lastTx > 0) {
-                    val sample = Pair(max(0L, rx - lastRx), max(0L, tx - lastTx))
+                    val adbSpeed = adbPushSpeedMap.values.sum()
+                    val sample = Triple(max(0L, rx - lastRx), max(0L, tx - lastTx), adbSpeed)
                     networkHistory.add(sample)
                     if (networkHistory.size > 60) networkHistory.removeAt(0)
                     networkChart.invalidate()
@@ -868,10 +869,17 @@ class MainActivity : Activity() {
                                     val file = json.optString("file")
                                     val percent = json.optInt("percent", 0)
                                     val totalSize = json.optLong("total_size", 0L)
+                                    val speedMbps = json.optDouble("speed_mbps", 0.0)
                                     if (file.isNotEmpty()) {
                                         transferProgressMap[file] = percent
                                         if (totalSize > 0L) {
                                             fileExpectedSizeMap[file] = totalSize
+                                        }
+                                        if (speedMbps > 0.0) {
+                                            transferSpeedMap[file] = " . %.2f MB/s".format(speedMbps)
+                                            adbPushSpeedMap[file] = (speedMbps * 1024 * 1024).toLong()
+                                        } else {
+                                            adbPushSpeedMap[file] = 0L
                                         }
                                         updateProgressList()
                                     }
@@ -981,12 +989,18 @@ class MainActivity : Activity() {
             strokeWidth = 4f
             style = Paint.Style.STROKE
         }
+        private val adbPushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(249, 115, 22)
+            strokeWidth = 4f
+            style = Paint.Style.STROKE
+        }
         private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
         }
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xffd4d4d8.toInt()
-            textSize = 30f
+            textSize = 24f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
         private val bgPaint = Paint().apply {
             color = 0xff18181b.toInt()
@@ -995,27 +1009,39 @@ class MainActivity : Activity() {
         override fun onDraw(canvas: Canvas) {
             val rect = RectF(0f, 0f, width.toFloat(), height.toFloat())
             canvas.drawRoundRect(rect, 16f, 16f, bgPaint)
-            val maxBytes = max(1L, networkHistory.map { it.second }.maxOrNull() ?: 1L)
-            drawCurve(canvas, false, maxBytes, upPaint)
-            val last = networkHistory.lastOrNull() ?: Pair(0L, 0L)
-            canvas.drawText("Upload: ${mbps(last.second)} MB/s", 24f, 44f, textPaint)
+            
+            val maxBytes = max(1L, networkHistory.flatMap { listOf(it.first, it.second, it.third) }.maxOrNull() ?: 1L)
+            
+            drawCurve(canvas, 1, maxBytes, upPaint) // Samba
+            drawCurve(canvas, 2, maxBytes, adbPushPaint) // Adb Push
+            
+            val last = networkHistory.lastOrNull() ?: Triple(0L, 0L, 0L)
+            canvas.drawText("Samba: ${mbps(last.second)} MB/s", 24f, 40f, textPaint)
+            canvas.drawText("ADB Push: ${mbps(last.third)} MB/s", 24f, 80f, textPaint)
         }
 
-        private fun drawCurve(canvas: Canvas, down: Boolean, maxBytes: Long, paint: Paint) {
+        private fun drawCurve(canvas: Canvas, index: Int, maxBytes: Long, paint: Paint) {
             if (networkHistory.size < 2) return
             val path = android.graphics.Path()
-            networkHistory.forEachIndexed { index, point ->
-                val x = index * width.toFloat() / (networkHistory.size - 1)
-                val bytes = if (down) point.first else point.second
+            networkHistory.forEachIndexed { idx, point ->
+                val x = idx * width.toFloat() / (networkHistory.size - 1)
+                val bytes = when (index) {
+                    0 -> point.first
+                    1 -> point.second
+                    else -> point.third
+                }
                 val y = height - (bytes.toFloat() / maxBytes) * height
-                if (index == 0) {
+                if (idx == 0) {
                     path.moveTo(x, y)
                 } else {
-                    val prevX = (index - 1) * width.toFloat() / (networkHistory.size - 1)
-                    val prevBytes = if (down) networkHistory[index - 1].first else networkHistory[index - 1].second
+                    val prevX = (idx - 1) * width.toFloat() / (networkHistory.size - 1)
+                    val prevBytes = when (index) {
+                        0 -> networkHistory[idx - 1].first
+                        1 -> networkHistory[idx - 1].second
+                        else -> networkHistory[idx - 1].third
+                    }
                     val prevY = height - (prevBytes.toFloat() / maxBytes) * height
                     
-                    // Control points for smooth horizontal bezier flow
                     val cp1x = prevX + (x - prevX) / 2
                     val cp1y = prevY
                     val cp2x = prevX + (x - prevX) / 2
@@ -1024,15 +1050,16 @@ class MainActivity : Activity() {
                 }
             }
             
-            // Draw filled gradient first
             val fillPath = android.graphics.Path(path).apply {
                 lineTo(width.toFloat(), height.toFloat())
                 lineTo(0f, height.toFloat())
                 close()
             }
+            val color = paint.color
             val shader = android.graphics.LinearGradient(
                 0f, 0f, 0f, height.toFloat(),
-                Color.argb(64, 147, 197, 253), Color.argb(0, 147, 197, 253),
+                Color.argb(32, Color.red(color), Color.green(color), Color.blue(color)),
+                Color.argb(0, Color.red(color), Color.green(color), Color.blue(color)),
                 android.graphics.Shader.TileMode.CLAMP
             )
             fillPaint.shader = shader
@@ -1270,20 +1297,31 @@ class MainActivity : Activity() {
     }
 
     inner class BatteryProgressView(context: Context) : View(context) {
-        private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#3f3f46")
-            strokeWidth = 4f
+        private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#27272a")
+            strokeWidth = 6f
+            strokeCap = Paint.Cap.ROUND
             style = Paint.Style.STROKE
         }
-        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        private val glowPaint3 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(40, 34, 197, 94)
+            strokeWidth = 16f
+            strokeCap = Paint.Cap.ROUND
+            style = Paint.Style.STROKE
+        }
+        private val glowPaint2 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(80, 34, 197, 94)
+            strokeWidth = 10f
+            strokeCap = Paint.Cap.ROUND
+            style = Paint.Style.STROKE
+        }
+        private val corePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#22c55e")
-            style = Paint.Style.FILL
+            strokeWidth = 4f
+            strokeCap = Paint.Cap.ROUND
+            style = Paint.Style.STROKE
         }
-        private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(64, 34, 197, 94)
-            style = Paint.Style.FILL
-        }
-        
+
         init {
             post(object : Runnable {
                 override fun run() {
@@ -1298,24 +1336,11 @@ class MainActivity : Activity() {
             val w = width.toFloat()
             val h = height.toFloat()
             
-            val left = w / 2f - dpToPx(8)
-            val right = w / 2f + dpToPx(8)
+            val cx = w / 2f
             val top = dpToPx(32).toFloat()
             val bottom = h - dpToPx(32).toFloat()
             
-            // Draw battery cap at the top
-            val capHeight = dpToPx(6).toFloat()
-            val capRect = RectF(w / 2f - dpToPx(4), top - capHeight, w / 2f + dpToPx(4), top)
-            outlinePaint.style = Paint.Style.FILL
-            outlinePaint.color = Color.parseColor("#3f3f46")
-            canvas.drawRoundRect(capRect, 2f, 2f, outlinePaint)
-            
-            // Draw battery body outline
-            val bodyRect = RectF(left, top, right, bottom)
-            outlinePaint.style = Paint.Style.STROKE
-            outlinePaint.color = Color.parseColor("#3f3f46")
-            outlinePaint.strokeWidth = 3f
-            canvas.drawRoundRect(bodyRect, 6f, 6f, outlinePaint)
+            canvas.drawLine(cx, top, cx, bottom, trackPaint)
             
             var percent = 0f
             val tauriFiles = lastTauriFiles
@@ -1370,15 +1395,10 @@ class MainActivity : Activity() {
             }
             
             if (percent > 0f) {
-                val inset = 4f
-                val maxFillHeight = (bottom - inset) - (top + inset)
-                val fillHeight = maxFillHeight * percent
-                val fillTop = (bottom - inset) - fillHeight
-                val fillRect = RectF(left + inset, fillTop, right - inset, bottom - inset)
-                
-                val shadowRect = RectF(fillRect.left - 4f, fillRect.top - 4f, fillRect.right + 4f, fillRect.bottom + 4f)
-                canvas.drawRoundRect(shadowRect, 4f, 4f, shadowPaint)
-                canvas.drawRoundRect(fillRect, 4f, 4f, fillPaint)
+                val progressTop = bottom - (bottom - top) * percent
+                canvas.drawLine(cx, bottom, cx, progressTop, glowPaint3)
+                canvas.drawLine(cx, bottom, cx, progressTop, glowPaint2)
+                canvas.drawLine(cx, bottom, cx, progressTop, corePaint)
             }
         }
     }
