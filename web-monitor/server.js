@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const PORT = Number(process.env.PORT || 8080);
+const WS_PORT = Number(process.env.WS_PORT || 1421);
 
 const MIME_TYPES = {
   html: "text/html; charset=utf-8",
@@ -17,21 +18,30 @@ const MIME_TYPES = {
   ico: "image/x-icon",
   json: "application/json; charset=utf-8"
 };
-const WS_PORT = Number(process.env.WS_PORT || 1421);
+
 const clients = new Set();
 const devices = new Map();
 const tauri = new Map();
 const androidSockets = new Map();
 
 function send(socket, value) {
+  if (!socket.writable || socket.destroyed) return;
   const data = Buffer.from(JSON.stringify(value));
-  if (!socket.writable || socket.writableLength > 1_000_000) return socket.destroy();
-  const header = data.length < 126
-    ? Buffer.from([0x81, data.length])
-    : data.length <= 0xffff
-      ? Buffer.from([0x81, 126, data.length >> 8, data.length & 255])
-      : Buffer.concat([Buffer.from([0x81, 127]), Buffer.alloc(8)]);
-  if (data.length > 0xffff) header.writeBigUInt64BE(BigInt(data.length), 2);
+  const len = data.length;
+  let header;
+  if (len < 126) {
+    header = Buffer.from([0x81, len]);
+  } else if (len <= 0xffff) {
+    header = Buffer.alloc(4);
+    header[0] = 0x81;
+    header[1] = 126;
+    header.writeUInt16BE(len, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x81;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(len), 2);
+  }
   socket.write(Buffer.concat([header, data]));
 }
 
@@ -71,29 +81,67 @@ function handshake(req, socket) {
   ].join("\r\n"));
 }
 
-function readFrame(buffer) {
-  if (buffer.length < 6) return null;
-  let offset = 2;
-  let len = buffer[1] & 127;
-  if (len === 126) {
-    len = buffer.readUInt16BE(offset);
-    offset += 2;
-  }
-  if (len === 127) return null;
-  const masked = buffer[1] & 128;
-  const mask = masked ? buffer.subarray(offset, offset + 4) : null;
-  offset += masked ? 4 : 0;
-  if (buffer.length < offset + len) return null;
-  const data = Buffer.from(buffer.subarray(offset, offset + len));
-  if (mask) for (let i = 0; i < data.length; i++) data[i] ^= mask[i % 4];
-  return data.toString();
+function attachWebSocket(socket, onMessage) {
+  socket.wsBuffer = Buffer.alloc(0);
+  socket.on("data", (chunk) => {
+    socket.wsBuffer = Buffer.concat([socket.wsBuffer, chunk]);
+    while (socket.wsBuffer.length >= 2) {
+      const firstByte = socket.wsBuffer[0];
+      const secondByte = socket.wsBuffer[1];
+      const opcode = firstByte & 0x0f;
+      const masked = (secondByte & 0x80) !== 0;
+      let payloadLen = secondByte & 0x7f;
+      let offset = 2;
+
+      if (payloadLen === 126) {
+        if (socket.wsBuffer.length < 4) break;
+        payloadLen = socket.wsBuffer.readUInt16BE(offset);
+        offset += 2;
+      } else if (payloadLen === 127) {
+        if (socket.wsBuffer.length < 10) break;
+        const bigLen = socket.wsBuffer.readBigUInt64BE(offset);
+        payloadLen = Number(bigLen);
+        offset += 8;
+      }
+
+      const maskSize = masked ? 4 : 0;
+      const totalFrameLength = offset + maskSize + payloadLen;
+      if (socket.wsBuffer.length < totalFrameLength) break; // Wait for full frame!
+
+      const frameData = socket.wsBuffer.subarray(offset, totalFrameLength);
+      socket.wsBuffer = socket.wsBuffer.subarray(totalFrameLength);
+
+      let payload = frameData;
+      if (masked) {
+        const maskKey = frameData.subarray(0, 4);
+        payload = Buffer.from(frameData.subarray(4));
+        for (let i = 0; i < payload.length; i++) {
+          payload[i] ^= maskKey[i % 4];
+        }
+      }
+
+      if (opcode === 0x8) { // Close
+        socket.destroy();
+        return;
+      } else if (opcode === 0x9) { // Ping -> Pong
+        const pongHeader = Buffer.from([0x8a, payload.length]);
+        socket.write(Buffer.concat([pongHeader, payload]));
+        continue;
+      } else if (opcode === 0x1 || opcode === 0x2 || opcode === 0x0) {
+        try {
+          const text = payload.toString("utf8");
+          onMessage(text);
+        } catch (e) {
+          console.error("[ws] Frame decode error:", e);
+        }
+      }
+    }
+  });
 }
 
 function attachAndroid(req, socket) {
   handshake(req, socket);
-  socket.on("data", (chunk) => {
-    const text = readFrame(chunk);
-    if (!text) return;
+  attachWebSocket(socket, (text) => {
     try {
       const sample = JSON.parse(text);
       const id = sample.id || sample.fingerprint || sample.model || randomUUID();
@@ -112,6 +160,7 @@ function attachAndroid(req, socket) {
       broadcastTelemetry(devices.get(id));
     } catch {}
   });
+
   socket.on("close", () => {
     if (socket.deviceId && androidSockets.get(socket.deviceId) === socket) {
       androidSockets.delete(socket.deviceId);
@@ -130,10 +179,8 @@ function attachBrowser(req, socket) {
     devices: [...devices.values()].map(publicDevice),
     tauri: [...tauri.values()],
   });
-  
-  socket.on("data", (chunk) => {
-    const text = readFrame(chunk);
-    if (!text) return;
+
+  attachWebSocket(socket, (text) => {
     try {
       const msg = JSON.parse(text);
       if (msg.type === "tauri_status") {
@@ -142,10 +189,8 @@ function attachBrowser(req, socket) {
         tauri.set(id, { ...msg, id, last_seen: Date.now() });
         broadcast({ type: "tauri", tauri: [...tauri.values()] });
       } else if (msg.type === "command" && msg.target && msg.command) {
-        // Route to Android device
         const androidSocket = androidSockets.get(msg.target);
         if (androidSocket) send(androidSocket, msg);
-        // Route tauri_refresh to the matching Tauri client
         if (msg.command === "tauri_refresh") {
           for (const client of clients) {
             if (client.tauriId === msg.target || msg.target === "all") {
@@ -183,7 +228,8 @@ const app = http.createServer((req, res) => {
     });
     return;
   }
-  const file = req.url === "/" ? "index.html" : req.url.slice(1);
+  const pathname = new URL(req.url, "http://localhost").pathname;
+  const file = pathname === "/" ? "index.html" : pathname.slice(1);
   try {
     const ext = file.split(".").pop().toLowerCase();
     const contentType = MIME_TYPES[ext] || "application/octet-stream";
@@ -196,7 +242,8 @@ const app = http.createServer((req, res) => {
 });
 
 app.on("upgrade", (req, socket) => {
-  if (req.url === "/network") attachAndroid(req, socket);
+  const pathname = new URL(req.url, "http://localhost").pathname;
+  if (pathname.startsWith("/network")) attachAndroid(req, socket);
   else attachBrowser(req, socket);
 });
 
@@ -204,6 +251,27 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`web monitor http://0.0.0.0:${PORT}`);
 });
 
-http.createServer().on("upgrade", attachAndroid).listen(WS_PORT, "0.0.0.0", () => {
+http.createServer().on("upgrade", (req, socket) => {
+  attachAndroid(req, socket);
+}).listen(WS_PORT, "0.0.0.0", () => {
   console.log(`android websocket ws://0.0.0.0:${WS_PORT}/network`);
 });
+
+// Periodic stale cleanup to remove offline hosts after 30s
+setInterval(() => {
+  const now = Date.now();
+  let changed = false;
+  for (const [id, host] of tauri.entries()) {
+    if (now - host.last_seen > 30000) {
+      tauri.delete(id);
+      changed = true;
+    }
+  }
+  for (const [id, dev] of devices.entries()) {
+    if (now - dev.last_seen > 30000 && dev.connected) {
+      devices.set(id, { ...dev, connected: false });
+      changed = true;
+    }
+  }
+  if (changed) broadcastSnapshot();
+}, 10000);
