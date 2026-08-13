@@ -394,10 +394,10 @@ class MainActivity : Activity() {
             setPadding(dpToPx(8), dpToPx(24), dpToPx(8), dpToPx(24))
             visibility = View.GONE
             
-            val waveView = WaveBarView(this@MainActivity).apply {
+            val batteryView = BatteryProgressView(this@MainActivity).apply {
                 layoutParams = LinearLayout.LayoutParams(-1, -1)
             }
-            addView(waveView)
+            addView(batteryView)
             
             setOnClickListener {
                 leftColumn.visibility = View.VISIBLE
@@ -1167,30 +1167,26 @@ class MainActivity : Activity() {
         titleRow.setOnTouchListener(titleRowTouchListener)
     }
 
-    inner class WaveBarView(context: Context) : View(context) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.rgb(147, 197, 253)
-            strokeWidth = 6f
+    inner class BatteryProgressView(context: Context) : View(context) {
+        private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#3f3f46")
+            strokeWidth = 4f
             style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
+        }
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#22c55e")
+            style = Paint.Style.FILL
         }
         private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(64, 37, 99, 235)
-            strokeWidth = 14f
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
+            color = Color.argb(64, 34, 197, 94)
+            style = Paint.Style.FILL
         }
-        private var phase = 0f
         
         init {
             post(object : Runnable {
                 override fun run() {
-                    phase += 0.05f
-                    if (phase > 2.0 * Math.PI) {
-                        phase -= (2.0 * Math.PI).toFloat()
-                    }
                     invalidate()
-                    postDelayed(this, 30)
+                    postDelayed(this, 1000)
                 }
             })
         }
@@ -1199,23 +1195,37 @@ class MainActivity : Activity() {
             super.onDraw(canvas)
             val w = width.toFloat()
             val h = height.toFloat()
-            val path = android.graphics.Path()
-            val shadowPath = android.graphics.Path()
             
-            val cx = w / 2f
-            for (y in 0..height.toInt() step 10) {
-                val x = cx + Math.sin(y.toDouble() * 0.02 + phase).toFloat() * 12f
-                if (y == 0) {
-                    path.moveTo(x, y.toFloat())
-                    shadowPath.moveTo(x, y.toFloat())
-                } else {
-                    path.lineTo(x, y.toFloat())
-                    shadowPath.lineTo(x, y.toFloat())
-                }
+            val padding = dpToPx(8).toFloat()
+            val capHeight = dpToPx(6).toFloat()
+            
+            // Draw battery cap at the top
+            val capRect = RectF(w / 2f - dpToPx(6), padding, w / 2f + dpToPx(6), padding + capHeight)
+            outlinePaint.style = Paint.Style.FILL
+            outlinePaint.color = Color.parseColor("#3f3f46")
+            canvas.drawRoundRect(capRect, 4f, 4f, outlinePaint)
+            
+            // Draw battery body outline
+            val bodyRect = RectF(padding, padding + capHeight + 4f, w - padding, h - padding)
+            outlinePaint.style = Paint.Style.STROKE
+            outlinePaint.color = Color.parseColor("#3f3f46")
+            outlinePaint.strokeWidth = 4f
+            canvas.drawRoundRect(bodyRect, 8f, 8f, outlinePaint)
+            
+            val total = BridgeService.queueTotal
+            val success = BridgeService.queueSuccess
+            val percent = if (total > 0) (success.toFloat() / total.toFloat()) else 0f
+            
+            if (percent > 0f) {
+                val maxFillHeight = (h - padding) - (padding + capHeight + 4f + 4f)
+                val fillHeight = maxFillHeight * percent
+                val fillTop = (h - padding - 4f) - fillHeight
+                val fillRect = RectF(padding + 4f, fillTop, w - padding - 4f, h - padding - 4f)
+                
+                val shadowRect = RectF(fillRect.left - 4f, fillRect.top - 4f, fillRect.right + 4f, fillRect.bottom + 4f)
+                canvas.drawRoundRect(shadowRect, 6f, 6f, shadowPaint)
+                canvas.drawRoundRect(fillRect, 6f, 6f, fillPaint)
             }
-            
-            canvas.drawPath(shadowPath, shadowPaint)
-            canvas.drawPath(path, paint)
         }
     }
 }
