@@ -645,7 +645,7 @@ class MainActivity : Activity() {
                 if (::confettiView.isInitialized && confettiView.isRunning()) {
                     confettiView.stopConfetti()
                 }
-            } else if (wasTransferring && totalCount > 0) {
+            } else if (wasTransferring) {
                 wasTransferring = false
                 if (::confettiView.isInitialized) {
                     confettiView.startConfetti()
@@ -1492,38 +1492,39 @@ class MainActivity : Activity() {
             if (isRunning) return
             isRunning = true
             visibility = View.VISIBLE
-            particles.clear()
-
-            val colors = intArrayOf(
-                Color.parseColor("#ef4444"),
-                Color.parseColor("#3b82f6"),
-                Color.parseColor("#22c55e"),
-                Color.parseColor("#eab308"),
-                Color.parseColor("#a855f7"),
-                Color.parseColor("#ec4899"),
-                Color.parseColor("#06b6d4"),
-                Color.parseColor("#f97316")
-            )
-
-            val w = max(1, width)
-            val h = max(1, height)
-
-            for (i in 0 until 120) {
-                particles.add(
-                    Particle(
-                        x = random.nextFloat() * w,
-                        y = -random.nextFloat() * h * 0.8f,
-                        vx = (random.nextFloat() - 0.5f) * 6f,
-                        vy = 4f + random.nextFloat() * 10f,
-                        size = (8 + random.nextInt(12)) * resources.displayMetrics.density,
-                        color = colors[random.nextInt(colors.size)],
-                        rotation = random.nextFloat() * 360f,
-                        rotationSpeed = (random.nextFloat() - 0.5f) * 10f,
-                        isCircle = random.nextBoolean()
-                    )
+            post {
+                particles.clear()
+                val colors = intArrayOf(
+                    Color.parseColor("#ef4444"),
+                    Color.parseColor("#3b82f6"),
+                    Color.parseColor("#22c55e"),
+                    Color.parseColor("#eab308"),
+                    Color.parseColor("#a855f7"),
+                    Color.parseColor("#ec4899"),
+                    Color.parseColor("#06b6d4"),
+                    Color.parseColor("#f97316")
                 )
+
+                val w = if (width > 0) width.toFloat() else resources.displayMetrics.widthPixels.toFloat()
+                val h = if (height > 0) height.toFloat() else resources.displayMetrics.heightPixels.toFloat()
+
+                for (i in 0 until 120) {
+                    particles.add(
+                        Particle(
+                            x = random.nextFloat() * w,
+                            y = -random.nextFloat() * h * 0.8f,
+                            vx = (random.nextFloat() - 0.5f) * 6f,
+                            vy = 4f + random.nextFloat() * 10f,
+                            size = (8 + random.nextInt(12)) * resources.displayMetrics.density,
+                            color = colors[random.nextInt(colors.size)],
+                            rotation = random.nextFloat() * 360f,
+                            rotationSpeed = (random.nextFloat() - 0.5f) * 10f,
+                            isCircle = random.nextBoolean()
+                        )
+                    )
+                }
+                invalidate()
             }
-            invalidate()
         }
 
         fun stopConfetti() {
@@ -1537,8 +1538,8 @@ class MainActivity : Activity() {
             super.onDraw(canvas)
             if (!isRunning || particles.isEmpty()) return
 
-            val w = width.toFloat()
-            val h = height.toFloat()
+            val w = if (width > 0) width.toFloat() else resources.displayMetrics.widthPixels.toFloat()
+            val h = if (height > 0) height.toFloat() else resources.displayMetrics.heightPixels.toFloat()
 
             for (p in particles) {
                 p.x += p.vx
