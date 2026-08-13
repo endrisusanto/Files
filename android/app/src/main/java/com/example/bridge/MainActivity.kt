@@ -391,7 +391,7 @@ class MainActivity : Activity() {
                 setStroke(2, 0xff27272a.toInt())
             }
             background = gd
-            setPadding(dpToPx(8), dpToPx(24), dpToPx(8), dpToPx(24))
+            setPadding(0, 0, 0, 0)
             visibility = View.GONE
             
             val batteryView = BatteryProgressView(this@MainActivity).apply {
@@ -1196,35 +1196,39 @@ class MainActivity : Activity() {
             val w = width.toFloat()
             val h = height.toFloat()
             
-            val padding = dpToPx(8).toFloat()
-            val capHeight = dpToPx(6).toFloat()
+            val left = w / 2f - dpToPx(8)
+            val right = w / 2f + dpToPx(8)
+            val top = dpToPx(32).toFloat()
+            val bottom = h - dpToPx(32).toFloat()
             
             // Draw battery cap at the top
-            val capRect = RectF(w / 2f - dpToPx(6), padding, w / 2f + dpToPx(6), padding + capHeight)
+            val capHeight = dpToPx(6).toFloat()
+            val capRect = RectF(w / 2f - dpToPx(4), top - capHeight, w / 2f + dpToPx(4), top)
             outlinePaint.style = Paint.Style.FILL
             outlinePaint.color = Color.parseColor("#3f3f46")
-            canvas.drawRoundRect(capRect, 4f, 4f, outlinePaint)
+            canvas.drawRoundRect(capRect, 2f, 2f, outlinePaint)
             
             // Draw battery body outline
-            val bodyRect = RectF(padding, padding + capHeight + 4f, w - padding, h - padding)
+            val bodyRect = RectF(left, top, right, bottom)
             outlinePaint.style = Paint.Style.STROKE
             outlinePaint.color = Color.parseColor("#3f3f46")
-            outlinePaint.strokeWidth = 4f
-            canvas.drawRoundRect(bodyRect, 8f, 8f, outlinePaint)
+            outlinePaint.strokeWidth = 3f
+            canvas.drawRoundRect(bodyRect, 6f, 6f, outlinePaint)
             
             val total = BridgeService.queueTotal
             val success = BridgeService.queueSuccess
             val percent = if (total > 0) (success.toFloat() / total.toFloat()) else 0f
             
             if (percent > 0f) {
-                val maxFillHeight = (h - padding) - (padding + capHeight + 4f + 4f)
+                val inset = 4f
+                val maxFillHeight = (bottom - inset) - (top + inset)
                 val fillHeight = maxFillHeight * percent
-                val fillTop = (h - padding - 4f) - fillHeight
-                val fillRect = RectF(padding + 4f, fillTop, w - padding - 4f, h - padding - 4f)
+                val fillTop = (bottom - inset) - fillHeight
+                val fillRect = RectF(left + inset, fillTop, right - inset, bottom - inset)
                 
                 val shadowRect = RectF(fillRect.left - 4f, fillRect.top - 4f, fillRect.right + 4f, fillRect.bottom + 4f)
-                canvas.drawRoundRect(shadowRect, 6f, 6f, shadowPaint)
-                canvas.drawRoundRect(fillRect, 6f, 6f, fillPaint)
+                canvas.drawRoundRect(shadowRect, 4f, 4f, shadowPaint)
+                canvas.drawRoundRect(fillRect, 4f, 4f, fillPaint)
             }
         }
     }
