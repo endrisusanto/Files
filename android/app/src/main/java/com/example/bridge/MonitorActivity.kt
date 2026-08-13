@@ -184,6 +184,9 @@ class MonitorActivity : Activity() {
     private lateinit var chartView: MonitorNetworkChartView
     private lateinit var tauriContainer: LinearLayout
     private lateinit var androidContainer: LinearLayout
+    private lateinit var statTauriTv: TextView
+    private lateinit var statAndroidTv: TextView
+    private lateinit var statSpeedTv: TextView
 
     private var lastDevicesJson: JSONArray? = null
     private var lastTauriJson: JSONArray? = null
@@ -243,6 +246,53 @@ class MonitorActivity : Activity() {
         headerLayout.addView(headerTextContainer)
         headerLayout.addView(settingsGearBtn)
         mainLayout.addView(headerLayout)
+
+        // Summary Stat Cards Row
+        val statsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, dp(16))
+        }
+
+        fun createStatCard(label: String, icon: String, defaultVal: String): Pair<LinearLayout, TextView> {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = createCardDrawable("#18181b", "#27272a")
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    rightMargin = dp(6)
+                }
+            }
+            val lbl = TextView(this).apply {
+                text = "$icon $label"
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+                setTextColor(Color.parseColor("#a1a1aa"))
+                setTypeface(null, Typeface.BOLD)
+            }
+            val valTv = TextView(this).apply {
+                text = defaultVal
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTextColor(Color.WHITE)
+                setTypeface(null, Typeface.BOLD)
+                setPadding(0, dp(4), 0, 0)
+            }
+            card.addView(lbl)
+            card.addView(valTv)
+            return Pair(card, valTv)
+        }
+
+        val (c1, v1) = createStatCard("HOSTS", "🖥️", "0")
+        val (c2, v2) = createStatCard("DEVICES", "📱", "0")
+        val (c3, v3) = createStatCard("SPEED", "⚡", "0.00 MB/s")
+        (c3.layoutParams as LinearLayout.LayoutParams).rightMargin = 0
+
+        statTauriTv = v1
+        statAndroidTv = v2
+        statSpeedTv = v3
+
+        statsRow.addView(c1)
+        statsRow.addView(c2)
+        statsRow.addView(c3)
+        mainLayout.addView(statsRow)
 
         // Realtime Network Traffic Chart Header & Widget
         val chartHeader = TextView(this).apply {
@@ -478,6 +528,38 @@ class MonitorActivity : Activity() {
         chartView.devicesData = lastDevicesJson
         renderTauriHosts(lastTauriJson)
         renderAndroidDevices(lastDevicesJson)
+
+        var totalUpBps = 0.0
+        var activeAndroid = 0
+        var activeTauri = 0
+        val devices = lastDevicesJson
+        if (devices != null) {
+            for (i in 0 until devices.length()) {
+                val d = devices.optJSONObject(i) ?: continue
+                val lastSeen = d.optLong("last_seen", 0)
+                if (d.optBoolean("connected", true) && (System.currentTimeMillis() - lastSeen) < 15_000) {
+                    activeAndroid++
+                    val samples = d.optJSONArray("samples")
+                    if (samples != null && samples.length() > 0) {
+                        totalUpBps += samples.optJSONObject(samples.length() - 1)?.optDouble("tx_bps", 0.0) ?: 0.0
+                    }
+                }
+            }
+        }
+        val tauri = lastTauriJson
+        if (tauri != null) {
+            for (i in 0 until tauri.length()) {
+                val h = tauri.optJSONObject(i) ?: continue
+                val lastSeen = h.optLong("last_seen", 0)
+                if ((System.currentTimeMillis() - lastSeen) < 15_000) {
+                    activeTauri++
+                }
+            }
+        }
+
+        if (::statTauriTv.isInitialized) statTauriTv.text = "$activeTauri"
+        if (::statAndroidTv.isInitialized) statAndroidTv.text = "$activeAndroid"
+        if (::statSpeedTv.isInitialized) statSpeedTv.text = String.format("%.2f MB/s", totalUpBps / (1024 * 1024))
 
         val now = System.currentTimeMillis()
         if (now - lastWidgetUpdateAt >= 15_000L) {
