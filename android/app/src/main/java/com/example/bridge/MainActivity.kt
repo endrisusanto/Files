@@ -57,6 +57,8 @@ class MainActivity : Activity() {
     private lateinit var leftExpandBar: LinearLayout
     private lateinit var collapseBtn: TextView
     private lateinit var leftDetailsContainer: LinearLayout
+    private lateinit var titleRow: LinearLayout
+    private var isMinimized = false
     private val debugLines = ArrayDeque<String>()
     private val transferProgressMap = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val fileExpectedSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
@@ -253,7 +255,7 @@ class MainActivity : Activity() {
                 }, LinearLayout.LayoutParams(-1, -2))
             }
 
-            val titleRow = LinearLayout(this@MainActivity).apply {
+            titleRow = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 
@@ -265,11 +267,12 @@ class MainActivity : Activity() {
                     setOnClickListener {
                         val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
                         if (!isLandscape) {
-                            // In portrait, toggle details visibility
                             if (leftDetailsContainer.visibility == View.VISIBLE) {
                                 leftDetailsContainer.visibility = View.GONE
+                                isMinimized = true
                             } else {
                                 leftDetailsContainer.visibility = View.VISIBLE
+                                isMinimized = false
                             }
                         }
                     }
@@ -283,6 +286,7 @@ class MainActivity : Activity() {
                     setOnClickListener {
                         leftColumn.visibility = View.GONE
                         leftExpandBar.visibility = View.VISIBLE
+                        isMinimized = true
                     }
                 }
                 
@@ -398,6 +402,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 leftColumn.visibility = View.VISIBLE
                 leftExpandBar.visibility = View.GONE
+                isMinimized = false
             }
         }
 
@@ -1012,9 +1017,11 @@ class MainActivity : Activity() {
             rootLayout.addView(leftColumn, leftParams)
             rootLayout.addView(rightColumn, rightParams)
             
-            if (leftColumn.visibility == View.GONE) {
+            if (isMinimized) {
+                leftColumn.visibility = View.GONE
                 leftExpandBar.visibility = View.VISIBLE
             } else {
+                leftColumn.visibility = View.VISIBLE
                 leftExpandBar.visibility = View.GONE
             }
         } else {
@@ -1024,6 +1031,12 @@ class MainActivity : Activity() {
             leftExpandBar.visibility = View.GONE
             leftColumn.visibility = View.VISIBLE
             collapseBtn.visibility = View.GONE
+            
+            if (isMinimized) {
+                leftDetailsContainer.visibility = View.GONE
+            } else {
+                leftDetailsContainer.visibility = View.VISIBLE
+            }
             
             networkChart.layoutParams = LinearLayout.LayoutParams(-1, dpToPx(120)).apply {
                 bottomMargin = dpToPx(12)
@@ -1051,7 +1064,6 @@ class MainActivity : Activity() {
         
         val leftColumnTouchListener = View.OnTouchListener { v, event ->
             val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-            if (!isLandscape) return@OnTouchListener false
             
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -1062,23 +1074,38 @@ class MainActivity : Activity() {
                 MotionEvent.ACTION_UP -> {
                     val deltaX = event.x - startX
                     val deltaY = event.y - startY
-                    if (deltaX < -150f && Math.abs(deltaY) < 150f) {
-                        leftColumn.visibility = View.GONE
-                        leftExpandBar.visibility = View.VISIBLE
-                        true
+                    
+                    if (isLandscape) {
+                        // Landscape: swipe left to collapse
+                        if (deltaX < -150f && Math.abs(deltaY) < 150f) {
+                            leftColumn.visibility = View.GONE
+                            leftExpandBar.visibility = View.VISIBLE
+                            isMinimized = true
+                            true
+                        } else {
+                            v.performClick()
+                            false
+                        }
                     } else {
-                        v.performClick()
-                        false
+                        // Portrait: swipe down on details container to collapse
+                        if (deltaY > 150f && Math.abs(deltaX) < 150f) {
+                            leftDetailsContainer.visibility = View.GONE
+                            isMinimized = true
+                            true
+                        } else {
+                            v.performClick()
+                            false
+                        }
                     }
                 }
                 else -> false
             }
         }
         leftColumn.setOnTouchListener(leftColumnTouchListener)
+        leftDetailsContainer.setOnTouchListener(leftColumnTouchListener)
         
         val expandBarTouchListener = View.OnTouchListener { v, event ->
             val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-            if (!isLandscape) return@OnTouchListener false
             
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -1089,10 +1116,18 @@ class MainActivity : Activity() {
                 MotionEvent.ACTION_UP -> {
                     val deltaX = event.x - startX
                     val deltaY = event.y - startY
-                    if (deltaX > 100f && Math.abs(deltaY) < 150f) {
-                        leftColumn.visibility = View.VISIBLE
-                        leftExpandBar.visibility = View.GONE
-                        true
+                    
+                    if (isLandscape) {
+                        // Landscape: swipe right to expand
+                        if (deltaX > 100f && Math.abs(deltaY) < 150f) {
+                            leftColumn.visibility = View.VISIBLE
+                            leftExpandBar.visibility = View.GONE
+                            isMinimized = false
+                            true
+                        } else {
+                            v.performClick()
+                            false
+                        }
                     } else {
                         v.performClick()
                         false
@@ -1102,6 +1137,34 @@ class MainActivity : Activity() {
             }
         }
         leftExpandBar.setOnTouchListener(expandBarTouchListener)
+
+        val titleRowTouchListener = View.OnTouchListener { v, event ->
+            val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            if (isLandscape) return@OnTouchListener false
+            
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.x
+                    startY = event.y
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    val deltaX = event.x - startX
+                    val deltaY = event.y - startY
+                    // Portrait: swipe up on title to expand
+                    if (deltaY < -100f && Math.abs(deltaX) < 150f) {
+                        leftDetailsContainer.visibility = View.VISIBLE
+                        isMinimized = false
+                        true
+                    } else {
+                        v.performClick()
+                        false
+                    }
+                }
+                else -> false
+            }
+        }
+        titleRow.setOnTouchListener(titleRowTouchListener)
     }
 
     inner class WaveBarView(context: Context) : View(context) {
