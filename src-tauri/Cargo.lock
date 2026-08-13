@@ -606,7 +606,7 @@ dependencies = [
 
 [[package]]
 name = "cross-network-android-file-bridge"
-version = "0.1.142"
+version = "0.1.143"
 dependencies = [
  "notify",
  "regex",
