@@ -59,6 +59,8 @@ class MainActivity : Activity() {
     private lateinit var leftDetailsContainer: LinearLayout
     private lateinit var titleRow: LinearLayout
     private var isMinimized = false
+    private var wasTransferring = false
+    private lateinit var confettiView: ConfettiView
     private var lastTauriFiles: org.json.JSONArray? = null
     private val debugLines = ArrayDeque<String>()
     private val transferProgressMap = java.util.concurrent.ConcurrentHashMap<String, Int>()
@@ -416,7 +418,16 @@ class MainActivity : Activity() {
         adjustOrientationLayout()
         setupSwipeGestures()
 
-        setContentView(rootLayout)
+        confettiView = ConfettiView(this).apply {
+            visibility = View.GONE
+        }
+
+        val mainContainer = FrameLayout(this).apply {
+            addView(rootLayout, FrameLayout.LayoutParams(-1, -1))
+            addView(confettiView, FrameLayout.LayoutParams(-1, -1))
+        }
+
+        setContentView(mainContainer)
 
         // ponytail: hide status bar and navigation bar for immersive fullscreen (must be set after contentView)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -453,6 +464,15 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev?.action == MotionEvent.ACTION_DOWN) {
+            if (::confettiView.isInitialized && confettiView.isRunning()) {
+                confettiView.stopConfetti()
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
     private fun md5Files(): List<File> =
         localDir.listFiles()
             ?.filter { it.isFile && it.name.endsWith(".md5") }
@@ -462,6 +482,9 @@ class MainActivity : Activity() {
     private fun latestFile(): File? = md5Files().maxByOrNull { it.lastModified() }
 
     private fun startAllUpload() {
+        if (::confettiView.isInitialized && confettiView.isRunning()) {
+            confettiView.stopConfetti()
+        }
         val files = md5Files()
         if (files.isEmpty()) {
             Log.w(tag, "Upload skipped: no .md5 file")
@@ -469,6 +492,7 @@ class MainActivity : Activity() {
             refreshStatus("No .md5 file found")
             return
         }
+        wasTransferring = true
         Log.i(tag, "Starting upload all files count=${files.size}")
         appendLog("Starting upload all files count=${files.size}")
         val intent = Intent(this, BridgeService::class.java)
@@ -585,8 +609,49 @@ class MainActivity : Activity() {
     private fun updateProgressList() {
         runOnUiThread {
             progressContainer.removeAllViews()
-            
+
+            var isAnyActive = false
+            var totalCount = 0
             val tauriFiles = lastTauriFiles
+            if (tauriFiles != null && tauriFiles.length() > 0) {
+                totalCount = tauriFiles.length()
+                for (i in 0 until tauriFiles.length()) {
+                    val f = tauriFiles.optJSONObject(i) ?: continue
+                    val fStatus = f.optString("status", "-")
+                    if (fStatus != "Transfer Complete" && fStatus != "Already in Destination") {
+                        isAnyActive = true
+                        break
+                    }
+                }
+            } else {
+                val files = md5Files()
+                totalCount = files.size
+                val curFile = BridgeService.currentFile
+                val curProgress = BridgeService.currentProgress
+                for (file in files) {
+                    var expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                    if (expectedSize == 0L) expectedSize = file.length()
+                    val p = if (expectedSize > 0L) ((file.length() * 100) / expectedSize).toInt() else 100
+                    val sambaProgress = if (file.name == curFile) curProgress else 0
+                    if (p < 100 || sambaProgress < 100) {
+                        isAnyActive = true
+                        break
+                    }
+                }
+            }
+
+            if (isAnyActive) {
+                wasTransferring = true
+                if (::confettiView.isInitialized && confettiView.isRunning()) {
+                    confettiView.stopConfetti()
+                }
+            } else if (wasTransferring && totalCount > 0) {
+                wasTransferring = false
+                if (::confettiView.isInitialized) {
+                    confettiView.startConfetti()
+                }
+            }
+
             if (tauriFiles != null && tauriFiles.length() > 0) {
                 var renderedCount = 0
                 val ringSize = dpToPx(48)
@@ -1400,6 +1465,105 @@ class MainActivity : Activity() {
                 canvas.drawLine(cx, bottom, cx, progressTop, glowPaint2)
                 canvas.drawLine(cx, bottom, cx, progressTop, corePaint)
             }
+        }
+    }
+
+    inner class ConfettiView(context: Context) : View(context) {
+        private var isRunning = false
+        private val random = java.util.Random()
+        private val particles = mutableListOf<Particle>()
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        private inner class Particle(
+            var x: Float,
+            var y: Float,
+            var vx: Float,
+            var vy: Float,
+            var size: Float,
+            var color: Int,
+            var rotation: Float,
+            var rotationSpeed: Float,
+            var isCircle: Boolean
+        )
+
+        fun isRunning(): Boolean = isRunning
+
+        fun startConfetti() {
+            if (isRunning) return
+            isRunning = true
+            visibility = View.VISIBLE
+            particles.clear()
+
+            val colors = intArrayOf(
+                Color.parseColor("#ef4444"),
+                Color.parseColor("#3b82f6"),
+                Color.parseColor("#22c55e"),
+                Color.parseColor("#eab308"),
+                Color.parseColor("#a855f7"),
+                Color.parseColor("#ec4899"),
+                Color.parseColor("#06b6d4"),
+                Color.parseColor("#f97316")
+            )
+
+            val w = max(1, width)
+            val h = max(1, height)
+
+            for (i in 0 until 120) {
+                particles.add(
+                    Particle(
+                        x = random.nextFloat() * w,
+                        y = -random.nextFloat() * h * 0.8f,
+                        vx = (random.nextFloat() - 0.5f) * 6f,
+                        vy = 4f + random.nextFloat() * 10f,
+                        size = (8 + random.nextInt(12)) * resources.displayMetrics.density,
+                        color = colors[random.nextInt(colors.size)],
+                        rotation = random.nextFloat() * 360f,
+                        rotationSpeed = (random.nextFloat() - 0.5f) * 10f,
+                        isCircle = random.nextBoolean()
+                    )
+                )
+            }
+            invalidate()
+        }
+
+        fun stopConfetti() {
+            if (!isRunning) return
+            isRunning = false
+            particles.clear()
+            visibility = View.GONE
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            if (!isRunning || particles.isEmpty()) return
+
+            val w = width.toFloat()
+            val h = height.toFloat()
+
+            for (p in particles) {
+                p.x += p.vx
+                p.y += p.vy
+                p.rotation += p.rotationSpeed
+
+                if (p.y > h) {
+                    p.y = -20f
+                    p.x = random.nextFloat() * w
+                }
+
+                canvas.save()
+                canvas.translate(p.x, p.y)
+                canvas.rotate(p.rotation)
+                paint.color = p.color
+
+                if (p.isCircle) {
+                    canvas.drawCircle(0f, 0f, p.size / 2f, paint)
+                } else {
+                    canvas.drawRect(-p.size / 2f, -p.size / 4f, p.size / 2f, p.size / 4f, paint)
+                }
+                canvas.restore()
+            }
+
+            postInvalidateOnAnimation()
         }
     }
 }
