@@ -59,6 +59,7 @@ class MainActivity : Activity() {
     private lateinit var leftDetailsContainer: LinearLayout
     private lateinit var titleRow: LinearLayout
     private var isMinimized = false
+    private var lastTauriFiles: org.json.JSONArray? = null
     private val debugLines = ArrayDeque<String>()
     private val transferProgressMap = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val fileExpectedSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
@@ -583,111 +584,198 @@ class MainActivity : Activity() {
     private fun updateProgressList() {
         runOnUiThread {
             progressContainer.removeAllViews()
-            val files = md5Files()
             
-            if (files.isEmpty()) {
-                val emptyTv = TextView(this).apply {
-                    text = "No staging files found"
-                    textSize = 13f
-                    setTextColor(0xffa1a1aa.toInt())
-                    gravity = Gravity.CENTER
-                    setPadding(0, dpToPx(24), 0, dpToPx(24))
-                }
-                progressContainer.addView(emptyTv)
-                return@runOnUiThread
-            }
-            
-            val curFile = BridgeService.currentFile
-            val curProgress = BridgeService.currentProgress
-            val ringSize = dpToPx(48)
-            val ringMargin = dpToPx(8)
-            
-            for (file in files) {
-                // Each file item row layout
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, dpToPx(12), 0, dpToPx(12))
-                    layoutParams = LinearLayout.LayoutParams(-1, -2)
-                }
+            val tauriFiles = lastTauriFiles
+            if (tauriFiles != null && tauriFiles.length() > 0) {
+                var renderedCount = 0
+                val ringSize = dpToPx(48)
+                val ringMargin = dpToPx(8)
                 
-                // File info
-                val infoLayout = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
-                        rightMargin = dpToPx(12)
+                for (i in 0 until tauriFiles.length()) {
+                    val f = tauriFiles.optJSONObject(i) ?: continue
+                    val fName = f.optString("name", "-")
+                    val fSize = f.optLong("size", 0)
+                    val fStatus = f.optString("status", "-")
+                    
+                    if (fStatus == "Transfer Complete" || fStatus == "Already in Destination") {
+                        continue
                     }
-                }
-                val nameTv = TextView(this).apply {
-                    text = file.name
-                    textSize = 12f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    setTextColor(Color.WHITE)
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                    maxLines = 1
-                }
-                var expectedSize = fileExpectedSizeMap[file.name] ?: 0L
-                if (expectedSize == 0L) {
-                    val metaFile = File(file.parentFile, file.name + ".meta")
-                    if (metaFile.exists()) {
-                        try {
-                            val size = metaFile.readText().trim().toLong()
-                            if (size > 0L) {
-                                fileExpectedSizeMap[file.name] = size
-                                expectedSize = size
-                            }
-                        } catch (e: Exception) {}
-                    }
-                }
-                val currentSize = file.length()
-                val speedStr = transferSpeedMap[file.name] ?: ""
-                val sizeText = if (expectedSize > 0L) {
-                    "${formatFileSize(currentSize)} / ${formatFileSize(expectedSize)}$speedStr"
-                } else {
-                    formatFileSize(currentSize)
-                }
-
-                val sizeTv = TextView(this).apply {
-                    text = sizeText
-                    textSize = 10f
-                    setTextColor(0xffa1a1aa.toInt())
-                }
-                infoLayout.addView(nameTv)
-                infoLayout.addView(sizeTv)
-                row.addView(infoLayout)
-                
-                // Push Phone progress ring
-                val phoneRing = RingProgressView(this).apply {
-                    val expectedSize = fileExpectedSizeMap[file.name] ?: 0L
-                    progress = if (expectedSize > 0L) {
-                        val p = ((file.length() * 100) / expectedSize).toInt()
-                        Math.min(99, p)
+                    
+                    var phoneProgress = 0
+                    var sambaProgress = 0
+                    
+                    if (fStatus.startsWith("Pushing to Phone")) {
+                        val re = Regex("""\((\d+)%\)""")
+                        val match = re.find(fStatus)
+                        phoneProgress = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                    } else if (fStatus == "Staged on Phone") {
+                        phoneProgress = 100
+                    } else if (fStatus.startsWith("Uploading to Samba")) {
+                        phoneProgress = 100
+                        val re = Regex("""\((\d+)%\)""")
+                        val match = re.find(fStatus)
+                        sambaProgress = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
                     } else {
-                        transferProgressMap[file.name] ?: 100
+                        continue
                     }
-                    layoutParams = LinearLayout.LayoutParams(ringSize, ringSize).apply {
-                        rightMargin = ringMargin
+                    
+                    renderedCount++
+                    
+                    val row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding(0, dpToPx(12), 0, dpToPx(12))
+                        layoutParams = LinearLayout.LayoutParams(-1, -2)
                     }
+                    
+                    val infoLayout = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        layoutParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
+                            rightMargin = dpToPx(12)
+                        }
+                    }
+                    val nameTv = TextView(this).apply {
+                        text = fName
+                        textSize = 12f
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        setTextColor(Color.WHITE)
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                        maxLines = 1
+                    }
+                    val sizeTv = TextView(this).apply {
+                        text = formatFileSize(fSize)
+                        textSize = 10f
+                        setTextColor(0xffa1a1aa.toInt())
+                    }
+                    infoLayout.addView(nameTv)
+                    infoLayout.addView(sizeTv)
+                    row.addView(infoLayout)
+                    
+                    val phoneRing = RingProgressView(this).apply {
+                        progress = phoneProgress
+                        layoutParams = LinearLayout.LayoutParams(ringSize, ringSize).apply {
+                            rightMargin = ringMargin
+                        }
+                    }
+                    row.addView(phoneRing)
+                    
+                    val sambaRing = RingProgressView(this).apply {
+                        progress = sambaProgress
+                        layoutParams = LinearLayout.LayoutParams(ringSize, ringSize)
+                    }
+                    row.addView(sambaRing)
+                    
+                    progressContainer.addView(row)
+                    
+                    val divider = View(this).apply {
+                        setBackgroundColor(0xff27272a.toInt())
+                        layoutParams = LinearLayout.LayoutParams(-1, dpToPx(1))
+                    }
+                    progressContainer.addView(divider)
                 }
-                row.addView(phoneRing)
                 
-                // Push Samba progress ring
-                val sambaRing = RingProgressView(this).apply {
-                    progress = if (file.name == curFile) curProgress else 0
-                    layoutParams = LinearLayout.LayoutParams(ringSize, ringSize)
+                if (renderedCount == 0) {
+                    showEmptyProgressMessage()
                 }
-                row.addView(sambaRing)
-                
-                progressContainer.addView(row)
-                
-                // Divider line
-                val divider = View(this).apply {
-                    setBackgroundColor(0xff27272a.toInt())
-                    layoutParams = LinearLayout.LayoutParams(-1, dpToPx(1))
+            } else {
+                val files = md5Files()
+                if (files.isEmpty()) {
+                    showEmptyProgressMessage()
+                    return@runOnUiThread
                 }
-                progressContainer.addView(divider)
+                
+                val curFile = BridgeService.currentFile
+                val curProgress = BridgeService.currentProgress
+                val ringSize = dpToPx(48)
+                val ringMargin = dpToPx(8)
+                
+                for (file in files) {
+                    val row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding(0, dpToPx(12), 0, dpToPx(12))
+                        layoutParams = LinearLayout.LayoutParams(-1, -2)
+                    }
+                    
+                    val infoLayout = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        layoutParams = LinearLayout.LayoutParams(0, -2, 1.0f).apply {
+                            rightMargin = dpToPx(12)
+                        }
+                    }
+                    val nameTv = TextView(this).apply {
+                        text = file.name
+                        textSize = 12f
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        setTextColor(Color.WHITE)
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                        maxLines = 1
+                    }
+                    var expectedSize = fileExpectedSizeMap[file.name] ?: 0L
+                    if (expectedSize == 0L) {
+                        val metaFile = File(file.parentFile, file.name + ".meta")
+                        if (metaFile.exists()) {
+                            try {
+                                val size = metaFile.readText().trim().toLong()
+                                if (size > 0L) {
+                                    fileExpectedSizeMap[file.name] = size
+                                    expectedSize = size
+                                }
+                            } catch (e: Exception) {}
+                        }
+                    }
+                    val currentSize = file.length()
+                    val speedStr = transferSpeedMap[file.name] ?: ""
+                    val sizeText = if (expectedSize > 0L) {
+                        "${formatFileSize(currentSize)} / ${formatFileSize(expectedSize)}$speedStr"
+                    } else {
+                        formatFileSize(currentSize)
+                    }
+                    val sizeTv = TextView(this).apply {
+                        text = sizeText
+                        textSize = 10f
+                        setTextColor(0xffa1a1aa.toInt())
+                    }
+                    infoLayout.addView(nameTv)
+                    infoLayout.addView(sizeTv)
+                    row.addView(infoLayout)
+                    
+                    val phoneRing = RingProgressView(this).apply {
+                        val p = if (expectedSize > 0L) ((file.length() * 100) / expectedSize).toInt() else 100
+                        progress = Math.min(100, p)
+                        layoutParams = LinearLayout.LayoutParams(ringSize, ringSize).apply {
+                            rightMargin = ringMargin
+                        }
+                    }
+                    row.addView(phoneRing)
+                    
+                    val sambaRing = RingProgressView(this).apply {
+                        progress = if (file.name == curFile) curProgress else 0
+                        layoutParams = LinearLayout.LayoutParams(ringSize, ringSize)
+                    }
+                    row.addView(sambaRing)
+                    
+                    progressContainer.addView(row)
+                    
+                    val divider = View(this).apply {
+                        setBackgroundColor(0xff27272a.toInt())
+                        layoutParams = LinearLayout.LayoutParams(-1, dpToPx(1))
+                    }
+                    progressContainer.addView(divider)
+                }
             }
         }
+    }
+
+    private fun showEmptyProgressMessage() {
+        val emptyTv = TextView(this).apply {
+            text = "No active staging transfers"
+            textSize = 13f
+            setTextColor(0xffa1a1aa.toInt())
+            gravity = Gravity.CENTER
+            setPadding(0, dpToPx(24), 0, dpToPx(24))
+        }
+        progressContainer.addView(emptyTv)
     }
 
     private fun refreshStatus(message: String? = null) {
@@ -754,6 +842,20 @@ class MainActivity : Activity() {
                 appendLog("WS Received: $text")
                 try {
                     val json = JSONObject(text)
+                    val type = json.optString("type")
+                    if (type == "tauri" || type == "snapshot" || type == "state") {
+                        val tauriArray = json.optJSONArray("tauri")
+                        if (tauriArray != null && tauriArray.length() > 0) {
+                            val host = tauriArray.optJSONObject(0)
+                            val files = host?.optJSONArray("files")
+                            if (files != null) {
+                                lastTauriFiles = files
+                                runOnUiThread {
+                                    updateProgressList()
+                                }
+                            }
+                        }
+                    }
                     if (json.has("command")) {
                         val command = json.getString("command")
                         runOnUiThread {

@@ -615,12 +615,17 @@ class MonitorActivity : Activity() {
                     background = createCardDrawable("#0c0c0e", "#1f1f23")
                     setPadding(dp(8), dp(4), dp(8), dp(4))
                 }
+                var renderedCount = 0
                 for (j in 0 until files.length()) {
                     val f = files.optJSONObject(j) ?: continue
+                    val fStatus = f.optString("status", "-")
+                    if (fStatus == "Transfer Complete" || fStatus == "Already in Destination") {
+                        continue
+                    }
                     val fName = f.optString("name", "-")
                     val fSize = f.optLong("size", 0)
-                    val fStatus = f.optString("status", "-")
                     val fileGb = String.format("%.2f GB", fSize.toDouble() / (1024 * 1024 * 1024))
+                    renderedCount++
 
                     val row = LinearLayout(this).apply {
                         orientation = LinearLayout.HORIZONTAL
@@ -643,20 +648,24 @@ class MonitorActivity : Activity() {
                         text = fStatus
                         setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f)
                         setPadding(dp(4), dp(1), dp(4), dp(1))
-                        if (fStatus == "Transfer Complete") {
-                            setTextColor(Color.parseColor("#4ade80"))
-                            background = createBadgeDrawable("#052e16", "#166534")
-                        } else {
-                            setTextColor(Color.parseColor("#fde047"))
-                            background = createBadgeDrawable("#422006", "#854d0e")
-                        }
+                        setTextColor(Color.parseColor("#fde047"))
+                        background = createBadgeDrawable("#422006", "#854d0e")
                     }
                     row.addView(fileNameTv)
                     row.addView(fileSizeTv)
                     row.addView(fileStatusTv)
                     filesContainer.addView(row)
                 }
-                card.addView(filesContainer)
+                if (renderedCount > 0) {
+                    card.addView(filesContainer)
+                } else {
+                    val noFiles = TextView(this).apply {
+                        text = "No Files In Staging Folder."
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                        setTextColor(Color.parseColor("#71717a"))
+                    }
+                    card.addView(noFiles)
+                }
             } else {
                 val noFiles = TextView(this).apply {
                     text = "No Files In Staging Folder."
