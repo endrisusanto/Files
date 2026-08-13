@@ -34,9 +34,9 @@ jobs:
 
       - run: npm install
 
-      - name: Build Windows NSIS
+      - name: Build Windows Installers (MSI & NSIS)
         if: runner.os == 'Windows'
-        run: npm run tauri -- build --bundles nsis
+        run: npm run tauri -- build --bundles msi,nsis
 
       - name: Build Linux DEB/RPM
         if: runner.os == 'Linux'
@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p release
-          for file in src-tauri/target/release/bundle/nsis/*.exe src-tauri/target/release/bundle/deb/*.deb src-tauri/target/release/bundle/rpm/*.rpm; do
+          for file in src-tauri/target/release/bundle/msi/*.msi src-tauri/target/release/bundle/nsis/*.exe src-tauri/target/release/bundle/deb/*.deb src-tauri/target/release/bundle/rpm/*.rpm; do
             [ -e "$file" ] || continue
             ext="${file##*.}"
             cp "$file" "release/android-file-bridge-${GITHUB_REF_NAME}-${{ matrix.name }}.${ext}"
