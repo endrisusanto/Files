@@ -784,11 +784,33 @@
         setTimeout(connect, 1000);
       };
       ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "state") {
-          state = msg.devices;
-          tauri = msg.tauri || [];
-          draw();
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "snapshot" || msg.type === "state") {
+            state = msg.devices || [];
+            tauri = msg.tauri || [];
+            render();
+          } else if (msg.type === "telemetry") {
+            const dev = msg.device || {};
+            const sample = msg.sample;
+            const devId = dev.id || dev.model;
+            const index = state.findIndex(d => (d.id || d.model) === devId);
+            const current = index >= 0 ? state[index] : dev;
+            const currentSamples = current.samples || [];
+            const samples = sample ? [...currentSamples.slice(-59), sample] : currentSamples;
+            const updated = { ...current, ...dev, samples, last_seen: Date.now() };
+            if (index >= 0) {
+              state[index] = updated;
+            } else {
+              state.push(updated);
+            }
+            render();
+          } else if (msg.type === "tauri") {
+            tauri = msg.tauri || [];
+            render();
+          }
+        } catch (e) {
+          console.error("[web-monitor] WS message parse error:", e);
         }
       };
     }

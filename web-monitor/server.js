@@ -46,8 +46,7 @@ function send(socket, value) {
 }
 
 function publicDevice(device) {
-  const { samples, last_sample, ...value } = device;
-  return value;
+  return device;
 }
 
 function broadcast(value) {
@@ -106,7 +105,7 @@ function attachWebSocket(socket, onMessage) {
 
       const maskSize = masked ? 4 : 0;
       const totalFrameLength = offset + maskSize + payloadLen;
-      if (socket.wsBuffer.length < totalFrameLength) break; // Wait for full frame!
+      if (socket.wsBuffer.length < totalFrameLength) break;
 
       const frameData = socket.wsBuffer.subarray(offset, totalFrameLength);
       socket.wsBuffer = socket.wsBuffer.subarray(totalFrameLength);
@@ -120,10 +119,10 @@ function attachWebSocket(socket, onMessage) {
         }
       }
 
-      if (opcode === 0x8) { // Close
+      if (opcode === 0x8) {
         socket.destroy();
         return;
-      } else if (opcode === 0x9) { // Ping -> Pong
+      } else if (opcode === 0x9) {
         const pongHeader = Buffer.from([0x8a, payload.length]);
         socket.write(Buffer.concat([pongHeader, payload]));
         continue;
@@ -147,6 +146,8 @@ function attachAndroid(req, socket) {
       const id = sample.id || sample.fingerprint || sample.model || randomUUID();
       const current = devices.get(id) || { id };
       const telemetry = { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 };
+      const currentSamples = current.samples || [];
+      const updatedSamples = [...currentSamples.slice(-59), telemetry];
       devices.set(id, {
         ...current,
         ...sample,
@@ -154,6 +155,7 @@ function attachAndroid(req, socket) {
         connected: true,
         last_seen: Date.now(),
         last_sample: telemetry,
+        samples: updatedSamples,
       });
       socket.deviceId = id;
       androidSockets.set(id, socket);
