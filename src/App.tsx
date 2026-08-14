@@ -606,7 +606,8 @@ export default function App() {
       if (!force && f.status === "locked") return false;
       if (sambaFilesRef.current.some((sf) => sf.name === f.name)) return false;
       if (force) return true;
-      return !pushedFilesRef.current.has(f.name);
+      if (phoneFiles.has(f.name)) return false;
+      return true;
     });
   }
 
@@ -626,8 +627,8 @@ export default function App() {
         const queueTotal = filesRef.current.length;
         const queueSuccess = filesRef.current.filter((f) => {
           const inSamba = sambaFilesRef.current.some((sf) => sf.name === f.name);
-          const isPushed = pushedFilesRef.current.has(f.name);
-          return inSamba || (isPushed && f.name !== current);
+          const isStaged = phoneFiles.has(f.name);
+          return inSamba || (isStaged && f.name !== current);
         }).length;
 
         await invoke("push_file", {
@@ -818,7 +819,7 @@ export default function App() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    disabled={!deviceActionReady || (!forceTransfer && !files.some((f) => f.status !== "downloading" && !pushedFiles.has(f.name) && !sambaFiles.some((sf) => sf.name === f.name)))}
+                    disabled={!deviceActionReady || (!forceTransfer && !files.some((f) => f.status !== "downloading" && !sambaFiles.some((sf) => sf.name === f.name)))}
                     onClick={() => pushAllPending(true)}
                     className={`ff-btn px-4 py-2 text-xs transition disabled:opacity-40 disabled:cursor-not-allowed ${
                       theme === 'dark' 
@@ -840,29 +841,27 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1">
                 {(files || []).map((f) => {
                   const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
-                  const isPushed = pushedFiles ? pushedFiles.has(f.name) : false;
+                  const isStagedOnPhone = phoneFiles ? phoneFiles.has(f.name) : false;
                   
                   const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
                   const isUploadingThis = activeRemote?.current_file === f.name;
-                  const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
+                  const isUploaded = inSamba;
 
                   let displayStatus = f.status === "ready" ? "Ready" : f.status === "locked" ? "Locked" : f.status;
                   if (isPushingThis) {
                     displayStatus = `Pushing to Phone (${transfer.percent}%)`;
                   } else if (isUploadingThis) {
                     displayStatus = `Uploading to Samba (${activeRemote.upload_percent}%)`;
-                  } else if (inSamba && !isPushed) {
-                    displayStatus = "Already in Destination";
                   } else if (isUploaded) {
                     displayStatus = "Transfer Complete";
-                  } else if (isPushed) {
+                  } else if (isStagedOnPhone) {
                     displayStatus = "Staged on Phone";
                   }
 
                   const isCompleted = displayStatus === "Transfer Complete" || displayStatus === "Already in Destination";
                   
                   let phoneProgress = 0;
-                  if (isPushed || isUploaded) {
+                  if (isStagedOnPhone || isUploaded) {
                     phoneProgress = 100;
                   } else if (isPushingThis) {
                     phoneProgress = transfer.percent;
