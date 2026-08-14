@@ -194,36 +194,23 @@ class MonitorActivity : Activity() {
     private var lastWidgetUpdateAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        requestWindowFeature(Window.FEATURE_NO_TITLE)
         super.onCreate(savedInstanceState)
         // Keep screen bright while active
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableFullscreenMode()
 
-        val root = ScrollView(this).apply {
-            setBackgroundColor(Color.parseColor("#09090b"))
-            isFillViewport = true
-        }
-
-        val mainLayout = LinearLayout(this).apply {
+        val rootContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(36), dp(16), dp(16))
-        }
-        root.addView(mainLayout)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            root.setOnApplyWindowInsetsListener { _, insets ->
-                val statusBarTop = insets.getInsets(WindowInsets.Type.statusBars()).top
-                val navBarBottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-                mainLayout.setPadding(dp(16), maxOf(dp(36), statusBarTop + dp(12)), dp(16), maxOf(dp(16), navBarBottom + dp(12)))
-                insets
-            }
+            setBackgroundColor(Color.parseColor("#09090b"))
         }
 
-        // Header Title with Settings Gear Icon ⚙
-        val headerLayout = LinearLayout(this).apply {
+        // Sticky Header Bar Title with Settings Gear Icon ⚙
+        val stickyHeaderLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, 0, 0, dp(16))
+            setBackgroundColor(Color.parseColor("#121215"))
+            setPadding(dp(16), dp(36), dp(16), dp(12))
         }
 
         val headerTextContainer = LinearLayout(this).apply {
@@ -232,13 +219,13 @@ class MonitorActivity : Activity() {
         }
         val titleText = TextView(this).apply {
             text = "FireFiles Monitor"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
             setTextColor(Color.parseColor("#f97316"))
             setTypeface(null, Typeface.BOLD)
         }
         val subtitleText = TextView(this).apply {
             text = "Realtime WebSocket Staging Dashboard"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
             setTextColor(Color.parseColor("#a1a1aa"))
         }
         headerTextContainer.addView(titleText)
@@ -246,15 +233,37 @@ class MonitorActivity : Activity() {
 
         val settingsGearBtn = TextView(this).apply {
             text = "⚙"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
             setTextColor(Color.parseColor("#a1a1aa"))
             setPadding(dp(8), dp(4), dp(8), dp(4))
             setOnClickListener { showSettingsDialog() }
         }
 
-        headerLayout.addView(headerTextContainer)
-        headerLayout.addView(settingsGearBtn)
-        mainLayout.addView(headerLayout)
+        stickyHeaderLayout.addView(headerTextContainer)
+        stickyHeaderLayout.addView(settingsGearBtn)
+        rootContainer.addView(stickyHeaderLayout)
+
+        val scrollRoot = ScrollView(this).apply {
+            isFillViewport = true
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        }
+
+        val mainLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(16))
+        }
+        scrollRoot.addView(mainLayout)
+        rootContainer.addView(scrollRoot)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            rootContainer.setOnApplyWindowInsetsListener { _, insets ->
+                val statusBarTop = insets.getInsets(WindowInsets.Type.statusBars()).top
+                val navBarBottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+                stickyHeaderLayout.setPadding(dp(16), maxOf(dp(36), statusBarTop + dp(10)), dp(16), dp(12))
+                mainLayout.setPadding(dp(16), dp(12), dp(16), maxOf(dp(16), navBarBottom + dp(12)))
+                insets
+            }
+        }
 
         // Summary Stat Cards Row
         val statsRow = LinearLayout(this).apply {
@@ -351,7 +360,7 @@ class MonitorActivity : Activity() {
         }
         mainLayout.addView(androidContainer)
 
-        setContentView(root)
+        setContentView(rootContainer)
 
         requestBatteryOptimizationExemption()
         connectWebSocket()
