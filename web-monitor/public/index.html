@@ -764,10 +764,14 @@
 
     function uploadAll() {
       if (!_ws || _ws.readyState !== 1) return alert("WebSocket not connected");
+      _ws.send(JSON.stringify({ type: "command", target: "all", command: "upload_all" }));
       state.forEach(d => {
-        if (Date.now() - d.last_seen < 10000) {
-          _ws.send(JSON.stringify({ type: "command", target: d.id, command: "upload" }));
+        if (Date.now() - d.last_seen < 30000) {
+          _ws.send(JSON.stringify({ type: "command", target: d.id, command: "upload_all" }));
         }
+      });
+      tauri.forEach(t => {
+        _ws.send(JSON.stringify({ type: "command", target: t.id || "all", command: "upload_all" }));
       });
     }
 

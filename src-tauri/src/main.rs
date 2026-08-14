@@ -283,13 +283,18 @@ fn bridge_files(dir: &Path) -> Vec<LocalFile> {
             let path = entry.path();
             let name = path.file_name()?.to_string_lossy().to_string();
             let lower = name.to_lowercase();
-            if !lower.ends_with(".md5") && !lower.ends_with(".md5.part") {
+            let is_part = lower.ends_with(".part")
+                || lower.ends_with(".crdownload")
+                || lower.ends_with(".downloading")
+                || lower.ends_with(".tmp");
+            let is_md5 = lower.ends_with(".md5") || is_part;
+            if !is_md5 {
                 return None;
             }
             let meta = entry.metadata().ok()?;
-            let locked = lower.ends_with(".md5") && !file_is_available(&path);
+            let locked = !is_part && !file_is_available(&path);
             Some(LocalFile {
-                status: if lower.ends_with(".part") { "downloading" } else if locked { "locked" } else { "ready" }.into(),
+                status: if is_part { "downloading" } else if locked { "locked" } else { "ready" }.into(),
                 name,
                 size: meta.len(),
                 locked,
@@ -345,7 +350,7 @@ fn watch_adb_devices(app: AppHandle) {
 }
 
 fn file_is_available(path: &Path) -> bool {
-    OpenOptions::new().read(true).write(true).open(path).is_ok()
+    OpenOptions::new().read(true).open(path).is_ok()
 }
 
 fn emit_loop(app: AppHandle) {

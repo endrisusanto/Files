@@ -436,7 +436,7 @@ export default function App() {
             if (device.id === localStorage.getItem("selected_remote_id") && sample) {
               setNetwork((current) => [...current.slice(-59), sample]);
             }
-          } else if (msg.type === "command" && msg.command === "tauri_refresh") {
+          } else if (msg.type === "command" && (msg.command === "tauri_refresh" || msg.command === "refresh")) {
             // Web monitor requested a device refresh
             console.info("[bridge-ui] Remote refresh requested via web monitor");
             appendLog("Remote refresh requested via web monitor");
@@ -446,6 +446,10 @@ export default function App() {
                 appendLog(`Remote refresh ok count=${list.length}`);
               })
               .catch((e) => appendLog(`Remote refresh failed ${String(e)}`));
+          } else if (msg.type === "command" && (msg.command === "upload" || msg.command === "upload_all" || msg.command === "tauri_push_all")) {
+            console.info("[bridge-ui] Remote upload all / push requested via web monitor");
+            appendLog("Remote upload all / push requested via web monitor");
+            pushAllPending(true);
           }
         } catch (err) {
           console.error("Error parsing ws message", err);
@@ -596,15 +600,17 @@ export default function App() {
     }
   }
 
-  function pendingFiles() {
+  function pendingFiles(force = forceTransfer) {
     return filesRef.current.filter((f) => {
-      if (f.status !== "ready") return false;
+      if (f.status === "downloading") return false;
+      if (!force && f.status === "locked") return false;
       if (sambaFilesRef.current.some((sf) => sf.name === f.name)) return false;
+      if (force) return true;
       return !pushedFilesRef.current.has(f.name);
     });
   }
 
-  async function push(name?: string) {
+  async function push(name?: string, force = forceTransfer) {
     if (isPushingRef.current) {
       console.warn("[bridge-ui] Transfer already in progress, skipping push");
       return;
@@ -614,7 +620,7 @@ export default function App() {
     let ok = true;
 
     try {
-      const names = name ? [name] : pendingFiles().map((f) => f.name);
+      const names = name ? [name] : pendingFiles(force).map((f) => f.name);
       for (const current of names) {
         console.info("[bridge-ui] push file", current);
         const queueTotal = filesRef.current.length;
@@ -626,7 +632,7 @@ export default function App() {
 
         await invoke("push_file", {
           file_name: current,
-          force: forceTransfer,
+          force: force,
           queue_total: queueTotal,
           queue_success: queueSuccess
         });
@@ -643,15 +649,16 @@ export default function App() {
     } finally {
       isPushingRef.current = false;
       if (ok && !name && localStorage.getItem("auto_push") === "true" && pendingFiles().length) {
-        pushAllPending();
+        setTimeout(() => pushAllPending(), 1000);
       }
     }
   }
 
-  function pushAllPending() {
-    if (pendingFiles().length) {
-      appendLog("Auto-push queue started");
-      push();
+  function pushAllPending(force = forceTransfer) {
+    const list = pendingFiles(force);
+    if (list.length) {
+      appendLog(`Push queue started count=${list.length}`);
+      push(undefined, force);
     }
   }
 
@@ -811,8 +818,8 @@ export default function App() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    disabled={!deviceActionReady || (!forceTransfer && !files.some((f) => f.status === "ready" && !pushedFiles.has(f.name) && !sambaFiles.some((sf) => sf.name === f.name)))}
-                    onClick={pushAllPending}
+                    disabled={!deviceActionReady || (!forceTransfer && !files.some((f) => f.status !== "downloading" && !pushedFiles.has(f.name) && !sambaFiles.some((sf) => sf.name === f.name)))}
+                    onClick={() => pushAllPending(true)}
                     className={`ff-btn px-4 py-2 text-xs transition disabled:opacity-40 disabled:cursor-not-allowed ${
                       theme === 'dark' 
                         ? "bg-[#f4f4f5] text-[#09090b] hover:bg-white" 

@@ -191,13 +191,15 @@ function attachBrowser(req, socket) {
         tauri.set(id, { ...msg, id, last_seen: Date.now() });
         broadcast({ type: "tauri", tauri: [...tauri.values()] });
       } else if (msg.type === "command" && msg.target && msg.command) {
-        const androidSocket = androidSockets.get(msg.target);
-        if (androidSocket) send(androidSocket, msg);
-        if (msg.command === "tauri_refresh") {
-          for (const client of clients) {
-            if (client.tauriId === msg.target || msg.target === "all") {
-              send(client, msg);
-            }
+        if (msg.target === "all") {
+          for (const s of androidSockets.values()) send(s, msg);
+        } else {
+          const androidSocket = androidSockets.get(msg.target);
+          if (androidSocket) send(androidSocket, msg);
+        }
+        for (const client of clients) {
+          if (client.tauriId && (client.tauriId === msg.target || msg.target === "all")) {
+            send(client, msg);
           }
         }
       }
