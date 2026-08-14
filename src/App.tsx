@@ -192,6 +192,7 @@ export default function App() {
     pushedFilesRef.current = pushedFiles;
   }, [pushedFiles]);
   const isPushingRef = useRef(false);
+  const [activePushFile, setActivePushFile] = useState<string | null>(null);
   const isRefreshingDevicesRef = useRef(false);
   const isRefreshingPhoneFilesRef = useRef(false);
   const sambaFilesRef = useRef<LocalFile[]>([]);
@@ -485,13 +486,14 @@ export default function App() {
         const mappedFiles = (files || []).map((f) => {
           const inSamba = sambaFilesRef.current ? sambaFilesRef.current.some((sf) => sf.name === f.name) : false;
           const isPushed = pushedFilesRef.current ? pushedFilesRef.current.has(f.name) : false;
-          const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
+          const isPushingThis = activePushFile === f.name || (transfer?.file === f.name && (transfer?.percent < 100 || isPushingRef.current));
           const isUploadingThis = activeRemote?.current_file === f.name;
           const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
 
           let displayStatus = f.status === "ready" ? "Ready" : f.status === "locked" ? "Locked" : f.status;
           if (isPushingThis) {
-            displayStatus = `Pushing to Phone (${transfer.percent}%)`;
+            const pct = transfer?.file === f.name ? transfer.percent : 0;
+            displayStatus = pct >= 99 && transfer?.message ? transfer.message : `Pushing to Phone (${pct}%)`;
           } else if (isUploadingThis) {
             displayStatus = `Uploading to Samba (${activeRemote.upload_percent}%)`;
           } else if (inSamba && !isPushed) {
@@ -616,6 +618,7 @@ export default function App() {
     try {
       const names = name ? [name] : pendingFiles().map((f) => f.name);
       for (const current of names) {
+        setActivePushFile(current);
         console.info("[bridge-ui] push file", current);
         const queueTotal = filesRef.current.length;
         const queueSuccess = filesRef.current.filter((f) => {
@@ -642,6 +645,7 @@ export default function App() {
       setError(String(e));
     } finally {
       isPushingRef.current = false;
+      setActivePushFile(null);
       if (ok && !name && localStorage.getItem("auto_push") === "true" && pendingFiles().length) {
         pushAllPending();
       }
@@ -835,13 +839,14 @@ export default function App() {
                   const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
                   const isPushed = pushedFiles ? pushedFiles.has(f.name) : false;
                   
-                  const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
+                  const isPushingThis = activePushFile === f.name || (transfer?.file === f.name && (transfer?.percent < 100 || isPushingRef.current));
                   const isUploadingThis = activeRemote?.current_file === f.name;
                   const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
 
                   let displayStatus = f.status === "ready" ? "Ready" : f.status === "locked" ? "Locked" : f.status;
                   if (isPushingThis) {
-                    displayStatus = `Pushing to Phone (${transfer.percent}%)`;
+                    const pct = transfer?.file === f.name ? transfer.percent : 0;
+                    displayStatus = pct >= 99 && transfer?.message ? transfer.message : `Pushing to Phone (${pct}%)`;
                   } else if (isUploadingThis) {
                     displayStatus = `Uploading to Samba (${activeRemote.upload_percent}%)`;
                   } else if (inSamba && !isPushed) {
@@ -858,7 +863,7 @@ export default function App() {
                   if (isPushed || isUploaded) {
                     phoneProgress = 100;
                   } else if (isPushingThis) {
-                    phoneProgress = transfer.percent;
+                    phoneProgress = transfer?.percent || 0;
                   }
 
                   let sambaProgress = 0;
@@ -881,7 +886,7 @@ export default function App() {
                         <p className={`break-all font-semibold text-xs leading-tight ${isCompleted ? "text-white" : "text-gray-900 dark:text-zinc-200"}`}>{f.name}</p>
                         <p className={`text-[10px] mt-0.5 ${isCompleted ? "text-green-100" : "text-gray-400 dark:text-zinc-500"}`}>
                           {isPushingThis ? (
-                            `${fileGb((transfer.percent / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed}`
+                            `${fileGb(((transfer?.percent || 0) / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed}`
                           ) : isUploadingThis ? (
                             `${fileGb((activeRemote.upload_percent / 100) * f.size)} / ${fileGb(f.size)}`
                           ) : (
@@ -1017,7 +1022,7 @@ export default function App() {
                     const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
                     const isPushed = pushedFiles ? pushedFiles.has(f.name) : false;
                     
-                    const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
+                    const isPushingThis = activePushFile === f.name || (transfer?.file === f.name && (transfer?.percent < 100 || isPushingRef.current));
                     const isUploadingThis = activeRemote?.current_file === f.name;
                     const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
 
@@ -1026,7 +1031,7 @@ export default function App() {
                     if (isPushed || isUploaded) {
                       phoneProgress = 100;
                     } else if (isPushingThis) {
-                      phoneProgress = transfer.percent;
+                      phoneProgress = transfer?.percent || 0;
                     }
 
                     // Calculate push to samba percentage
@@ -1046,7 +1051,7 @@ export default function App() {
                           <p className="text-xs font-bold text-gray-900 dark:text-zinc-200 truncate" title={f.name}>{f.name}</p>
                           <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-0.5">
                             {isPushingThis ? (
-                              `${fileGb((transfer.percent / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed}`
+                              `${fileGb(((transfer?.percent || 0) / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed}`
                             ) : isUploadingThis ? (
                               `${fileGb((activeRemote.upload_percent / 100) * f.size)} / ${fileGb(f.size)}`
                             ) : (
@@ -1149,9 +1154,11 @@ export default function App() {
                             <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
                               isSelected 
                                 ? "border-[#2563eb] bg-[#2563eb]/10 text-[#2563eb]" 
-                                : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-450 dark:text-zinc-500"
+                                : activePushFile 
+                                  ? "border-[#fbbf24] bg-[#fbbf24]/10 text-[#fbbf24]"
+                                  : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-450 dark:text-zinc-500"
                             }`}>
-                              {isSelected ? "Selected" : "Idle"}
+                              {isSelected ? "Selected" : activePushFile ? "Pushing..." : "Idle"}
                             </span>
                           </td>
                           <td className="p-3 text-xs max-w-[200px] truncate text-gray-500 dark:text-zinc-400" title={d.latest}>{d.latest || "-"}</td>

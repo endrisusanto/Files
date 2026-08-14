@@ -632,8 +632,12 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         eprintln!("[bridge-tauri] adb push failed file={file_name} error={err_msg}");
         return Err(format!("adb push failed: {}", err_msg));
     }
-    let _ = app.emit("transfer", TransferProgress { file: file_name.clone(), percent: 100, message: "push complete".into() });
-    adb(&[
+    let _ = app.emit("transfer", TransferProgress {
+        file: file_name.clone(),
+        percent: 99,
+        message: "Starting Android Bridge service...".into(),
+    });
+    if let Err(e) = adb(&[
         "-s",
         &device.id,
         "shell",
@@ -650,10 +654,17 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         "--ei",
         "queue_success",
         &queue_success.to_string(),
-    ])?;
-    println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
+    ]) {
+        eprintln!("[bridge-tauri] start-foreground-service warning: {e}");
+    }
 
-    // ponytail: move file to BACKUP on successful push to clean up source directory
+    let _ = app.emit("transfer", TransferProgress {
+        file: file_name.clone(),
+        percent: 99,
+        message: "Moving file to BACKUP folder...".into(),
+    });
+
+    // Move file to BACKUP on successful push to clean up source directory
     let backup_dir = source_dir(&config).join("BACKUP");
     if let Err(e) = fs::create_dir_all(&backup_dir) {
         eprintln!("[bridge-tauri] failed to create BACKUP dir: {e}");
@@ -665,6 +676,13 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
             println!("[bridge-tauri] moved {file_name} to BACKUP");
         }
     }
+
+    let _ = app.emit("transfer", TransferProgress {
+        file: file_name.clone(),
+        percent: 100,
+        message: "push complete".into(),
+    });
+    println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
 
     Ok(())
 }
