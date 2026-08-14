@@ -678,6 +678,16 @@ export default function App() {
 
 
 
+  async function openSourceDir() {
+    appendLog("open source folder in file manager");
+    try {
+      await invoke("open_source_dir");
+    } catch (err) {
+      appendLog(`open source dir failed ${String(err)}`);
+      setError(String(err));
+    }
+  }
+
   async function browseSource() {
     appendLog("browse source folder");
     try {
@@ -779,9 +789,9 @@ export default function App() {
             onClick={() => setFilelistOpen(!filelistOpen)}
           >
             <div className="flex items-center gap-2">
-              <span className="text-xl">📁</span>
+              <span className="text-xl cursor-pointer" onClick={(e) => { e.stopPropagation(); openSourceDir(); }} title="Open in File Manager">📁</span>
               <h2 className="text-sm font-bold text-gray-900 dark:text-zinc-100">
-                Local Staging Folder <span className="text-gray-500 dark:text-zinc-400 font-normal text-xs ml-2">Path: {info?.source_dir || "N/A"}</span>
+                Local Staging Folder <span className="text-gray-500 dark:text-zinc-400 font-normal text-xs ml-2 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openSourceDir(); }} title="Click to open folder in Dolphin / Nautilus">Path: {info?.source_dir || "N/A"}</span>
               </h2>
             </div>
             <span className="text-xs text-gray-400 dark:text-zinc-500">{filelistOpen ? "▲ Collapse" : "▼ Expand"}</span>
@@ -824,6 +834,13 @@ export default function App() {
                     }`}
                   >
                     Push All Pending
+                  </button>
+                  <button
+                    onClick={openSourceDir}
+                    className="ff-btn border border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 px-4 py-2 text-xs text-gray-700 dark:text-zinc-300 font-semibold"
+                    title="Open local staging folder in Dolphin / Nautilus"
+                  >
+                    Open Folder 📁
                   </button>
                   <button
                     onClick={browseSource}
