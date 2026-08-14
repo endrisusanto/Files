@@ -632,12 +632,8 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         eprintln!("[bridge-tauri] adb push failed file={file_name} error={err_msg}");
         return Err(format!("adb push failed: {}", err_msg));
     }
-    let _ = app.emit("transfer", TransferProgress {
-        file: file_name.clone(),
-        percent: 99,
-        message: "Starting Android Bridge service...".into(),
-    });
-    if let Err(e) = adb(&[
+    let _ = app.emit("transfer", TransferProgress { file: file_name.clone(), percent: 100, message: "push complete".into() });
+    adb(&[
         "-s",
         &device.id,
         "shell",
@@ -654,17 +650,10 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         "--ei",
         "queue_success",
         &queue_success.to_string(),
-    ]) {
-        eprintln!("[bridge-tauri] start-foreground-service warning: {e}");
-    }
+    ])?;
+    println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
 
-    let _ = app.emit("transfer", TransferProgress {
-        file: file_name.clone(),
-        percent: 99,
-        message: "Moving file to BACKUP folder...".into(),
-    });
-
-    // Move file to BACKUP on successful push to clean up source directory
+    // ponytail: move file to BACKUP on successful push to clean up source directory
     let backup_dir = source_dir(&config).join("BACKUP");
     if let Err(e) = fs::create_dir_all(&backup_dir) {
         eprintln!("[bridge-tauri] failed to create BACKUP dir: {e}");
@@ -676,13 +665,6 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
             println!("[bridge-tauri] moved {file_name} to BACKUP");
         }
     }
-
-    let _ = app.emit("transfer", TransferProgress {
-        file: file_name.clone(),
-        percent: 100,
-        message: "push complete".into(),
-    });
-    println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
 
     Ok(())
 }
@@ -791,44 +773,6 @@ async fn pick_source_dir() -> Option<String> {
 }
 
 #[tauri::command]
-async fn open_source_dir(app: AppHandle) -> Result<(), String> {
-    let config = app.state::<Config>().inner().clone();
-    let dir = source_dir(&config);
-    if !dir.exists() {
-        let _ = std::fs::create_dir_all(&dir);
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        if std::process::Command::new("dolphin").arg(&dir).spawn().is_ok() {
-            return Ok(());
-        }
-        if std::process::Command::new("nautilus").arg(&dir).spawn().is_ok() {
-            return Ok(());
-        }
-        if std::process::Command::new("xdg-open").arg(&dir).spawn().is_ok() {
-            return Ok(());
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        if std::process::Command::new("explorer").arg(&dir).spawn().is_ok() {
-            return Ok(());
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        if std::process::Command::new("open").arg(&dir).spawn().is_ok() {
-            return Ok(());
-        }
-    }
-
-    Err("Failed to open file manager".into())
-}
-
-#[tauri::command]
 async fn debug_adb() -> String {
     println!("[bridge-tauri] debug_adb");
     tauri::async_runtime::spawn_blocking(move || {
@@ -925,7 +869,6 @@ fn main() {
             select_bridge,
             set_source_dir,
             pick_source_dir,
-            open_source_dir,
             debug_adb,
             get_devices
         ])
