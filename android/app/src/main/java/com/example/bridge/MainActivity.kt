@@ -56,9 +56,11 @@ class MainActivity : Activity() {
     private lateinit var rightColumn: LinearLayout
     private lateinit var leftExpandBar: LinearLayout
     private lateinit var collapseBtn: TextView
+    private lateinit var chartAccordionBtn: TextView
     private lateinit var leftDetailsContainer: LinearLayout
     private lateinit var titleRow: LinearLayout
     private var isMinimized = false
+    private var isChartExpanded = true
     private var wasTransferring = false
     private lateinit var confettiView: ConfettiView
     private var lastTauriFiles: org.json.JSONArray? = null
@@ -307,13 +309,39 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.LEFT
             
-            addView(TextView(this@MainActivity).apply {
-                text = "Realtime Network Traffic"
-                textSize = 14f
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-                setTextColor(0xfffafafa.toInt())
-                setPadding(0, 0, 0, 12)
-            }, LinearLayout.LayoutParams(-1, -2))
+            // Accordion Header for Realtime Network Traffic
+            val chartHeader = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, 0, 0, dpToPx(8))
+                isClickable = true
+                isFocusable = true
+                
+                val chartTitle = TextView(this@MainActivity).apply {
+                    text = "Realtime Network Traffic"
+                    textSize = 14f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setTextColor(0xfffafafa.toInt())
+                }
+                
+                chartAccordionBtn = TextView(this@MainActivity).apply {
+                    text = if (isChartExpanded) "▲ Collapse" else "▼ Expand"
+                    textSize = 11f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setTextColor(0xffa1a1aa.toInt())
+                    setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
+                }
+                
+                addView(chartTitle, LinearLayout.LayoutParams(0, -2, 1.0f))
+                addView(chartAccordionBtn, LinearLayout.LayoutParams(-2, -2))
+                
+                setOnClickListener {
+                    isChartExpanded = !isChartExpanded
+                    chartAccordionBtn.text = if (isChartExpanded) "▲ Collapse" else "▼ Expand"
+                    networkChart.visibility = if (isChartExpanded) View.VISIBLE else View.GONE
+                }
+            }
+            addView(chartHeader, LinearLayout.LayoutParams(-1, -2))
 
             addView(networkChart, LinearLayout.LayoutParams(-1, 0, 1.0f).apply {
                 bottomMargin = 24
@@ -1242,8 +1270,18 @@ class MainActivity : Activity() {
                 rightMargin = 0
             }
             
+            networkChart.visibility = if (isChartExpanded) View.VISIBLE else View.GONE
+            if (::chartAccordionBtn.isInitialized) {
+                chartAccordionBtn.text = if (isChartExpanded) "▲ Collapse" else "▼ Expand"
+            }
+            
             rootLayout.addView(rightColumn, rightParams)
             rootLayout.addView(leftColumn, leftParams)
+        }
+        
+        networkChart.visibility = if (isChartExpanded) View.VISIBLE else View.GONE
+        if (::chartAccordionBtn.isInitialized) {
+            chartAccordionBtn.text = if (isChartExpanded) "▲ Collapse" else "▼ Expand"
         }
     }
 
