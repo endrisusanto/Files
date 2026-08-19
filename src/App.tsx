@@ -165,9 +165,11 @@ export default function App() {
   const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [network, setNetwork] = useState<NetworkSample[]>([]);
   const [error, setError] = useState("");
-  const [debugLog, setDebugLog] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const [remoteDevices, setRemoteDevices] = useState<any[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+  useEffect(() => {
+    wsRef.current = ws;
+  }, [ws]);
   const [remoteDevicesOpen, setRemoteDevicesOpen] = useState(false);
   const [autoPush, setAutoPush] = useState(() => {
     const val = localStorage.getItem("auto_push");
@@ -351,6 +353,54 @@ export default function App() {
       listen<NetworkSample>("network", (e) => {
         setNetwork((list) => [...list.slice(-299), e.payload]);
       }).catch(err => { appendLog(`listen network err: ${err}`); return () => {}; }),
+      listen<any>("usb_telemetry", (e) => {
+        const sample = e.payload;
+        if (!sample) return;
+        // 1. Forward USB telemetry directly to Cloud Web Monitor
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: "telemetry",
+            device: {
+              id: sample.id,
+              model: sample.model,
+              rx_bps: sample.rx_bps || 0,
+              tx_bps: sample.tx_bps || 0,
+              samba: sample.samba || "connected",
+              target: sample.target || "",
+              latest: sample.latest || "-",
+              current_file: sample.current_file || "",
+              upload_percent: sample.upload_percent || 0,
+              queue_success: sample.queue_success || 0,
+              queue_total: sample.queue_total || 0,
+              connected: true,
+              last_seen: Date.now()
+            },
+            sample: {
+              t: Date.now(),
+              rx_bps: sample.rx_bps || 0,
+              tx_bps: sample.tx_bps || 0
+            }
+          }));
+        }
+        // 2. Update local remote devices state
+        setRemoteDevices((current) => {
+          const index = current.findIndex((d) => d.id === sample.id);
+          const existing = index >= 0 ? current[index] : { id: sample.id };
+          const telemetrySample = { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 };
+          const samples = [...((existing as any).samples || []).slice(-59), telemetrySample];
+          const updated = {
+            ...existing,
+            ...sample,
+            samples,
+            last_seen: Date.now()
+          };
+          if (index >= 0) {
+            return current.map((d, i) => i === index ? updated : d);
+          } else {
+            return [...current, updated];
+          }
+        });
+      }).catch(err => { appendLog(`listen usb_telemetry err: ${err}`); return () => {}; }),
     ];
     refreshDevices();
     return () => {

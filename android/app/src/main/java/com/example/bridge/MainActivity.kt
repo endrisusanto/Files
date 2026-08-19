@@ -1024,13 +1024,22 @@ class MainActivity : Activity() {
         return socket
     }
 
+    private fun sendLocalUsbSample(jsonStr: String) {
+        try {
+            java.net.Socket().use { s ->
+                s.connect(java.net.InetSocketAddress("127.0.0.1", 1421), 300)
+                val out = s.getOutputStream()
+                out.write((jsonStr + "\n").toByteArray(Charsets.UTF_8))
+                out.flush()
+            }
+        } catch (_: Throwable) {
+            // USB reverse socket not active / phone unplugged
+        }
+    }
+
     private fun sendWebSocketSample(rx: Long, tx: Long) {
         Thread {
             try {
-                val socket = okWebSocket ?: connectWebSocketOk()
-                if (!wsConnected) {
-                    return@Thread
-                }
                 val latest = latestFile()?.name ?: "-"
                 val sampleObj = JSONObject().apply {
                     put("id", Build.FINGERPRINT)
@@ -1045,7 +1054,22 @@ class MainActivity : Activity() {
                     put("queue_success", BridgeService.queueSuccess)
                     put("queue_total", BridgeService.queueTotal)
                 }
-                socket.send(sampleObj.toString())
+                val payloadStr = sampleObj.toString()
+                
+                // 1. Send through local USB ADB reverse relay (127.0.0.1:1421)
+                sendLocalUsbSample(payloadStr)
+
+                // 2. Send through Cloud WebSocket if available
+                if (wsConnected && okWebSocket != null) {
+                    okWebSocket?.send(payloadStr)
+                } else {
+                    try {
+                        val socket = connectWebSocketOk()
+                        if (wsConnected) {
+                            socket.send(payloadStr)
+                        }
+                    } catch (_: Throwable) {}
+                }
             } catch (t: Throwable) {
                 closeWebSocket()
                 wsConnected = false

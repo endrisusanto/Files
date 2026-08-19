@@ -236,6 +236,10 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
     let mut devices = vec![];
     for handle in handles {
         if let Ok((id, model, fingerprint, available_storage, ip_address, apk_installed)) = handle.join() {
+            if apk_installed {
+                // Auto reverse port 1421 through USB ADB so offline phone can talk to Tauri
+                let _ = adb(&["-s", &id, "reverse", "tcp:1421", "tcp:1421"]);
+            }
             devices.push((id, model, fingerprint, available_storage, ip_address, apk_installed));
         }
     }
@@ -849,6 +853,39 @@ async fn get_devices(app: AppHandle) -> Result<Vec<DeviceInfo>, String> {
     Ok(devices)
 }
 
+fn start_usb_relay(app: AppHandle) {
+    thread::spawn(move || {
+        let listener = match std::net::TcpListener::bind("127.0.0.1:1421") {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("[bridge-tauri] usb relay bind 1421: {e}");
+                return;
+            }
+        };
+        println!("[bridge-tauri] USB Reverse Relay listening on 127.0.0.1:1421");
+        for stream in listener.incoming() {
+            if let Ok(socket) = stream {
+                let app_clone = app.clone();
+                thread::spawn(move || {
+                    let mut reader = std::io::BufReader::new(socket);
+                    let mut line = String::new();
+                    use std::io::BufRead;
+                    while let Ok(n) = reader.read_line(&mut line) {
+                        if n == 0 { break; }
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() {
+                            if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                                let _ = app_clone.emit("usb_telemetry", json_val);
+                            }
+                        }
+                        line.clear();
+                    }
+                });
+            }
+        }
+    });
+}
+
 fn main() {
     let config = Config {
         target_fingerprint: std::env::var("TARGET_BRIDGE_FINGERPRINT").unwrap_or_else(|_| "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE".into()),
@@ -888,7 +925,7 @@ fn main() {
                     }
                 });
             }
-            // ponytail: removed legacy local websocket_loop to stay clean and secure
+            start_usb_relay(app.handle().clone());
             emit_loop(app.handle().clone());
             watch_source(app.handle().clone());
             watch_samba(app.handle().clone());
