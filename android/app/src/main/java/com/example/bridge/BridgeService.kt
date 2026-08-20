@@ -106,7 +106,7 @@ class BridgeService : Service() {
                     listOf(File(localDir, name))
                 } else {
                     localDir.listFiles()
-                        ?.filter { it.isFile && it.name.endsWith(".md5") }
+                        ?.filter { it.isFile && (it.name.endsWith(".md5") || it.name.endsWith(".zip") || it.name.endsWith(".txt")) }
                         ?.sortedBy { it.lastModified() }
                         ?: emptyList()
                 }
@@ -135,7 +135,7 @@ class BridgeService : Service() {
             } finally {
                 currentFile = ""
                 currentProgress = 0
-                if (localDir.listFiles()?.filter { it.isFile && it.name.endsWith(".md5") }?.isEmpty() == true) {
+                if (localDir.listFiles()?.filter { it.isFile && (it.name.endsWith(".md5") || it.name.endsWith(".zip") || it.name.endsWith(".txt")) }?.isEmpty() == true) {
                     queueTotal = 0
                     queueSuccess = 0
                 }

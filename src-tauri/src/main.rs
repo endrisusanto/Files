@@ -291,8 +291,11 @@ fn bridge_files(dir: &Path) -> Vec<LocalFile> {
                 || lower.ends_with(".crdownload")
                 || lower.ends_with(".downloading")
                 || lower.ends_with(".tmp");
-            let is_md5 = lower.ends_with(".md5") || is_part;
-            if !is_md5 {
+            let is_supported = lower.ends_with(".md5")
+                || lower.ends_with(".zip")
+                || lower.ends_with(".txt")
+                || is_part;
+            if !is_supported {
                 return None;
             }
             let meta = entry.metadata().ok()?;

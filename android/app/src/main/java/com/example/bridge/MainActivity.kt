@@ -505,7 +505,7 @@ class MainActivity : Activity() {
 
     private fun md5Files(): List<File> =
         localDir.listFiles()
-            ?.filter { it.isFile && it.name.endsWith(".md5") }
+            ?.filter { it.isFile && (it.name.endsWith(".md5") || it.name.endsWith(".zip") || it.name.endsWith(".txt")) }
             ?.sortedBy { it.lastModified() }
             ?: emptyList()
 
@@ -517,9 +517,9 @@ class MainActivity : Activity() {
         }
         val files = md5Files()
         if (files.isEmpty()) {
-            Log.w(tag, "Upload skipped: no .md5 file")
-            appendLog("Upload skipped: no .md5 file")
-            refreshStatus("No .md5 file found")
+            Log.w(tag, "Upload skipped: no files found")
+            appendLog("Upload skipped: no files found")
+            refreshStatus("No files found")
             return
         }
         wasTransferring = true

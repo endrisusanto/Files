@@ -1005,7 +1005,7 @@ export default function App() {
                   );
                 })}
                 {!files.length && (
-                  <p className="col-span-full py-6 text-xs text-gray-400 dark:text-zinc-500 text-center font-medium">No .md5 files found</p>
+                  <p className="col-span-full py-6 text-xs text-gray-400 dark:text-zinc-500 text-center font-medium">No files (.md5, .zip, .txt) found</p>
                 )}
               </div>
 

@@ -23,7 +23,7 @@ FireFiles adalah sistem transfer dan pemantauan berkas otomatis berkinerja tingg
 ---
 
 ### 🚀 1. Otomasi Transfer & Staging
-* **Smart Auto-Push**: Otomatis mendeteksi berkas `.tar.md5` yang selesai diunduh di folder staging PC (`E:\SUBRO` atau folder kustom) dan langsung mem-push ke direktori HP Android via ADB.
+* **Smart Auto-Push**: Otomatis mendeteksi berkas `.md5`, `.zip`, dan `.txt` yang selesai diunduh di folder staging PC (`E:\SUBRO` atau folder kustom) dan langsung mem-push ke direktori HP Android via ADB.
 * **Deteksi Download Part-File**: Mengenali status unduhan sementara (`.part`, `.crdownload`, `.downloading`, `.tmp`) sehingga antrean hanya mengeksekusi file yang telah 100% selesai diunduh tanpa risiko *file lock*.
 * **Sinkronisasi Status Sejati**: Memverifikasi keberadaan berkas secara fisik di Samba (`inSamba`) dan memori HP (`phoneFiles`) untuk mencegah *false-completion cache locks*.
 * **Double-Buffering Staging**: Membatasi antrean berkas di HP (maksimal 2–3 file aktif) agar penyimpanan internal HP tidak penuh sebelum file terunggah ke Samba.
