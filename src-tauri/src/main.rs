@@ -517,7 +517,10 @@ fn get_staged_files_count(device_id: &str) -> Result<usize, String> {
     }
     let count = stdout
         .lines()
-        .filter(|line| !line.trim().is_empty() && line.ends_with(".md5"))
+        .filter(|line| {
+            let l = line.trim().to_lowercase();
+            !l.is_empty() && (l.ends_with(".md5") || l.ends_with(".zip") || l.ends_with(".txt"))
+        })
         .count();
     Ok(count)
 }
@@ -564,9 +567,11 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         ));
     }
     let source = source_dir(&config).join(&file_name);
-    if !source.is_file() || !file_name.ends_with(".md5") || (!force && !file_is_available(&source)) {
+    let lower_name = file_name.to_lowercase();
+    let is_supported = lower_name.ends_with(".md5") || lower_name.ends_with(".zip") || lower_name.ends_with(".txt");
+    if !source.is_file() || !is_supported || (!force && !file_is_available(&source)) {
         eprintln!("[bridge-tauri] push_file rejected source={}", source.display());
-        return Err("file is not a ready .md5 file".into());
+        return Err("file is not a ready (.md5, .zip, .txt) file".into());
     }
 
     if let Err(e) = adb(&["-s", &device.id, "shell", "mkdir", "-p", ANDROID_DIR]) {
@@ -703,7 +708,10 @@ async fn get_phone_files(app: AppHandle) -> Result<Vec<String>, String> {
             };
             let files: Vec<String> = out.lines()
                 .map(|l| l.trim().to_string())
-                .filter(|l| !l.is_empty() && l.ends_with(".md5"))
+                .filter(|l| {
+                    let lower = l.to_lowercase();
+                    !lower.is_empty() && (lower.ends_with(".md5") || lower.ends_with(".zip") || lower.ends_with(".txt"))
+                })
                 .collect();
             Ok(files)
         })
