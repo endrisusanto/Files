@@ -165,6 +165,8 @@ export default function App() {
   const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [network, setNetwork] = useState<NetworkSample[]>([]);
   const [error, setError] = useState("");
+  const [debugLog, setDebugLog] = useState("");
+  const [remoteDevices, setRemoteDevices] = useState<any[]>([]);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   useEffect(() => {

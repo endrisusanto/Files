@@ -76,6 +76,7 @@ class MainActivity : Activity() {
     private val okHttpClient = OkHttpClient()
     @Volatile private var okWebSocket: WebSocket? = null
     @Volatile private var wsConnected = false
+    @Volatile private var usbRelayConnected = false
     private var lastWsAttempt = 0L
 
     private fun styleButton(button: Button, isPrimary: Boolean) {
@@ -872,16 +873,34 @@ class MainActivity : Activity() {
         progressContainer.addView(emptyTv)
     }
 
+    private fun updateCloudStatusDisplay() {
+        val target = when {
+            wsConnected -> "Cloud Connection: Connected (Direct WebSocket)"
+            usbRelayConnected -> "Cloud Connection: Connected (via USB Relay)"
+            else -> "Cloud Connection: Offline (Hotspot Mode)"
+        }
+        val current = status.text.toString()
+        val lines = current.split("\n").map { line ->
+            if (line.startsWith("Cloud Connection:")) target else line
+        }
+        status.text = lines.joinToString("\n")
+    }
+
     private fun refreshStatus(message: String? = null) {
         Log.i(tag, "Refreshing status")
         localDir.mkdirs()
         val file = latestFile()
         val sambaLine = "Samba Connection: Checking"
+        val cloudLine = when {
+            wsConnected -> "Cloud Connection: Connected (Direct WebSocket)"
+            usbRelayConnected -> "Cloud Connection: Connected (via USB Relay)"
+            else -> "Cloud Connection: Offline (Hotspot Mode)"
+        }
         status.text = listOfNotNull(
             message,
             "Staging Directory: ${if (localDir.canWrite()) "Writable" else "Not Writable"} (${localDir.listFiles()?.size ?: 0} Files)",
             sambaLine,
-            "Cloud Connection: ${if (wsConnected) "Connected" else "Not Connected"}",
+            cloudLine,
             "Local Path: ${localDir.absolutePath}",
             "Latest File: ${file?.name ?: "-"}",
             "Samba Target: ${BridgeService.target(this)}"
@@ -926,8 +945,7 @@ class MainActivity : Activity() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 wsConnected = true
                 runOnUiThread {
-                    status.text = status.text.toString()
-                        .replace("Cloud Connection: Not Connected", "Cloud Connection: Connected")
+                    updateCloudStatusDisplay()
                 }
                 appendLog("WebSocket connected to $wsUrl")
             }
@@ -1014,8 +1032,7 @@ class MainActivity : Activity() {
                 wsConnected = false
                 okWebSocket = null
                 runOnUiThread {
-                    status.text = status.text.toString()
-                        .replace("Cloud Connection: Connected", "Cloud Connection: Not Connected")
+                    updateCloudStatusDisplay()
                 }
                 appendLog("WebSocket closed: $reason")
             }
@@ -1025,6 +1042,7 @@ class MainActivity : Activity() {
     }
 
     private fun sendLocalUsbSample(jsonStr: String) {
+        val wasConnected = usbRelayConnected
         try {
             java.net.Socket().use { s ->
                 s.connect(java.net.InetSocketAddress("127.0.0.1", 1421), 300)
@@ -1032,8 +1050,15 @@ class MainActivity : Activity() {
                 out.write((jsonStr + "\n").toByteArray(Charsets.UTF_8))
                 out.flush()
             }
+            usbRelayConnected = true
+            if (!wasConnected && !wsConnected) {
+                runOnUiThread { updateCloudStatusDisplay() }
+            }
         } catch (_: Throwable) {
-            // USB reverse socket not active / phone unplugged
+            usbRelayConnected = false
+            if (wasConnected && !wsConnected) {
+                runOnUiThread { updateCloudStatusDisplay() }
+            }
         }
     }
 
