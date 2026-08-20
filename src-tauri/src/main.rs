@@ -339,7 +339,10 @@ fn watch_adb_devices(app: AppHandle) {
 
             if ids != last_ids {
                 println!("[bridge-tauri] ADB device list changed: old={:?}, new={:?}", last_ids, ids);
-                last_ids = ids;
+                last_ids = ids.clone();
+                for id in &ids {
+                    let _ = adb(&["-s", id, "reverse", "tcp:1421", "tcp:1421"]);
+                }
                 
                 let list = list_devices(&config);
                 if let Ok(mut cache) = config.devices_cache.lock() {
@@ -855,14 +858,20 @@ async fn get_devices(app: AppHandle) -> Result<Vec<DeviceInfo>, String> {
 
 fn start_usb_relay(app: AppHandle) {
     thread::spawn(move || {
-        let listener = match std::net::TcpListener::bind("127.0.0.1:1421") {
+        let listener = match std::net::TcpListener::bind("0.0.0.0:1421") {
             Ok(l) => l,
             Err(e) => {
-                eprintln!("[bridge-tauri] usb relay bind 1421: {e}");
-                return;
+                eprintln!("[bridge-tauri] usb relay bind 0.0.0.0:1421 failed ({e}), trying 127.0.0.1:1421");
+                match std::net::TcpListener::bind("127.0.0.1:1421") {
+                    Ok(l) => l,
+                    Err(e2) => {
+                        eprintln!("[bridge-tauri] usb relay bind 127.0.0.1:1421 failed: {e2}");
+                        return;
+                    }
+                }
             }
         };
-        println!("[bridge-tauri] USB Reverse Relay listening on 127.0.0.1:1421");
+        println!("[bridge-tauri] USB Reverse Relay listening on port 1421");
         for stream in listener.incoming() {
             if let Ok(socket) = stream {
                 let app_clone = app.clone();
