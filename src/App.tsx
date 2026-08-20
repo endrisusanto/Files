@@ -20,7 +20,7 @@ type LocalFile = {
   locked: boolean;
 };
 
-type Transfer = { file: string; percent: number; message: string };
+type Transfer = { file: string; percent: number; message: string; speed_bps?: number };
 type NetworkSample = { rx_bps: number; tx_bps: number; adb_push_bps?: number };
 type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean; hostname: string };
 
@@ -187,6 +187,14 @@ export default function App() {
   const adbPushBpsRef = useRef(0);
   const lastTime = useRef(0);
   const lastBytes = useRef(0);
+  const devicesRef = useRef<Device[]>([]);
+  useEffect(() => {
+    devicesRef.current = devices;
+  }, [devices]);
+  const infoRef = useRef<AppInfo | null>(null);
+  useEffect(() => {
+    infoRef.current = info;
+  }, [info]);
   const filesRef = useRef<LocalFile[]>([]);
   useEffect(() => {
     filesRef.current = files;
@@ -323,26 +331,58 @@ export default function App() {
         console.info("[bridge-ui] transfer event", e.payload);
         appendLog(`transfer ${e.payload.file}: ${e.payload.message}`);
         
-        // Calculate speed
-        const now = Date.now();
-        const fileObj = filesRef.current.find(f => f.name === e.payload.file);
-        if (fileObj) {
-          const currentBytes = (e.payload.percent / 100) * fileObj.size;
-          const timeDiff = now - lastTime.current;
-          if (timeDiff > 500 && currentBytes > lastBytes.current) {
-            const bytesPerSec = ((currentBytes - lastBytes.current) * 1000) / timeDiff;
-            const mbPerSec = bytesPerSec / (1024 * 1024);
-            setPushSpeed(mbPerSec >= 0.01 ? ` . ${mbPerSec.toFixed(2)} MB/s` : "");
-            adbPushBpsRef.current = mbPerSec >= 0.01 ? bytesPerSec : 0;
-            lastTime.current = now;
-            lastBytes.current = currentBytes;
+        const p = e.payload;
+        let bps = p.speed_bps || 0;
+        
+        // Fallback calculation if speed_bps is not yet populated
+        if (bps === 0 && p.percent > 0 && p.percent < 100) {
+          const now = Date.now();
+          const fileObj = filesRef.current.find(f => f.name === p.file);
+          if (fileObj) {
+            const currentBytes = (p.percent / 100) * fileObj.size;
+            if (lastTime.current > 0) {
+              const timeDiff = now - lastTime.current;
+              if (timeDiff >= 300 && currentBytes > lastBytes.current) {
+                bps = ((currentBytes - lastBytes.current) * 1000) / timeDiff;
+                lastTime.current = now;
+                lastBytes.current = currentBytes;
+              }
+            } else {
+              lastTime.current = now;
+              lastBytes.current = currentBytes;
+            }
           }
         }
-        if (e.payload.percent >= 100) {
+        
+        let mbText = "";
+        if (p.percent >= 100) {
           setPushSpeed("");
           adbPushBpsRef.current = 0;
           lastTime.current = 0;
           lastBytes.current = 0;
+        } else if (bps > 0) {
+          const mbPerSec = bps / (1024 * 1024);
+          mbText = mbPerSec >= 0.01 ? `${mbPerSec.toFixed(2)} MB/s` : "";
+          setPushSpeed(mbText ? ` . ${mbText}` : "");
+          adbPushBpsRef.current = bps;
+        }
+
+        // Fast broadcast status to Cloud Web Monitor during transfer
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && infoRef.current) {
+          const payload = {
+            type: "tauri_status",
+            id: infoRef.current.hostname || "tauri",
+            host: infoRef.current.hostname || "tauri",
+            platform: infoRef.current.platform,
+            source_dir: infoRef.current.source_dir,
+            samba_dir: infoRef.current.samba_dir,
+            devices: devicesRef.current,
+            files: filesRef.current,
+            adb_push_bps: adbPushBpsRef.current || 0,
+            push_speed: mbText,
+            transfer: p
+          };
+          wsRef.current.send(JSON.stringify(payload));
         }
 
         setTransfer((prev) => {

@@ -258,14 +258,14 @@
     .btn-primary {
       background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
       color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
-      padding: 8px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 999px;
+      padding: 6px 16px;
       font-family: inherit;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
       transition: all 0.2s ease;
       display: inline-flex;
       align-items: center;
@@ -527,14 +527,24 @@
       const allTx = state.flatMap(d => (d.samples || []).map(s => s.tx_bps || 0));
       const allAdb = [
         ...state.flatMap(d => (d.samples || []).map(s => s.adb_push_bps || 0)),
+        ...tauri.flatMap(t => (t.samples || []).map(s => s.adb_push_bps || 0)),
         ...tauri.map(t => t.adb_push_bps || 0)
       ];
-      const max = Math.max(1, ...allTx, ...allAdb);
+      const max = Math.max(1024 * 1024, ...allTx, ...allAdb);
 
-      // Draw Samba upload lines per device
+      // Top right scale badge
+      ctx.fillStyle = "#71717a";
+      ctx.font = "500 10px 'Inter', sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(`Scale: 0 - ${(max / 1024 / 1024).toFixed(1)} MB/s`, w - 12, 18);
+
+      // Draw Samba upload and ADB push lines per Android device
       state.forEach((d, di) => {
-        const samples = (d.samples || []).slice(-60);
-        if (samples.length < 2) return;
+        let samples = (d.samples || []).slice(-60);
+        if (samples.length === 0) return;
+        if (samples.length === 1) {
+          samples = [{ ...samples[0], t: samples[0].t - 1000 }, samples[0]];
+        }
 
         const { stroke: strokeColor, fill: fillColor } = DEVICE_COLORS[di % DEVICE_COLORS.length];
         const grad = ctx.createLinearGradient(0, 0, 0, h);
@@ -555,7 +565,7 @@
 
         samples.forEach((s, i) => {
           const x = i * w / (samples.length - 1);
-          const y = h - (s.tx_bps / max) * (h * 0.85);
+          const y = h - (s.tx_bps / max) * (h * 0.82) - 4;
           if (i === 0) {
             ctx.moveTo(x, y);
             fillPath.moveTo(x, y);
@@ -563,7 +573,7 @@
           } else {
             const prev = samples[i - 1];
             const prevX = (i - 1) * w / (samples.length - 1);
-            const prevY = h - (prev.tx_bps / max) * (h * 0.85);
+            const prevY = h - (prev.tx_bps / max) * (h * 0.82) - 4;
             const cp1x = prevX + (x - prevX) * 0.5;
             const cp2x = cp1x;
             ctx.bezierCurveTo(cp1x, prevY, cp2x, y, x, y);
@@ -587,34 +597,71 @@
           ctx.shadowColor = "#f97316";
           ctx.strokeStyle = "#fb923c";
           ctx.lineWidth = 2.5;
-          ctx.setLineDash([4, 4]);
           ctx.beginPath();
 
           samples.forEach((s, i) => {
             const x = i * w / (samples.length - 1);
-            const y = h - ((s.adb_push_bps || 0) / max) * (h * 0.85);
+            const y = h - ((s.adb_push_bps || 0) / max) * (h * 0.82) - 4;
             if (i === 0) ctx.moveTo(x, y);
             else {
               const prev = samples[i - 1];
               const prevX = (i - 1) * w / (samples.length - 1);
-              const prevY = h - ((prev.adb_push_bps || 0) / max) * (h * 0.85);
+              const prevY = h - ((prev.adb_push_bps || 0) / max) * (h * 0.82) - 4;
               const cp1x = prevX + (x - prevX) * 0.5;
               ctx.bezierCurveTo(cp1x, prevY, cp1x, y, x, y);
             }
           });
           ctx.stroke();
-          ctx.setLineDash([]);
           ctx.shadowBlur = 0;
         }
 
         // Draw device label in its color at the right edge
         const label = d.model || d.id?.slice(0, 12) || `Device ${di + 1}`;
         const lastSample = samples.at(-1);
-        const labelY = Math.max(20, h - (lastSample.tx_bps / max) * (h * 0.85) - 6);
+        const labelY = Math.max(24, h - (lastSample.tx_bps / max) * (h * 0.82) - 8);
         ctx.fillStyle = strokeColor;
         ctx.font = "bold 11px 'Inter', sans-serif";
         ctx.textAlign = "right";
-        ctx.fillText(`⬆ Samba: ${label}`, w - 8, labelY);
+        ctx.fillText(`⬆ Samba: ${label}`, w - 12, labelY);
+      });
+
+      // Draw ADB Push lines for Tauri Hosts if active
+      tauri.forEach((th) => {
+        let samples = (th.samples || []).slice(-60);
+        if (samples.length === 0) return;
+        if (samples.length === 1) {
+          samples = [{ ...samples[0], t: samples[0].t - 1000 }, samples[0]];
+        }
+        const hasAdb = samples.some(s => (s.adb_push_bps || 0) > 0);
+        if (!hasAdb) return;
+
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = "#f97316";
+        ctx.strokeStyle = "#fb923c";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+
+        samples.forEach((s, i) => {
+          const x = i * w / (samples.length - 1);
+          const y = h - ((s.adb_push_bps || 0) / max) * (h * 0.82) - 4;
+          if (i === 0) ctx.moveTo(x, y);
+          else {
+            const prev = samples[i - 1];
+            const prevX = (i - 1) * w / (samples.length - 1);
+            const prevY = h - ((prev.adb_push_bps || 0) / max) * (h * 0.82) - 4;
+            const cp1x = prevX + (x - prevX) * 0.5;
+            ctx.bezierCurveTo(cp1x, prevY, cp1x, y, x, y);
+          }
+        });
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        const lastSample = samples.at(-1);
+        const labelY = Math.max(38, h - ((lastSample.adb_push_bps || 0) / max) * (h * 0.82) - 8);
+        ctx.fillStyle = "#fb923c";
+        ctx.font = "bold 11px 'Inter', sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillText(`⚡ USB ADB: ${th.host || th.id || 'Host'}`, w - 12, labelY);
       });
 
       // Draw global chart legend
@@ -640,18 +687,22 @@
 
     // Save and restore scroll positions to prevent jump-to-top on re-render
     function saveScrolls() {
-      const scrollable = document.querySelectorAll('[data-scroll-key]');
       const map = {};
-      scrollable.forEach(el => { map[el.dataset.scrollKey] = el.scrollTop; });
+      document.querySelectorAll('[data-scroll-key]').forEach(el => {
+        map[el.dataset.scrollKey] = el.scrollTop;
+      });
       return map;
     }
 
     function restoreScrolls(map) {
       if (!map) return;
-      const scrollable = document.querySelectorAll('[data-scroll-key]');
-      scrollable.forEach(el => {
+      document.querySelectorAll('[data-scroll-key]').forEach(el => {
         const key = el.dataset.scrollKey;
-        if (key in map) el.scrollTop = map[key];
+        if (key in map && map[key] > 0) {
+          el.scrollTop = map[key];
+        } else if (key in detailsState && detailsState[key] > 0) {
+          el.scrollTop = detailsState[key];
+        }
       });
     }
 
@@ -672,7 +723,7 @@
       let activeAndroidCount = 0;
       let totalFilesCount = 0;
 
-      // Capture scroll positions BEFORE re-render
+      // Capture scroll positions synchronously BEFORE re-render
       const scrollSnapshot = saveScrolls();
 
       // Render Tauri Host cards
@@ -694,7 +745,7 @@
           const filesTable = sortedFiles.length > 0 ? `
             <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px;">
               <div style="font-size: 11px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa;">Staging Files (${sortedFiles.length})</div>
-              <div data-scroll-key="filelist-${hostKey}" style="max-height: 160px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 4px 8px; background: rgba(12, 12, 14, 0.8);">
+              <div data-scroll-key="filelist-${hostKey}" onscroll="detailsState['filelist-${hostKey}'] = this.scrollTop" style="max-height: 160px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 4px 8px; background: rgba(12, 12, 14, 0.8);">
                 <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
                   <thead>
                     <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); text-align: left; color: #71717a;">
@@ -809,8 +860,8 @@
       if ($("statAdbSpeed")) $("statAdbSpeed").innerHTML = `${mb(totalAdb)} <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span>`;
       if ($("statSpeed")) $("statSpeed").innerHTML = `${mb(totalUp)} <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span>`;
 
-      // Restore scroll positions AFTER re-render
-      requestAnimationFrame(() => restoreScrolls(scrollSnapshot));
+      // Restore scroll positions IMMEDIATELY and SYNCHRONOUSLY
+      restoreScrolls(scrollSnapshot);
 
       draw();
     }
@@ -849,7 +900,14 @@
           const msg = JSON.parse(event.data);
           if (msg.type === "snapshot" || msg.type === "state") {
             state = msg.devices || [];
-            tauri = msg.tauri || [];
+            const list = msg.tauri || [];
+            tauri = list.map(h => {
+              const prev = tauri.find(p => (p.id || p.host) === (h.id || h.host));
+              const prevSamples = prev?.samples || [];
+              const sample = { t: Date.now(), adb_push_bps: h.adb_push_bps || 0, tx_bps: 0 };
+              const samples = [...prevSamples.slice(-59), sample];
+              return { ...h, samples };
+            });
             render();
           } else if (msg.type === "telemetry") {
             const dev = msg.device || {};
@@ -867,7 +925,14 @@
             }
             render();
           } else if (msg.type === "tauri") {
-            tauri = msg.tauri || [];
+            const list = msg.tauri || [];
+            tauri = list.map(h => {
+              const prev = tauri.find(p => (p.id || p.host) === (h.id || h.host));
+              const prevSamples = prev?.samples || [];
+              const sample = { t: Date.now(), adb_push_bps: h.adb_push_bps || 0, tx_bps: 0 };
+              const samples = [...prevSamples.slice(-59), sample];
+              return { ...h, samples };
+            });
             render();
           }
         } catch (e) {

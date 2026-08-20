@@ -10,7 +10,7 @@ use std::{
     process::{Command, Stdio},
     sync::{mpsc::channel, Arc, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
@@ -63,6 +63,7 @@ struct TransferProgress {
     file: String,
     percent: u8,
     message: String,
+    speed_bps: u64,
 }
 
 
@@ -472,6 +473,7 @@ fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream:
                                             file: file.clone(),
                                             percent,
                                             message: trimmed.to_string(),
+                                            speed_bps: 0,
                                         });
                                     }
                                     if let Ok(mut guard) = last_line.lock() {
@@ -554,6 +556,7 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
             file: file_name.clone(),
             percent: 0,
             message: format!("Waiting for previous upload to complete ({} files remaining on phone)...", staged_count),
+            speed_bps: 0,
         });
         thread::sleep(Duration::from_secs(2));
     }
@@ -596,6 +599,7 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         file: file_name.clone(),
         percent: 0,
         message: "Starting adb push...".into(),
+        speed_bps: 0,
     });
 
     let mut child = command("adb")
@@ -624,6 +628,10 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
     let file_name_clone = file_name.clone();
 
     thread::spawn(move || {
+        let mut last_check = Instant::now();
+        let mut last_remote_size: u64 = 0;
+        let mut last_speed_bps: u64 = 0;
+
         while *ir_clone.lock().unwrap() {
             thread::sleep(Duration::from_millis(500));
             if !*ir_clone.lock().unwrap() {
@@ -633,12 +641,21 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
                 if !*ir_clone.lock().unwrap() {
                     break;
                 }
+                let now = Instant::now();
+                let elapsed = now.duration_since(last_check).as_secs_f64();
+                if elapsed >= 0.3 && remote_size >= last_remote_size {
+                    let diff = remote_size - last_remote_size;
+                    last_speed_bps = ((diff as f64) / elapsed) as u64;
+                    last_remote_size = remote_size;
+                    last_check = now;
+                }
                 let percent = ((remote_size as f64 / total_size as f64) * 100.0) as u8;
                 let percent = std::cmp::min(99, percent);
                 let _ = app_handle.emit("transfer", TransferProgress {
                     file: file_name_clone.clone(),
                     percent,
                     message: format!("Pushed {}/{} bytes ({}%)", remote_size, total_size, percent),
+                    speed_bps: last_speed_bps,
                 });
             }
         }
@@ -652,7 +669,7 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         eprintln!("[bridge-tauri] adb push failed file={file_name} error={err_msg}");
         return Err(format!("adb push failed: {}", err_msg));
     }
-    let _ = app.emit("transfer", TransferProgress { file: file_name.clone(), percent: 100, message: "push complete".into() });
+    let _ = app.emit("transfer", TransferProgress { file: file_name.clone(), percent: 100, message: "push complete".into(), speed_bps: 0 });
     adb(&[
         "-s",
         &device.id,
