@@ -77,6 +77,7 @@ class MainActivity : Activity() {
     @Volatile private var okWebSocket: WebSocket? = null
     @Volatile private var wsConnected = false
     @Volatile private var usbRelayConnected = false
+    @Volatile private var lastUsbRelaySuccessTime = 0L
     private var lastWsAttempt = 0L
 
     private fun styleButton(button: Button, isPrimary: Boolean) {
@@ -1022,8 +1023,7 @@ class MainActivity : Activity() {
                 wsConnected = false
                 okWebSocket = null
                 runOnUiThread {
-                    status.text = status.text.toString()
-                        .replace("Cloud Connection: Connected", "Cloud Connection: Not Connected")
+                    updateCloudStatusDisplay()
                 }
                 appendLog("WebSocket failure: ${t.message}")
             }
@@ -1045,19 +1045,23 @@ class MainActivity : Activity() {
         val wasConnected = usbRelayConnected
         try {
             java.net.Socket().use { s ->
-                s.connect(java.net.InetSocketAddress("127.0.0.1", 1421), 300)
+                s.connect(java.net.InetSocketAddress("127.0.0.1", 1421), 600)
                 val out = s.getOutputStream()
                 out.write((jsonStr + "\n").toByteArray(Charsets.UTF_8))
                 out.flush()
             }
+            lastUsbRelaySuccessTime = System.currentTimeMillis()
             usbRelayConnected = true
             if (!wasConnected && !wsConnected) {
                 runOnUiThread { updateCloudStatusDisplay() }
             }
         } catch (_: Throwable) {
-            usbRelayConnected = false
-            if (wasConnected && !wsConnected) {
-                runOnUiThread { updateCloudStatusDisplay() }
+            val now = System.currentTimeMillis()
+            if (now - lastUsbRelaySuccessTime > 4000) {
+                usbRelayConnected = false
+                if (wasConnected && !wsConnected) {
+                    runOnUiThread { updateCloudStatusDisplay() }
+                }
             }
         }
     }
