@@ -380,7 +380,8 @@ export default function App() {
             sample: {
               t: Date.now(),
               rx_bps: sample.rx_bps || 0,
-              tx_bps: sample.tx_bps || 0
+              tx_bps: sample.tx_bps || 0,
+              adb_push_bps: adbPushBpsRef.current || 0
             }
           }));
         }
@@ -388,7 +389,7 @@ export default function App() {
         setRemoteDevices((current) => {
           const index = current.findIndex((d) => d.id === sample.id);
           const existing = index >= 0 ? current[index] : { id: sample.id };
-          const telemetrySample = { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 };
+          const telemetrySample = { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0, adb_push_bps: adbPushBpsRef.current || 0 };
           const samples = [...((existing as any).samples || []).slice(-59), telemetrySample];
           const updated = {
             ...existing,
@@ -573,7 +574,10 @@ export default function App() {
           source_dir: info.source_dir,
           samba_dir: info.samba_dir,
           devices: devices,
-          files: mappedFiles
+          files: mappedFiles,
+          adb_push_bps: adbPushBpsRef.current || 0,
+          push_speed: pushSpeed || "",
+          transfer: transfer
         };
         ws.send(JSON.stringify(payload));
       }

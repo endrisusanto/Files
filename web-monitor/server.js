@@ -145,7 +145,12 @@ function attachAndroid(req, socket) {
       const sample = JSON.parse(text);
       const id = sample.id || sample.fingerprint || sample.model || randomUUID();
       const current = devices.get(id) || { id };
-      const telemetry = { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0 };
+      const telemetry = {
+        t: Date.now(),
+        rx_bps: sample.rx_bps || 0,
+        tx_bps: sample.tx_bps || 0,
+        adb_push_bps: sample.adb_push_bps || 0
+      };
       const currentSamples = current.samples || [];
       const updatedSamples = [...currentSamples.slice(-59), telemetry];
       devices.set(id, {
@@ -190,6 +195,28 @@ function attachBrowser(req, socket) {
         socket.tauriId = id;
         tauri.set(id, { ...msg, id, last_seen: Date.now() });
         broadcast({ type: "tauri", tauri: [...tauri.values()] });
+      } else if (msg.type === "telemetry") {
+        const dev = msg.device || {};
+        const id = dev.id || dev.fingerprint || dev.model || randomUUID();
+        const current = devices.get(id) || { id };
+        const telemetry = msg.sample || {
+          t: Date.now(),
+          rx_bps: dev.rx_bps || 0,
+          tx_bps: dev.tx_bps || 0,
+          adb_push_bps: dev.adb_push_bps || 0,
+        };
+        const currentSamples = current.samples || [];
+        const updatedSamples = [...currentSamples.slice(-59), telemetry];
+        devices.set(id, {
+          ...current,
+          ...dev,
+          id,
+          connected: true,
+          last_seen: Date.now(),
+          last_sample: telemetry,
+          samples: updatedSamples,
+        });
+        broadcastTelemetry(devices.get(id));
       } else if (msg.type === "command" && msg.target && msg.command) {
         if (msg.target === "all") {
           for (const s of androidSockets.values()) send(s, msg);

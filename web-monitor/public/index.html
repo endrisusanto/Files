@@ -416,24 +416,32 @@
       <div class="stat-card">
         <div class="stat-label">
           <span>Staging Files</span>
-          <span style="color: #fb923c;">📁</span>
+          <span style="color: #a78bfa;">📁</span>
         </div>
         <div class="stat-value" id="statFilesCount">0</div>
         <div class="stat-desc">Queued in Pipeline</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">
-          <span>Total Bandwidth</span>
-          <span style="color: #f472b6;">⚡</span>
+          <span>ADB Push Speed</span>
+          <span style="color: #f97316;">⚡</span>
+        </div>
+        <div class="stat-value" id="statAdbSpeed">0.00 <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span></div>
+        <div class="stat-desc">Live USB Transfer</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">
+          <span>Samba Bandwidth</span>
+          <span style="color: #60a5fa;">⬆️</span>
         </div>
         <div class="stat-value" id="statSpeed">0.00 <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span></div>
-        <div class="stat-desc">Live Upload Traffic</div>
+        <div class="stat-desc">Live Samba Upload</div>
       </div>
     </div>
 
     <h2>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-      Realtime Network Traffic
+      Realtime Network & USB Transfer Traffic
     </h2>
     <canvas id="chart" width="1100" height="200"></canvas>
 
@@ -483,10 +491,9 @@
       { stroke: "#f472b6", fill: "rgba(244, 114, 182, 0.15)" },
       { stroke: "#a78bfa", fill: "rgba(167, 139, 250, 0.15)" },
       { stroke: "#34d399", fill: "rgba(52, 211, 153, 0.15)" },
-      { stroke: "#fb923c", fill: "rgba(251, 146, 60, 0.15)" },
+      { stroke: "#22d3ee", fill: "rgba(34, 211, 238, 0.15)" },
       { stroke: "#facc15", fill: "rgba(250, 204, 21, 0.15)" },
       { stroke: "#e879f9", fill: "rgba(232, 121, 249, 0.15)" },
-      { stroke: "#22d3ee", fill: "rgba(34, 211, 238, 0.15)" },
     ];
 
     function draw() {
@@ -516,11 +523,15 @@
         ctx.stroke();
       }
 
-      // Determine global max across all active device upload samples
+      // Determine global max across all active Samba upload (tx_bps) and ADB push samples
       const allTx = state.flatMap(d => (d.samples || []).map(s => s.tx_bps || 0));
-      const max = Math.max(1, ...allTx);
+      const allAdb = [
+        ...state.flatMap(d => (d.samples || []).map(s => s.adb_push_bps || 0)),
+        ...tauri.map(t => t.adb_push_bps || 0)
+      ];
+      const max = Math.max(1, ...allTx, ...allAdb);
 
-      // Draw one upload (tx_bps) line per device with glowing stroke & fill
+      // Draw Samba upload lines per device
       state.forEach((d, di) => {
         const samples = (d.samples || []).slice(-60);
         if (samples.length < 2) return;
@@ -561,13 +572,40 @@
           lastX = x;
         });
         ctx.stroke();
-        ctx.shadowBlur = 0; // reset shadow for fill
+        ctx.shadowBlur = 0;
 
         fillPath.lineTo(lastX, h);
         fillPath.lineTo(firstX, h);
         fillPath.closePath();
         ctx.fillStyle = grad;
         ctx.fill(fillPath);
+
+        // Draw ADB Push line for this device if active
+        const hasAdb = samples.some(s => (s.adb_push_bps || 0) > 0);
+        if (hasAdb) {
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = "#f97316";
+          ctx.strokeStyle = "#fb923c";
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+
+          samples.forEach((s, i) => {
+            const x = i * w / (samples.length - 1);
+            const y = h - ((s.adb_push_bps || 0) / max) * (h * 0.85);
+            if (i === 0) ctx.moveTo(x, y);
+            else {
+              const prev = samples[i - 1];
+              const prevX = (i - 1) * w / (samples.length - 1);
+              const prevY = h - ((prev.adb_push_bps || 0) / max) * (h * 0.85);
+              const cp1x = prevX + (x - prevX) * 0.5;
+              ctx.bezierCurveTo(cp1x, prevY, cp1x, y, x, y);
+            }
+          });
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.shadowBlur = 0;
+        }
 
         // Draw device label in its color at the right edge
         const label = d.model || d.id?.slice(0, 12) || `Device ${di + 1}`;
@@ -576,25 +614,28 @@
         ctx.fillStyle = strokeColor;
         ctx.font = "bold 11px 'Inter', sans-serif";
         ctx.textAlign = "right";
-        ctx.fillText(`⬆ ${label}`, w - 8, labelY);
+        ctx.fillText(`⬆ Samba: ${label}`, w - 8, labelY);
       });
 
-      // Draw legend if more than 1 device
-      if (state.length > 1) {
-        ctx.textAlign = "left";
-        state.forEach((d, di) => {
-          const { stroke } = DEVICE_COLORS[di % DEVICE_COLORS.length];
-          const label = d.model || `Device ${di + 1}`;
-          ctx.fillStyle = stroke;
-          ctx.font = "bold 10px 'Inter', sans-serif";
-          ctx.beginPath();
-          ctx.arc(14, 14 + di * 18, 4, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#e4e4e7";
-          ctx.font = "500 11px 'Inter', sans-serif";
-          ctx.fillText(label, 24, 18 + di * 18);
-        });
-      }
+      // Draw global chart legend
+      ctx.textAlign = "left";
+      ctx.font = "500 11px 'Inter', sans-serif";
+      
+      // Samba Upload indicator
+      ctx.fillStyle = "#60a5fa";
+      ctx.beginPath();
+      ctx.arc(14, 16, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e4e4e7";
+      ctx.fillText("⬆ Samba Upload", 24, 20);
+
+      // ADB Push indicator
+      ctx.fillStyle = "#fb923c";
+      ctx.beginPath();
+      ctx.arc(140, 16, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e4e4e7";
+      ctx.fillText("⚡ ADB Push (USB)", 150, 20);
     }
 
     // Save and restore scroll positions to prevent jump-to-top on re-render
@@ -626,6 +667,7 @@
 
     function render() {
       let totalUp = 0;
+      let totalAdb = 0;
       let activeTauriCount = 0;
       let activeAndroidCount = 0;
       let totalFilesCount = 0;
@@ -644,6 +686,11 @@
           totalFilesCount += files.length;
           const hostKey = (host.host || host.id || 'host').replace(/[^a-z0-9]/gi, '_');
           const sortedFiles = [...files].sort((a, b) => fileSortPriority(a.status) - fileSortPriority(b.status));
+          
+          if (isOnline && host.adb_push_bps) {
+            totalAdb = Math.max(totalAdb, host.adb_push_bps);
+          }
+
           const filesTable = sortedFiles.length > 0 ? `
             <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px;">
               <div style="font-size: 11px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa;">Staging Files (${sortedFiles.length})</div>
@@ -701,6 +748,8 @@
                 <div style="color:#a1a1aa; font-weight:500;">Local Source</div><div class="value"><code>${host.source_dir || "-"}</code></div>
                 <div style="color:#a1a1aa; font-weight:500;">Samba Target</div><div class="value"><code>${host.samba_dir || "-"}</code></div>
                 <div style="color:#a1a1aa; font-weight:500;">USB Devices</div><div class="value">${host.devices?.length || 0} Devices</div>
+                <div style="color:#a1a1aa; font-weight:500;">ADB Push Speed</div>
+                <div class="value"><span style="color: #fb923c; font-weight:700;">⚡ ${host.push_speed || (host.adb_push_bps ? mb(host.adb_push_bps) + ' MB/s' : '0.00 MB/s')}</span></div>
               </div>
               ${filesTable}
             </div>
@@ -713,11 +762,12 @@
         $("androidList").innerHTML = `<div class="panel empty-state">No Active Android Bridge Devices.</div>`;
       } else {
         $("androidList").innerHTML = state.map((d) => {
-          const isOnline = Date.now() - d.last_seen < 6000;
+          const isOnline = Date.now() - d.last_seen < 15000;
           if (isOnline) activeAndroidCount++;
-          const lastSample = d.samples?.at(-1) || { rx_bps: 0, tx_bps: 0 };
+          const lastSample = d.samples?.at(-1) || { rx_bps: 0, tx_bps: 0, adb_push_bps: 0 };
           if (isOnline) {
-            totalUp += lastSample.tx_bps;
+            totalUp += lastSample.tx_bps || 0;
+            if (lastSample.adb_push_bps) totalAdb = Math.max(totalAdb, lastSample.adb_push_bps);
           }
           return `
             <div class="panel">
@@ -738,10 +788,14 @@
                 </div>
                 <div style="color:#a1a1aa; font-weight:500;">Samba Target</div><div class="value"><code>${d.target || "-"}</code></div>
                 <div style="color:#a1a1aa; font-weight:500;">Latest File</div><div class="value"><code>${d.latest || "-"}</code></div>
-                <div style="color:#a1a1aa; font-weight:500;">Upload Speed</div>
-                 <div class="value">
-                   <span style="color: #60a5fa; font-weight: 700;">⬆ ${mb(lastSample.tx_bps)} MB/s</span>
-                 </div>
+                <div style="color:#a1a1aa; font-weight:500;">ADB Push Speed</div>
+                <div class="value">
+                  <span style="color: #fb923c; font-weight: 700;">⚡ ${mb(lastSample.adb_push_bps || 0)} MB/s</span>
+                </div>
+                <div style="color:#a1a1aa; font-weight:500;">Samba Upload Speed</div>
+                <div class="value">
+                  <span style="color: #60a5fa; font-weight: 700;">⬆ ${mb(lastSample.tx_bps || 0)} MB/s</span>
+                </div>
               </div>
             </div>
           `;
@@ -752,6 +806,7 @@
       if ($("statTauriCount")) $("statTauriCount").textContent = activeTauriCount;
       if ($("statAndroidCount")) $("statAndroidCount").textContent = activeAndroidCount;
       if ($("statFilesCount")) $("statFilesCount").textContent = totalFilesCount;
+      if ($("statAdbSpeed")) $("statAdbSpeed").innerHTML = `${mb(totalAdb)} <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span>`;
       if ($("statSpeed")) $("statSpeed").innerHTML = `${mb(totalUp)} <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span>`;
 
       // Restore scroll positions AFTER re-render
