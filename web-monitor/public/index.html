@@ -824,12 +824,23 @@
             <div class="panel">
               <div class="card-title">
                 <strong>📱 ${d.model || d.id || "-"}</strong>
-                <span class="badge ${isOnline ? 'ok' : 'bad'}"><span class="badge-dot"></span>${isOnline ? 'Online' : 'Offline'}</span>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  ${d.battery_level !== undefined && d.battery_level >= 0 ? `
+                    <span class="badge ${d.is_charging ? 'ok' : 'info'}" style="font-size:10px; padding:2px 7px;">
+                      🔋 ${d.battery_level}%${d.is_charging ? ' ⚡' : ''}
+                    </span>
+                  ` : ''}
+                  <span class="badge ${isOnline ? 'ok' : 'bad'}"><span class="badge-dot"></span>${isOnline ? 'Online' : 'Offline'}</span>
+                </div>
               </div>
               <div onclick="toggleDetails(this, 'android-${(d.id || d.model).replace(/[^a-z0-9]/gi, '_')}')" style="cursor:pointer; font-size:11px; font-weight:600; color:#a1a1aa; margin-bottom:8px; user-select:none; display:inline-flex; align-items:center; gap:4px;">
                 ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? '▼ Hide Device Info' : '▶ Show Device Info'}
               </div>
               <div class="kv" style="display: ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? 'grid' : 'none'}; ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? 'margin-bottom: 8px;' : ''}">
+                <div style="color:#a1a1aa; font-weight:500;">Battery Status</div>
+                <div class="value">
+                  ${d.battery_level !== undefined && d.battery_level >= 0 ? `🔋 ${d.battery_level}% ${d.is_charging ? '(Charging ⚡)' : '(On Battery)'}` : '-'}
+                </div>
                 <div style="color:#a1a1aa; font-weight:500;">Samba Status</div>
                 <div class="value">
                   <span class="badge ${d.samba === 'connected' ? 'ok' : 'bad'}">

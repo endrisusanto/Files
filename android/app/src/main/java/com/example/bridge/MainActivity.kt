@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Color
@@ -12,6 +13,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.net.TrafficStats
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -21,6 +23,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -98,6 +101,48 @@ class MainActivity : Activity() {
         button.setPadding(24, 20, 24, 20)
     }
 
+    private var lastDimState = true
+    private var userInteractedTime = 0L
+
+    private fun updatePowerSavingBrightness(isTransferActive: Boolean) {
+        val now = System.currentTimeMillis()
+        val shouldBeBright = isTransferActive || (now - userInteractedTime < 15_000)
+        if (lastDimState == shouldBeBright) return
+        lastDimState = shouldBeBright
+
+        runOnUiThread {
+            try {
+                val lp = window.attributes
+                if (shouldBeBright) {
+                    lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    lp.screenBrightness = 0.01f // ultra-dim for powersaving on standby
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+                window.attributes = lp
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun getBatteryInfo(): Pair<Int, Boolean> {
+        return try {
+            val bm = getSystemService(BATTERY_SERVICE) as? BatteryManager
+            val level = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+            val isCharging = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                bm?.isCharging == true
+            } else {
+                val ifilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+                val batteryStatus = registerReceiver(null, ifilter)
+                val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+                status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+            }
+            Pair(level, isCharging)
+        } catch (_: Exception) {
+            Pair(-1, false)
+        }
+    }
+
     private val sampleNetwork = object : Runnable {
         override fun run() {
             val rx = TrafficStats.getTotalRxBytes()
@@ -112,6 +157,12 @@ class MainActivity : Activity() {
             }
             lastRx = rx
             lastTx = tx
+
+            val isTransferActive = BridgeService.currentFile.isNotEmpty() ||
+                    md5Files().isNotEmpty() ||
+                    transferSpeedMap.isNotEmpty() ||
+                    adbPushSpeedMap.values.sum() > 0L
+            updatePowerSavingBrightness(isTransferActive)
             
             if (activeTab == 1) {
                 val files = md5Files()
@@ -496,6 +547,8 @@ class MainActivity : Activity() {
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (ev?.action == MotionEvent.ACTION_DOWN) {
+            userInteractedTime = System.currentTimeMillis()
+            updatePowerSavingBrightness(true)
             if (::confettiView.isInitialized && confettiView.isRunning()) {
                 confettiView.stopConfetti()
             }
@@ -1070,6 +1123,7 @@ class MainActivity : Activity() {
         Thread {
             try {
                 val latest = latestFile()?.name ?: "-"
+                val (batteryLevel, isCharging) = getBatteryInfo()
                 val sampleObj = JSONObject().apply {
                     put("id", Build.FINGERPRINT)
                     put("model", Build.MODEL)
@@ -1082,6 +1136,8 @@ class MainActivity : Activity() {
                     put("upload_percent", BridgeService.currentProgress)
                     put("queue_success", BridgeService.queueSuccess)
                     put("queue_total", BridgeService.queueTotal)
+                    put("battery_level", batteryLevel)
+                    put("is_charging", isCharging)
                 }
                 val payloadStr = sampleObj.toString()
                 

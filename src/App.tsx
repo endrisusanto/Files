@@ -414,6 +414,8 @@ export default function App() {
               upload_percent: sample.upload_percent || 0,
               queue_success: sample.queue_success || 0,
               queue_total: sample.queue_total || 0,
+              battery_level: sample.battery_level,
+              is_charging: sample.is_charging,
               connected: true,
               last_seen: Date.now()
             },
@@ -427,7 +429,7 @@ export default function App() {
         }
         // 2. Update local remote devices state
         setRemoteDevices((current) => {
-          const index = current.findIndex((d) => d.id === sample.id);
+          const index = current.findIndex((d) => d.id === sample.id || (sample.model && d.model === sample.model));
           const existing = index >= 0 ? current[index] : { id: sample.id };
           const telemetrySample = { t: Date.now(), rx_bps: sample.rx_bps || 0, tx_bps: sample.tx_bps || 0, adb_push_bps: adbPushBpsRef.current || 0 };
           const samples = [...((existing as any).samples || []).slice(-59), telemetrySample];
@@ -476,7 +478,7 @@ export default function App() {
     if (alreadySelected) return;
 
     for (const d of devices) {
-      const isRemoteConnected = remoteDevices.some((rd) => rd.id === d.fingerprint);
+      const isRemoteConnected = remoteDevices.some((rd) => rd.id === d.fingerprint || rd.id === d.id || rd.model === d.model);
       if (isRemoteConnected) {
         console.info("[bridge-ui] Auto-pairing matching WebSocket & USB device:", d.model, d.fingerprint);
         appendLog(`Auto-pairing matching device: ${d.model} (${d.fingerprint})`);
@@ -507,7 +509,21 @@ export default function App() {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === "snapshot" || msg.type === "state") {
-            setRemoteDevices(msg.devices || []);
+            setRemoteDevices((current) => {
+              const remoteMap = new Map<string, any>();
+              for (const d of current) {
+                if (d.id && Date.now() - (d.last_seen || 0) < 60000) {
+                  remoteMap.set(d.id, d);
+                }
+              }
+              for (const d of (msg.devices || [])) {
+                if (d.id) {
+                  const existing = remoteMap.get(d.id) || {};
+                  remoteMap.set(d.id, { ...existing, ...d });
+                }
+              }
+              return [...remoteMap.values()];
+            });
             const selectedRemoteId = localStorage.getItem("selected_remote_id");
             const selectedRemote = (msg.devices || []).find((d: any) => d.id === selectedRemoteId);
             if (selectedRemote) {
@@ -517,7 +533,7 @@ export default function App() {
             const device = msg.device || {};
             const sample = msg.sample;
             setRemoteDevices((current) => {
-              const index = current.findIndex((d) => d.id === device.id);
+              const index = current.findIndex((d) => d.id === device.id || (device.model && d.model === device.model));
               const previous = index >= 0 ? current[index] : {};
               const samples = sample
                 ? [...((previous as any).samples || []).slice(-59), sample]
@@ -810,7 +826,8 @@ export default function App() {
   const active = devices.some((d) => d.is_selected_bridge);
   const selected = devices.some((d) => d.is_selected_bridge);
   const selectedDevice = devices.find((d) => d.is_selected_bridge);
-  const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint);
+  const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint || rd.id === selectedDevice?.id || rd.model === selectedDevice?.model);
+  const isBridgeLive = activeRemote && (Date.now() - (activeRemote.last_seen || 0) < 30000);
   const deviceActionReady = Boolean(selectedDevice);
 
   return (
@@ -821,7 +838,7 @@ export default function App() {
           <img src={logo} alt="FireFiles Logo" className="h-9 w-9" />
           <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">FireFiles</h1>
         </div>
-        <div className="flex items-center gap-4 text-xs font-semibold">
+        <div className="flex items-center gap-3 text-xs font-semibold">
           <span className={`rounded-full px-3 py-1 border transition-colors duration-200 ${
             active 
               ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
@@ -830,12 +847,23 @@ export default function App() {
             Bridge Service: {active ? "Ready" : selected ? "Storage Low" : "Idle"}
           </span>
           <span className={`rounded-full px-3 py-1 border transition-colors duration-200 ${
-            selectedDevice?.apk_installed 
+            isBridgeLive 
               ? "border-[#16a34a] bg-[#16a34a]/10 text-[#16a34a]" 
               : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-500 dark:text-zinc-400"
           }`}>
-            Android App: {selectedDevice?.apk_installed ? "Installed" : "Not Installed"}
+            Bridge App: {isBridgeLive ? "Live Online" : selectedDevice?.apk_installed ? "Installed (Idle)" : "Not Installed"}
           </span>
+          {activeRemote?.battery_level !== undefined && activeRemote.battery_level >= 0 && (
+            <span className={`rounded-full px-3 py-1 border transition-colors duration-200 ${
+              activeRemote.is_charging 
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500 dark:text-emerald-400" 
+                : activeRemote.battery_level <= 20
+                ? "border-red-500/40 bg-red-500/10 text-red-500"
+                : "border-gray-250 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-700 dark:text-zinc-300"
+            }`}>
+              🔋 {activeRemote.battery_level}%{activeRemote.is_charging ? " ⚡" : ""}
+            </span>
+          )}
           <span className={`transition-colors duration-200 ${active ? "text-[#16a34a] font-bold" : "text-gray-500 dark:text-zinc-400"}`}>
             {active ? "USB Link: Connected" : selected ? "Warning: Storage Low" : "USB Link: Offline"}
           </span>
@@ -1204,6 +1232,7 @@ export default function App() {
                     <tr>
                       <th className="p-3">Device Model</th>
                       <th className="p-3">Device ID</th>
+                      <th className="p-3">Battery</th>
                       <th className="p-3">Samba Target</th>
                       <th className="p-3">Samba Status</th>
                       <th className="p-3">USB Status</th>
@@ -1215,13 +1244,28 @@ export default function App() {
                   </thead>
                   <tbody className="divide-y divide-gray-150 dark:divide-zinc-800 text-gray-700 dark:text-zinc-300">
                     {remoteDevices.map((d) => {
-                      const isOnline = d.connected !== false && Date.now() - d.last_seen < 15000;
-                      const usbOnline = devices.some((localDev) => localDev.fingerprint === d.id);
+                      const isOnline = d.connected !== false && Date.now() - (d.last_seen || 0) < 30000;
+                      const usbOnline = devices.some((localDev) => localDev.fingerprint === d.id || localDev.id === d.id || localDev.model === d.model);
                       const isSelected = localStorage.getItem("selected_remote_id") === d.id;
                       return (
                         <tr key={d.id} className={`transition ${isSelected ? "bg-[#2563eb]/5 dark:bg-[#2563eb]/10" : "hover:bg-gray-50 dark:hover:bg-zinc-900/50"}`}>
                           <td className="p-3 font-semibold text-gray-900 dark:text-zinc-100">{d.model || "-"}</td>
-                          <td className="p-3 text-xs max-w-[200px] truncate text-gray-400 dark:text-zinc-500" title={d.id}>{d.id}</td>
+                          <td className="p-3 text-xs max-w-[180px] truncate text-gray-400 dark:text-zinc-500" title={d.id}>{d.id}</td>
+                          <td className="p-3 text-xs font-semibold whitespace-nowrap">
+                            {d.battery_level !== undefined && d.battery_level >= 0 ? (
+                              <span className={`rounded px-2 py-0.5 border ${
+                                d.is_charging 
+                                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
+                                  : d.battery_level <= 20
+                                  ? "border-red-500/30 bg-red-500/10 text-red-500"
+                                  : "border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 text-gray-700 dark:text-zinc-300"
+                              }`}>
+                                🔋 {d.battery_level}%{d.is_charging ? " ⚡" : ""}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 dark:text-zinc-500">-</span>
+                            )}
+                          </td>
                           <td className="p-3 text-xs text-gray-500 dark:text-zinc-400">{d.target || "-"}</td>
                           <td className="p-3">
                             {d.samba === "connected" ? (
@@ -1256,7 +1300,7 @@ export default function App() {
                               {isSelected ? "Selected" : "Idle"}
                             </span>
                           </td>
-                          <td className="p-3 text-xs max-w-[200px] truncate text-gray-500 dark:text-zinc-400" title={d.latest}>{d.latest || "-"}</td>
+                          <td className="p-3 text-xs max-w-[180px] truncate text-gray-500 dark:text-zinc-400" title={d.latest}>{d.latest || "-"}</td>
                           <td className="p-3">
                             <span className={`rounded px-2 py-0.5 text-xs font-medium border ${
                               isOnline 
