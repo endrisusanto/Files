@@ -1017,10 +1017,10 @@ class MainActivity : Activity() {
     }
 
     @Synchronized
-    private fun connectWebSocketOk(): WebSocket {
+    private fun connectWebSocketOk(silent: Boolean = false): WebSocket {
         okWebSocket?.let { if (wsConnected) return it }
         val now = System.currentTimeMillis()
-        if (now - lastWsAttempt < 5000) {
+        if (now - lastWsAttempt < 15000) {
             throw IllegalStateException("websocket reconnect backoff")
         }
         lastWsAttempt = now
@@ -1028,7 +1028,7 @@ class MainActivity : Activity() {
         val wsUrl = getSharedPreferences("bridge", Context.MODE_PRIVATE)
             .getString("ws_url", "wss://files.endrisusanto.my.id/network") ?: "wss://files.endrisusanto.my.id/network"
 
-        appendLog("Connecting to WebSocket: $wsUrl")
+        if (!silent) appendLog("Connecting to WebSocket: $wsUrl")
         val request = Request.Builder().url(wsUrl).build()
         val socket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -1113,7 +1113,7 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     updateCloudStatusDisplay()
                 }
-                appendLog("WebSocket failure: ${t.message}")
+                if (!silent) appendLog("WebSocket failure: ${t.message}")
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -1122,7 +1122,7 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     updateCloudStatusDisplay()
                 }
-                appendLog("WebSocket closed: $reason")
+                if (!silent) appendLog("WebSocket closed: $reason")
             }
         })
         okWebSocket = socket
@@ -1180,12 +1180,12 @@ class MainActivity : Activity() {
                 // 1. Send through local USB ADB reverse relay (127.0.0.1:1421)
                 sendLocalUsbSample(payloadStr)
 
-                // 2. Send through Cloud WebSocket if available
+                // 2. Send through Cloud WebSocket if already connected or if USB relay is inactive
                 if (wsConnected && okWebSocket != null) {
                     okWebSocket?.send(payloadStr)
-                } else {
+                } else if (!usbRelayConnected) {
                     try {
-                        val socket = connectWebSocketOk()
+                        val socket = connectWebSocketOk(silent = true)
                         if (wsConnected) {
                             socket.send(payloadStr)
                         }
