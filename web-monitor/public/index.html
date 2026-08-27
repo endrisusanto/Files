@@ -524,9 +524,13 @@
       }
 
       // Determine global max across all active Samba upload (tx_bps) and ADB push samples
-      const allTx = state.flatMap(d => (d.samples || []).map(s => s.tx_bps || 0));
+      const allTx = [
+        ...state.flatMap(d => (d.samples || []).map(s => s.tx_bps || 0)),
+        ...state.map(d => d.tx_bps || 0)
+      ];
       const allAdb = [
         ...state.flatMap(d => (d.samples || []).map(s => s.adb_push_bps || 0)),
+        ...state.map(d => d.adb_push_bps || 0),
         ...tauri.flatMap(t => (t.samples || []).map(s => s.adb_push_bps || 0)),
         ...tauri.map(t => t.adb_push_bps || 0)
       ];
@@ -541,7 +545,18 @@
       // Draw Samba upload and ADB push lines per Android device
       state.forEach((d, di) => {
         let samples = (d.samples || []).slice(-60);
-        if (samples.length === 0) return;
+        if (samples.length === 0) {
+          const curTx = d.tx_bps || 0;
+          const curAdb = d.adb_push_bps || 0;
+          if (curTx > 0 || curAdb > 0) {
+            samples = [
+              { t: Date.now() - 1000, tx_bps: curTx, rx_bps: 0, adb_push_bps: curAdb },
+              { t: Date.now(), tx_bps: curTx, rx_bps: 0, adb_push_bps: curAdb }
+            ];
+          } else {
+            return;
+          }
+        }
         if (samples.length === 1) {
           samples = [{ ...samples[0], t: samples[0].t - 1000 }, samples[0]];
         }
@@ -591,7 +606,7 @@
         ctx.fill(fillPath);
 
         // Draw ADB Push line for this device if active
-        const hasAdb = samples.some(s => (s.adb_push_bps || 0) > 0);
+        const hasAdb = samples.some(s => (s.adb_push_bps || 0) > 0) || (d.adb_push_bps || 0) > 0;
         if (hasAdb) {
           ctx.shadowBlur = 10;
           ctx.shadowColor = "#f97316";
@@ -617,8 +632,8 @@
 
         // Draw device label in its color at the right edge
         const label = d.model || d.id?.slice(0, 12) || `Device ${di + 1}`;
-        const lastSample = samples.at(-1);
-        const labelY = Math.max(24, h - (lastSample.tx_bps / max) * (h * 0.82) - 8);
+        const lastSample = samples.at(-1) || {};
+        const labelY = Math.max(24, h - ((lastSample.tx_bps || d.tx_bps || 0) / max) * (h * 0.82) - 8);
         ctx.fillStyle = strokeColor;
         ctx.font = "bold 11px 'Inter', sans-serif";
         ctx.textAlign = "right";
@@ -628,11 +643,21 @@
       // Draw ADB Push lines for Tauri Hosts if active
       tauri.forEach((th) => {
         let samples = (th.samples || []).slice(-60);
-        if (samples.length === 0) return;
+        if (samples.length === 0) {
+          const curAdb = th.adb_push_bps || 0;
+          if (curAdb > 0) {
+            samples = [
+              { t: Date.now() - 1000, tx_bps: 0, rx_bps: 0, adb_push_bps: curAdb },
+              { t: Date.now(), tx_bps: 0, rx_bps: 0, adb_push_bps: curAdb }
+            ];
+          } else {
+            return;
+          }
+        }
         if (samples.length === 1) {
           samples = [{ ...samples[0], t: samples[0].t - 1000 }, samples[0]];
         }
-        const hasAdb = samples.some(s => (s.adb_push_bps || 0) > 0);
+        const hasAdb = samples.some(s => (s.adb_push_bps || 0) > 0) || (th.adb_push_bps || 0) > 0;
         if (!hasAdb) return;
 
         ctx.shadowBlur = 12;
@@ -656,8 +681,8 @@
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        const lastSample = samples.at(-1);
-        const labelY = Math.max(38, h - ((lastSample.adb_push_bps || 0) / max) * (h * 0.82) - 8);
+        const lastSample = samples.at(-1) || {};
+        const labelY = Math.max(38, h - (((lastSample.adb_push_bps || th.adb_push_bps || 0)) / max) * (h * 0.82) - 8);
         ctx.fillStyle = "#fb923c";
         ctx.font = "bold 11px 'Inter', sans-serif";
         ctx.textAlign = "right";
@@ -731,15 +756,15 @@
         $("tauriList").innerHTML = `<div class="panel empty-state">No Active Tauri Staging Hosts.</div>`;
       } else {
         $("tauriList").innerHTML = tauri.map((host) => {
-          const isOnline = Date.now() - host.last_seen < 15000;
+          const isOnline = Date.now() - (host.last_seen || 0) < 15000;
           if (isOnline) activeTauriCount++;
           const files = host.files || [];
           totalFilesCount += files.length;
           const hostKey = (host.host || host.id || 'host').replace(/[^a-z0-9]/gi, '_');
           const sortedFiles = [...files].sort((a, b) => fileSortPriority(a.status) - fileSortPriority(b.status));
           
-          if (isOnline && host.adb_push_bps) {
-            totalAdb = Math.max(totalAdb, host.adb_push_bps);
+          if (isOnline && (host.adb_push_bps || host.push_speed)) {
+            totalAdb = Math.max(totalAdb, host.adb_push_bps || 0);
           }
 
           const filesTable = sortedFiles.length > 0 ? `
@@ -813,12 +838,14 @@
         $("androidList").innerHTML = `<div class="panel empty-state">No Active Android Bridge Devices.</div>`;
       } else {
         $("androidList").innerHTML = state.map((d) => {
-          const isOnline = Date.now() - d.last_seen < 15000;
+          const isOnline = Date.now() - (d.last_seen || 0) < 15000;
           if (isOnline) activeAndroidCount++;
           const lastSample = d.samples?.at(-1) || { rx_bps: 0, tx_bps: 0, adb_push_bps: 0 };
+          const devTx = (lastSample.tx_bps !== undefined && lastSample.tx_bps > 0) ? lastSample.tx_bps : (d.tx_bps || 0);
+          const devAdb = (lastSample.adb_push_bps !== undefined && lastSample.adb_push_bps > 0) ? lastSample.adb_push_bps : (d.adb_push_bps || 0);
           if (isOnline) {
-            totalUp += lastSample.tx_bps || 0;
-            if (lastSample.adb_push_bps) totalAdb = Math.max(totalAdb, lastSample.adb_push_bps);
+            totalUp += devTx;
+            if (devAdb) totalAdb = Math.max(totalAdb, devAdb);
           }
           return `
             <div class="panel">
@@ -852,11 +879,11 @@
                 <div style="color:#a1a1aa; font-weight:500;">Latest File</div><div class="value"><code>${d.latest || "-"}</code></div>
                 <div style="color:#a1a1aa; font-weight:500;">ADB Push Speed</div>
                 <div class="value">
-                  <span style="color: #fb923c; font-weight: 700;">⚡ ${mb(lastSample.adb_push_bps || 0)} MB/s</span>
+                  <span style="color: #fb923c; font-weight: 700;">⚡ ${mb(devAdb)} MB/s</span>
                 </div>
                 <div style="color:#a1a1aa; font-weight:500;">Samba Upload Speed</div>
                 <div class="value">
-                  <span style="color: #60a5fa; font-weight: 700;">⬆ ${mb(lastSample.tx_bps || 0)} MB/s</span>
+                  <span style="color: #60a5fa; font-weight: 700;">⬆ ${mb(devTx)} MB/s</span>
                 </div>
               </div>
             </div>

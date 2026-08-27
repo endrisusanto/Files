@@ -153,7 +153,7 @@ class MainActivity : Activity() {
                 networkHistory.add(sample)
                 if (networkHistory.size > 60) networkHistory.removeAt(0)
                 networkChart.invalidate()
-                sendWebSocketSample(sample.first, sample.second)
+                sendWebSocketSample(sample.first, sample.second, sample.third)
             }
             lastRx = rx
             lastTx = tx
@@ -1119,7 +1119,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun sendWebSocketSample(rx: Long, tx: Long) {
+    private fun sendWebSocketSample(rx: Long, tx: Long, adbPush: Long = 0L) {
         Thread {
             try {
                 val latest = latestFile()?.name ?: "-"
@@ -1129,6 +1129,7 @@ class MainActivity : Activity() {
                     put("model", Build.MODEL)
                     put("rx_bps", rx)
                     put("tx_bps", tx)
+                    put("adb_push_bps", adbPush)
                     put("samba", if (badge.text.contains("ready", ignoreCase = true)) "connected" else "not connected")
                     put("target", BridgeService.target(this@MainActivity))
                     put("latest", latest)
