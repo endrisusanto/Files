@@ -120,7 +120,7 @@ class MainActivity : Activity() {
                     lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 } else {
-                    lp.screenBrightness = 0.01f // ultra-dim for powersaving on standby
+                    lp.screenBrightness = 0.25f // 25% brightness for powersaving on standby
                     window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
                 window.attributes = lp
