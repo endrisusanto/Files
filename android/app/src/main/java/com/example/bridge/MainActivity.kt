@@ -102,11 +102,14 @@ class MainActivity : Activity() {
     }
 
     private var lastDimState = true
-    private var userInteractedTime = 0L
+    private var userInteractedTime = System.currentTimeMillis()
+    private var isDialogShowing = false
 
     private fun updatePowerSavingBrightness(isTransferActive: Boolean) {
         val now = System.currentTimeMillis()
-        val shouldBeBright = isTransferActive || (now - userInteractedTime < 15_000)
+        val isAppBusy = isTransferActive || isDialogShowing
+        // Only dim if the app is completely idle for at least 60 seconds and no transfers or dialogs
+        val shouldBeBright = isAppBusy || (now - userInteractedTime < 60_000L)
         if (lastDimState == shouldBeBright) return
         lastDimState = shouldBeBright
 
@@ -545,6 +548,12 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        userInteractedTime = System.currentTimeMillis()
+        updatePowerSavingBrightness(true)
+    }
+
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (ev?.action == MotionEvent.ACTION_DOWN) {
             userInteractedTime = System.currentTimeMillis()
@@ -620,7 +629,7 @@ class MainActivity : Activity() {
             addView(share)
             addView(wsUrl)
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Samba & WebSocket Target")
             .setView(form)
             .setNegativeButton("Cancel", null)
@@ -637,7 +646,17 @@ class MainActivity : Activity() {
                 }.start()
                 testUpload()
             }
-            .show()
+            .create()
+
+        dialog.setOnShowListener {
+            isDialogShowing = true
+            updatePowerSavingBrightness(true)
+        }
+        dialog.setOnDismissListener {
+            isDialogShowing = false
+            userInteractedTime = System.currentTimeMillis()
+        }
+        dialog.show()
     }
 
     private fun styleTabButton(button: TextView, isActive: Boolean) {
