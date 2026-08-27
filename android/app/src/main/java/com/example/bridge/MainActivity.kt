@@ -101,27 +101,41 @@ class MainActivity : Activity() {
         button.setPadding(24, 20, 24, 20)
     }
 
-    private var lastDimState = true
+    private var lastDimState = -1
     private var userInteractedTime = System.currentTimeMillis()
     private var isDialogShowing = false
 
     private fun updatePowerSavingBrightness(isTransferActive: Boolean) {
         val now = System.currentTimeMillis()
+        val isConfettiRunning = ::confettiView.isInitialized && confettiView.isRunning()
         val isAppBusy = isTransferActive || isDialogShowing
-        // Only dim if the app is completely idle for at least 60 seconds and no transfers or dialogs
-        val shouldBeBright = isAppBusy || (now - userInteractedTime < 60_000L)
-        if (lastDimState == shouldBeBright) return
-        lastDimState = shouldBeBright
+        val isRecentlyInteracted = (now - userInteractedTime < 60_000L)
+
+        val targetMode = when {
+            isConfettiRunning -> 2 // Confetti celebration -> 75% brightness
+            isAppBusy || isRecentlyInteracted -> 1 // Active transfer / User interacting -> Full (100%)
+            else -> 0 // Standby / Idle -> 25% brightness
+        }
+
+        if (lastDimState == targetMode) return
+        lastDimState = targetMode
 
         runOnUiThread {
             try {
                 val lp = window.attributes
-                if (shouldBeBright) {
-                    lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                } else {
-                    lp.screenBrightness = 0.25f // 25% brightness for powersaving on standby
-                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                when (targetMode) {
+                    2 -> {
+                        lp.screenBrightness = 0.75f // 75% brightness for confetti celebration
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    1 -> {
+                        lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE // 100% full
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    else -> {
+                        lp.screenBrightness = 0.25f // 25% brightness for powersaving on standby
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
                 }
                 window.attributes = lp
             } catch (_: Exception) {}
@@ -746,11 +760,13 @@ class MainActivity : Activity() {
                 wasTransferring = true
                 if (::confettiView.isInitialized && confettiView.isRunning()) {
                     confettiView.stopConfetti()
+                    updatePowerSavingBrightness(true)
                 }
             } else if (wasTransferring) {
                 wasTransferring = false
                 if (::confettiView.isInitialized) {
                     confettiView.startConfetti()
+                    updatePowerSavingBrightness(false)
                 }
             }
 
