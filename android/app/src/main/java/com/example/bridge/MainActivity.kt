@@ -614,7 +614,7 @@ class MainActivity : Activity() {
                 "Test upload OK: ${BridgeService.target(this)}test.txt"
             } catch (t: Throwable) {
                 Log.e(tag, "Test upload failed", t)
-                "Test upload failed: ${t.message}"
+                "Test upload failed: ${t.message ?: t.javaClass.simpleName}"
             }
             runOnUiThread {
                 appendLog(message)
@@ -625,11 +625,11 @@ class MainActivity : Activity() {
 
     private fun showSambaSettings() {
         val host = EditText(this).apply {
-            hint = "Host"
+            hint = "Host (e.g. 10.219.191.122)"
             setText(BridgeService.host(this@MainActivity))
         }
         val share = EditText(this).apply {
-            hint = "Share"
+            hint = "Share (e.g. SSD)"
             setText(BridgeService.share(this@MainActivity))
         }
         val wsUrl = EditText(this).apply {
@@ -648,17 +648,32 @@ class MainActivity : Activity() {
             .setView(form)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Save & Test") { _, _ ->
-                BridgeService.saveTarget(this, host.text.toString(), share.text.toString())
-                getSharedPreferences("bridge", Context.MODE_PRIVATE).edit()
-                    .putString("ws_url", wsUrl.text.toString().trim())
-                    .apply()
-                appendLog("Settings saved. Samba: ${BridgeService.target(this)}, WS: ${wsUrl.text}")
-                refreshStatus("Settings saved")
-                Thread {
-                    closeWebSocket()
-                    connectWebSocketOk()
-                }.start()
-                testUpload()
+                try {
+                    val rawHost = host.text?.toString() ?: ""
+                    val rawShare = share.text?.toString() ?: ""
+                    val rawWs = wsUrl.text?.toString() ?: ""
+
+                    BridgeService.saveTarget(this, rawHost, rawShare)
+                    getSharedPreferences("bridge", Context.MODE_PRIVATE).edit()
+                        .putString("ws_url", rawWs.trim())
+                        .apply()
+
+                    appendLog("Settings saved. Samba: ${BridgeService.target(this)}, WS: ${rawWs.trim()}")
+
+                    Thread {
+                        try {
+                            closeWebSocket()
+                            lastWsAttempt = 0L
+                            connectWebSocketOk(silent = false, force = true)
+                        } catch (t: Throwable) {
+                            Log.w(tag, "WS reconnect failed: ${t.message}")
+                        }
+                    }.start()
+
+                    testUpload()
+                } catch (t: Throwable) {
+                    appendLog("Error saving settings: ${t.message}")
+                }
             }
             .create()
 
@@ -1017,11 +1032,11 @@ class MainActivity : Activity() {
     }
 
     @Synchronized
-    private fun connectWebSocketOk(silent: Boolean = false): WebSocket {
+    private fun connectWebSocketOk(silent: Boolean = false, force: Boolean = false): WebSocket? {
         okWebSocket?.let { if (wsConnected) return it }
         val now = System.currentTimeMillis()
-        if (now - lastWsAttempt < 15000) {
-            throw IllegalStateException("websocket reconnect backoff")
+        if (!force && now - lastWsAttempt < 15000) {
+            return okWebSocket
         }
         lastWsAttempt = now
 
@@ -1187,7 +1202,7 @@ class MainActivity : Activity() {
                     try {
                         val socket = connectWebSocketOk(silent = true)
                         if (wsConnected) {
-                            socket.send(payloadStr)
+                            socket?.send(payloadStr)
                         }
                     } catch (_: Throwable) {}
                 }

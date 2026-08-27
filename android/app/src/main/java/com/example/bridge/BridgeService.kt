@@ -31,37 +31,80 @@ class BridgeService : Service() {
     private val executor = Executors.newSingleThreadExecutor()
 
     companion object {
-        const val SMB_HOST = "192.168.10.177"
-        const val SMB_SHARE = "sambashare"
+        const val SMB_HOST = "10.219.191.122"
+        const val SMB_SHARE = "SSD"
 
         @Volatile var currentFile: String = ""
         @Volatile var currentProgress: Int = 0
         @Volatile var queueSuccess: Int = 0
         @Volatile var queueTotal: Int = 0
 
-        fun host(context: Context) = context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("smb_host", SMB_HOST) ?: SMB_HOST
-        fun share(context: Context) = context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("smb_share", SMB_SHARE) ?: SMB_SHARE
+        fun cleanHost(raw: String): String {
+            return raw.trim()
+                .removePrefix("smb://")
+                .removePrefix("\\\\")
+                .removePrefix("//")
+                .trim('/', '\\')
+                .split('/', '\\')[0]
+                .trim()
+        }
+
+        fun cleanShare(raw: String): String {
+            return raw.trim()
+                .removePrefix("smb://")
+                .removePrefix("\\\\")
+                .removePrefix("//")
+                .trim('/', '\\')
+                .replace('\\', '/')
+                .split('/')
+                .lastOrNull { it.isNotEmpty() } ?: raw.trim()
+        }
+
+        fun host(context: Context): String {
+            val h = context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("smb_host", SMB_HOST) ?: SMB_HOST
+            return cleanHost(h).ifEmpty { SMB_HOST }
+        }
+
+        fun share(context: Context): String {
+            val s = context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("smb_share", SMB_SHARE) ?: SMB_SHARE
+            return cleanShare(s).ifEmpty { SMB_SHARE }
+        }
+
         fun target(context: Context) = "smb://${host(context)}/${share(context)}/"
+
         fun saveTarget(context: Context, host: String, share: String) {
+            val cleanedHost = cleanHost(host).ifEmpty { SMB_HOST }
+            val cleanedShare = cleanShare(share).ifEmpty { SMB_SHARE }
             context.getSharedPreferences("bridge", Context.MODE_PRIVATE).edit()
-                .putString("smb_host", host.trim())
-                .putString("smb_share", share.trim().trim('/'))
+                .putString("smb_host", cleanedHost)
+                .putString("smb_share", cleanedShare)
                 .apply()
         }
 
         fun checkSamba(context: Context) {
-            SMBClient().use { client ->
-                client.connect(host(context)).use { connection ->
-                    connection.authenticate(guestAuth()).connectShare(share(context)).use {}
+            val smbClient = SMBClient()
+            try {
+                smbClient.connect(host(context)).use { connection ->
+                    val session = connection.authenticate(guestAuth())
+                    session.connectShare(share(context)).use { smbShare ->
+                        if (smbShare !is DiskShare) {
+                            throw IllegalStateException("Share '${share(context)}' is not a DiskShare")
+                        }
+                    }
                 }
+            } finally {
+                try { smbClient.close() } catch (_: Throwable) {}
             }
         }
 
         fun uploadTestFile(context: Context) {
-            SMBClient().use { client ->
-                client.connect(host(context)).use { connection ->
-                    connection.authenticate(guestAuth()).connectShare(share(context)).use { smbShare ->
-                        val disk = smbShare as DiskShare
+            val smbClient = SMBClient()
+            try {
+                smbClient.connect(host(context)).use { connection ->
+                    val session = connection.authenticate(guestAuth())
+                    session.connectShare(share(context)).use { smbShare ->
+                        val disk = smbShare as? DiskShare
+                            ?: throw IllegalStateException("Share '${share(context)}' is not a DiskShare")
                         disk.openFile(
                             "test.txt",
                             EnumSet.of(AccessMask.GENERIC_WRITE),
@@ -76,6 +119,8 @@ class BridgeService : Service() {
                         }
                     }
                 }
+            } finally {
+                try { smbClient.close() } catch (_: Throwable) {}
             }
         }
 

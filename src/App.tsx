@@ -1348,8 +1348,8 @@ export default function App() {
                             <button
                               disabled={!isOnline || !ws}
                               onClick={() => {
-                                const host = window.prompt("Enter Samba Host IP:", d.target?.split("//")[1]?.split("/")[0] || "192.168.10.177");
-                                const share = window.prompt("Enter Samba Share Name:", d.target?.split("//")[1]?.split("/")[1] || "sambashare");
+                                const host = window.prompt("Enter Samba Host IP:", d.target?.split("//")[1]?.split("/")[0] || "10.219.191.122");
+                                const share = window.prompt("Enter Samba Share Name:", d.target?.split("//")[1]?.split("/")[1] || "SSD");
                                 if (host && share && ws) {
                                   ws.send(JSON.stringify({
                                     type: "command",
