@@ -224,6 +224,72 @@ export default function App() {
   });
   const [debugTab, setDebugTab] = useState<'log' | 'progress'>('log');
 
+  // Priority Selection State (Default CP & CSC)
+  const [priorityFiles, setPriorityFiles] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("priority_files");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const [userUncheckedPriority, setUserUncheckedPriority] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("user_unchecked_priority");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  function isDefaultPriority(name: string): boolean {
+    const upper = name.toUpperCase();
+    return upper.startsWith("CP_") || 
+           upper.startsWith("CSC_") || 
+           upper.startsWith("HOME_CSC_") ||
+           upper.includes("_CP_") || 
+           upper.includes("_CSC_") ||
+           upper.includes(".CP.") ||
+           upper.includes(".CSC.") ||
+           upper.startsWith("CP") ||
+           upper.startsWith("CSC");
+  }
+
+  function isPriorityFile(name: string): boolean {
+    if (priorityFiles.has(name)) return true;
+    if (userUncheckedPriority.has(name)) return false;
+    return isDefaultPriority(name);
+  }
+
+  function togglePriority(name: string) {
+    const current = isPriorityFile(name);
+    if (current) {
+      setPriorityFiles((prev) => {
+        const next = new Set(prev);
+        next.delete(name);
+        try { localStorage.setItem("priority_files", JSON.stringify(Array.from(next))); } catch {}
+        return next;
+      });
+      setUserUncheckedPriority((prev) => {
+        const next = new Set(prev).add(name);
+        try { localStorage.setItem("user_unchecked_priority", JSON.stringify(Array.from(next))); } catch {}
+        return next;
+      });
+    } else {
+      setPriorityFiles((prev) => {
+        const next = new Set(prev).add(name);
+        try { localStorage.setItem("priority_files", JSON.stringify(Array.from(next))); } catch {}
+        return next;
+      });
+      setUserUncheckedPriority((prev) => {
+        const next = new Set(prev);
+        next.delete(name);
+        try { localStorage.setItem("user_unchecked_priority", JSON.stringify(Array.from(next))); } catch {}
+        return next;
+      });
+    }
+  }
+
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
@@ -713,13 +779,20 @@ export default function App() {
   }
 
   function pendingFiles(force = forceTransfer) {
-    return filesRef.current.filter((f) => {
+    const list = filesRef.current.filter((f) => {
       if (f.status === "downloading") return false;
       if (!force && f.status === "locked") return false;
       if (sambaFilesRef.current.some((sf) => sf.name === f.name)) return false;
       if (force) return true;
       if (phoneFiles.has(f.name)) return false;
       return true;
+    });
+
+    return list.sort((a, b) => {
+      const aPrio = isPriorityFile(a.name) ? 1 : 0;
+      const bPrio = isPriorityFile(b.name) ? 1 : 0;
+      if (aPrio !== bPrio) return bPrio - aPrio;
+      return a.name.localeCompare(b.name);
     });
   }
 
@@ -918,7 +991,7 @@ export default function App() {
           {filelistOpen && (
             <div className="border-t border-gray-150 dark:border-zinc-800 p-4">
               <div className="mb-4 flex flex-wrap gap-4 items-center justify-between border-b border-gray-150 dark:border-zinc-800 pb-4">
-                <div className="flex gap-6 text-xs font-semibold text-gray-600 dark:text-zinc-400">
+                <div className="flex flex-wrap gap-6 text-xs font-semibold text-gray-600 dark:text-zinc-400 items-center">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input 
                       type="checkbox" 
@@ -940,6 +1013,9 @@ export default function App() {
                     />
                     Force Transfer (Overwrite)
                   </label>
+                  <span className="text-[11px] text-amber-500 dark:text-amber-400 font-semibold flex items-center gap-1 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+                    ⭐ Priority: CP & CSC Default ({files.filter(f => isPriorityFile(f.name)).length} prioritized)
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -963,9 +1039,15 @@ export default function App() {
               </div>
                 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1">
-                {(files || []).map((f) => {
+                {[...(files || [])].sort((a, b) => {
+                  const aPrio = isPriorityFile(a.name) ? 1 : 0;
+                  const bPrio = isPriorityFile(b.name) ? 1 : 0;
+                  if (aPrio !== bPrio) return bPrio - aPrio;
+                  return a.name.localeCompare(b.name);
+                }).map((f) => {
                   const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
                   const isStagedOnPhone = phoneFiles ? phoneFiles.has(f.name) : false;
+                  const isPriority = isPriorityFile(f.name);
                   
                   const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
                   const isUploadingThis = activeRemote?.current_file === f.name;
@@ -1004,11 +1086,34 @@ export default function App() {
                       className={`ff-card p-3 flex flex-col justify-between transition-all duration-200 border ${
                         isCompleted 
                           ? "bg-[#16a34a] text-white border-transparent shadow-[0_4px_12px_rgba(22,163,74,0.2)]" 
+                          : isPriority
+                          ? "bg-white dark:bg-[#141416] border-amber-500/40 shadow-[0_2px_8px_rgba(245,158,11,0.08)]"
                           : "bg-white dark:bg-[#141416] border-gray-150 dark:border-zinc-800"
                       }`}
                     >
                       <div className="min-w-0 mb-2">
-                        <p className={`break-all font-semibold text-xs leading-tight ${isCompleted ? "text-white" : "text-gray-900 dark:text-zinc-200"}`}>{f.name}</p>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className={`break-all font-semibold text-xs leading-tight flex-1 ${isCompleted ? "text-white" : "text-gray-900 dark:text-zinc-200"}`}>{f.name}</p>
+                          <label 
+                            className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition select-none flex-shrink-0 ${
+                              isPriority
+                                ? isCompleted 
+                                  ? "bg-white/20 text-white"
+                                  : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                                : "bg-gray-100 dark:bg-zinc-800/80 text-gray-500 dark:text-zinc-400 border border-gray-200 dark:border-zinc-700/60 hover:border-amber-500/40"
+                            }`}
+                            title="Push priority file (pushed first in queue)"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={isPriority} 
+                              onChange={() => togglePriority(f.name)}
+                              className="rounded text-amber-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                            />
+                            <span>{isPriority ? "⭐ Priority" : "Priority"}</span>
+                          </label>
+                        </div>
                         <p className={`text-[10px] mt-0.5 ${isCompleted ? "text-green-100" : "text-gray-400 dark:text-zinc-500"}`}>
                           {isPushingThis ? (
                             `${fileGb((transfer.percent / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed}`
@@ -1143,9 +1248,15 @@ export default function App() {
               {/* Tab 2 Content: Files list with radial progress rings */}
               {debugTab === 'progress' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
-                  {(files || []).map((f) => {
+                  {[...(files || [])].sort((a, b) => {
+                    const aPrio = isPriorityFile(a.name) ? 1 : 0;
+                    const bPrio = isPriorityFile(b.name) ? 1 : 0;
+                    if (aPrio !== bPrio) return bPrio - aPrio;
+                    return a.name.localeCompare(b.name);
+                  }).map((f) => {
                     const inSamba = (sambaFiles || []).some((sf) => sf.name === f.name);
                     const isPushed = pushedFiles ? pushedFiles.has(f.name) : false;
+                    const isPriority = isPriorityFile(f.name);
                     
                     const isPushingThis = transfer?.file === f.name && transfer?.percent < 100;
                     const isUploadingThis = activeRemote?.current_file === f.name;
@@ -1170,10 +1281,21 @@ export default function App() {
                     return (
                       <div 
                         key={f.name} 
-                        className="flex items-center justify-between p-3 rounded-[10px] bg-gray-50 dark:bg-zinc-900/40 border border-gray-150 dark:border-zinc-800/80 transition"
+                        className={`flex items-center justify-between p-3 rounded-[10px] border transition ${
+                          isPriority 
+                            ? "bg-amber-500/5 dark:bg-amber-500/10 border-amber-500/30"
+                            : "bg-gray-50 dark:bg-zinc-900/40 border-gray-150 dark:border-zinc-800/80"
+                        }`}
                       >
                         <div className="min-w-0 flex-1 pr-3">
-                          <p className="text-xs font-bold text-gray-900 dark:text-zinc-200 truncate" title={f.name}>{f.name}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-xs font-bold text-gray-900 dark:text-zinc-200 truncate" title={f.name}>{f.name}</p>
+                            {isPriority && (
+                              <span className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold px-1.5 py-0.2 rounded">
+                                ⭐ Priority
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-0.5">
                             {isPushingThis ? (
                               `${fileGb((transfer.percent / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed}`

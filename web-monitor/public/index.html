@@ -731,14 +731,18 @@
       });
     }
 
-    function fileSortPriority(status) {
-      if (!status) return 1;
+    function fileSortPriority(status, name = "") {
+      const upper = (name || "").toUpperCase();
+      const isPrio = upper.startsWith("CP_") || upper.startsWith("CSC_") || upper.startsWith("HOME_CSC_") || upper.includes("_CP_") || upper.includes("_CSC_") || upper.startsWith("CP") || upper.startsWith("CSC");
+      const prioOffset = isPrio ? 0 : 0.4;
+
+      if (!status) return 1 + prioOffset;
       const s = status.toLowerCase();
       if (s.includes('pushing') || s.includes('uploading') || s === 'locked') return 0;
-      if (s === 'ready') return 1;
-      if (s.includes('staged') || s.includes('success')) return 2;
-      if (s === 'transfer complete') return 3;
-      return 1;
+      if (s === 'ready') return 1 + prioOffset;
+      if (s.includes('staged') || s.includes('success')) return 2 + prioOffset;
+      if (s === 'transfer complete') return 3 + prioOffset;
+      return 1 + prioOffset;
     }
 
     function render() {
@@ -761,7 +765,7 @@
           const files = host.files || [];
           totalFilesCount += files.length;
           const hostKey = (host.host || host.id || 'host').replace(/[^a-z0-9]/gi, '_');
-          const sortedFiles = [...files].sort((a, b) => fileSortPriority(a.status) - fileSortPriority(b.status));
+          const sortedFiles = [...files].sort((a, b) => fileSortPriority(a.status, a.name) - fileSortPriority(b.status, b.name));
           
           if (isOnline && (host.adb_push_bps || host.push_speed)) {
             totalAdb = Math.max(totalAdb, host.adb_push_bps || 0);
@@ -782,6 +786,8 @@
                   <tbody>
                     ${sortedFiles.map(f => {
                       const s = f.status || '';
+                      const upper = (f.name || '').toUpperCase();
+                      const isPrio = upper.startsWith('CP_') || upper.startsWith('CSC_') || upper.startsWith('HOME_CSC_') || upper.includes('_CP_') || upper.includes('_CSC_') || upper.startsWith('CP') || upper.startsWith('CSC');
                       const isComplete = s === 'Transfer Complete';
                       const isAlready = s === 'Already in Destination';
                       const isInProgress = s.includes('Pushing') || s.includes('Uploading');
@@ -791,7 +797,9 @@
                       const fileGbSize = (f.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
                       return `
                         <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.04);">
-                          <td style="padding: 6px 0; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; color: #fafafa;" title="${f.name}">${f.name}</td>
+                          <td style="padding: 6px 0; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; color: #fafafa;" title="${f.name}">
+                            ${isPrio ? '<span style="color:#fbbf24; font-weight:700; margin-right:4px;">⭐</span>' : ''}${f.name}
+                          </td>
                           <td style="padding: 6px 0; text-align: right; color: #a1a1aa; white-space: nowrap;">${fileGbSize}</td>
                           <td style="padding: 6px 0; text-align: right; white-space: nowrap;">
                             <span class="badge ${statusClass}" style="font-size: 9px; padding: 2px 6px; white-space: nowrap;"><span class="badge-dot"></span>${f.status}</span>
