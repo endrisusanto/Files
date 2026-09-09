@@ -826,6 +826,7 @@ export default function App() {
         appendLog(`push ok ${current}`);
         pushedFilesRef.current = new Set(pushedFilesRef.current).add(current);
         setPushedFiles(new Set(pushedFilesRef.current));
+        setPhoneFiles((prev) => new Set(prev).add(current));
       }
     } catch (e) {
       ok = false;

@@ -443,6 +443,10 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
+fn shell_escape(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream: R, last_line: Arc<Mutex<String>>) {
     thread::spawn(move || {
         let re = Regex::new(r"(\d{1,3})%").unwrap();
@@ -463,9 +467,10 @@ fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream:
                                         .and_then(|c| c[1].parse().ok())
                                         .unwrap_or(0);
                                     if percent > 0 {
+                                        let capped_percent = std::cmp::min(99, percent);
                                         let _ = app.emit("transfer", TransferProgress {
                                             file: file.clone(),
-                                            percent,
+                                            percent: capped_percent,
                                             message: trimmed.to_string(),
                                             speed_bps: 0,
                                         });
@@ -488,8 +493,9 @@ fn pipe_progress<R: Read + Send + 'static>(app: AppHandle, file: String, stream:
 }
 
 fn get_remote_file_size(device_id: &str, path: &str) -> Option<u64> {
+    let quoted_path = shell_escape(path);
     let out = command("adb")
-        .args(["-s", device_id, "shell", "stat", "-c", "%s", path])
+        .args(["-s", device_id, "shell", "stat", "-c", "%s", &quoted_path])
         .output()
         .ok()?;
     if out.status.success() {
@@ -582,11 +588,12 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
     };
 
     let meta_path = format!("{}{}.meta", ANDROID_DIR, file_name);
+    let escaped_meta = shell_escape(&meta_path);
     let _ = adb(&[
         "-s",
         &device.id,
         "shell",
-        &format!("echo {} > {}", total_size, meta_path),
+        &format!("echo {} > {}", total_size, escaped_meta),
     ]);
 
     let _ = app.emit("transfer", TransferProgress {
@@ -597,7 +604,7 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
     });
 
     let mut child = command("adb")
-        .args(["-s", &device.id, "push", "-p"])
+        .args(["-s", &device.id, "push"])
         .arg(&source)
         .arg(ANDROID_DIR)
         .stderr(Stdio::piped())
@@ -664,6 +671,9 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         return Err(format!("adb push failed: {}", err_msg));
     }
     let _ = app.emit("transfer", TransferProgress { file: file_name.clone(), percent: 100, message: "push complete".into(), speed_bps: 0 });
+    let escaped_file = shell_escape(&file_name);
+    let q_tot = queue_total.to_string();
+    let q_succ = queue_success.to_string();
     adb(&[
         "-s",
         &device.id,
@@ -674,13 +684,13 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
         &config.service,
         "--es",
         "file",
-        &file_name,
+        &escaped_file,
         "--ei",
         "queue_total",
-        &queue_total.to_string(),
+        &q_tot,
         "--ei",
         "queue_success",
-        &queue_success.to_string(),
+        &q_succ,
     ])?;
     println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
 
@@ -714,7 +724,7 @@ async fn get_phone_files(app: AppHandle) -> Result<Vec<String>, String> {
     let device_id = cached_devices.iter().find(|d| d.is_selected_bridge).map(|d| d.id.clone());
     if let Some(id) = device_id {
         tauri::async_runtime::spawn_blocking(move || {
-            let Ok(out) = adb(&["-s", &id, "shell", "ls", ANDROID_DIR]) else {
+            let Ok(out) = adb(&["-s", &id, "shell", "ls", "-1", ANDROID_DIR]) else {
                 return Ok(vec![]);
             };
             let files: Vec<String> = out.lines()
