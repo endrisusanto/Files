@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import logo from "./logo.svg";
 import { UpdateModal } from "./components/UpdateModal";
 
-const APP_VERSION = "0.1.182";
+const APP_VERSION = "0.1.183";
 
 type Device = {
   id: string;
