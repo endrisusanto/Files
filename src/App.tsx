@@ -2,6 +2,9 @@ import { useEffect, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import logo from "./logo.svg";
+import { UpdateModal } from "./components/UpdateModal";
+
+const APP_VERSION = "0.1.182";
 
 type Device = {
   id: string;
@@ -223,6 +226,37 @@ export default function App() {
     return (localStorage.getItem("theme") as 'light' | 'dark') || "dark";
   });
   const [debugTab, setDebugTab] = useState<'log' | 'progress'>('log');
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [hasNewUpdate, setHasNewUpdate] = useState(false);
+  const [latestVersion, setLatestVersion] = useState("");
+
+  useEffect(() => {
+    const checkBgUpdate = async () => {
+      try {
+        const res = await fetch("https://api.github.com/repos/endrisusanto/Files/releases/latest", {
+          headers: { Accept: "application/vnd.github.v3+json" },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const tag = (data.tag_name || data.name || "").replace(/^v/, "");
+          if (tag) {
+            setLatestVersion(tag);
+            const v1Parts = APP_VERSION.split(".").map(Number);
+            const v2Parts = tag.split(".").map(Number);
+            let isNewer = false;
+            for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
+              const n1 = v1Parts[i] || 0;
+              const n2 = v2Parts[i] || 0;
+              if (n2 > n1) { isNewer = true; break; }
+              if (n1 > n2) break;
+            }
+            if (isNewer) setHasNewUpdate(true);
+          }
+        }
+      } catch {}
+    };
+    checkBgUpdate();
+  }, []);
 
   // Priority Selection State (Default CP & CSC)
   const [priorityFiles, setPriorityFiles] = useState<Set<string>>(() => {
@@ -910,7 +944,20 @@ export default function App() {
       <header className="ff-topbar sticky top-0 z-40 flex items-center justify-between px-6">
         <div className="flex items-center gap-3">
           <img src={logo} alt="FireFiles Logo" className="h-9 w-9" />
-          <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">FireFiles</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">FireFiles</h1>
+            <button
+              onClick={() => setIsUpdateModalOpen(true)}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded-full border transition-all cursor-pointer flex items-center gap-1 ${
+                hasNewUpdate
+                  ? "border-amber-500/60 bg-amber-500/15 text-amber-500 font-bold animate-pulse hover:bg-amber-500/25"
+                  : "border-gray-250 dark:border-zinc-800 bg-gray-50/80 dark:bg-zinc-900/80 text-gray-500 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-zinc-800"
+              }`}
+              title={hasNewUpdate ? `New update v${latestVersion} available! Click to update.` : "Version Info / Check Updates"}
+            >
+              {hasNewUpdate ? `⚡ v${latestVersion} Ready` : `v${APP_VERSION}`}
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-3 text-xs font-semibold">
           <span className={`rounded-full px-3 py-1 border transition-colors duration-200 ${
@@ -941,6 +988,21 @@ export default function App() {
           <span className={`transition-colors duration-200 ${active ? "text-[#16a34a] font-bold" : "text-gray-500 dark:text-zinc-400"}`}>
             {active ? "USB Link: Connected" : selected ? "Warning: Storage Low" : "USB Link: Offline"}
           </span>
+
+          {/* Software Update Trigger Button */}
+          <button
+            onClick={() => setIsUpdateModalOpen(true)}
+            className={`ff-btn p-2 border transition-colors duration-200 ${
+              hasNewUpdate
+                ? "border-amber-500/60 bg-amber-500/15 text-amber-500 animate-pulse hover:bg-amber-500/25"
+                : "border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-zinc-300"
+            }`}
+            title={hasNewUpdate ? `New update v${latestVersion} available!` : "Check for Software Updates"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
           
           {/* Theme Toggle Button */}
           <button
@@ -1543,6 +1605,28 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* Software Updates Section in Settings */}
+              <div className="rounded-xl border border-gray-200/80 dark:border-zinc-800 p-3.5 bg-gray-50/50 dark:bg-zinc-900/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-900 dark:text-zinc-200">Software Updates</span>
+                  <span className="text-[11px] font-mono text-gray-500 dark:text-zinc-400">v{APP_VERSION}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] text-gray-500 dark:text-zinc-400">
+                    {hasNewUpdate ? `New update v${latestVersion} ready to install` : "Application is up to date"}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowSettings(false);
+                      setIsUpdateModalOpen(true);
+                    }}
+                    className="ff-btn bg-white hover:bg-gray-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-orange-500 border border-gray-200 dark:border-zinc-700 px-3 py-1 text-xs font-semibold transition cursor-pointer"
+                  >
+                    Check Updates
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-gray-150 dark:border-zinc-800 pt-4">
@@ -1589,6 +1673,14 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Software Update Modal */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        currentVersion={APP_VERSION}
+      />
     </main>
   );
 }
+

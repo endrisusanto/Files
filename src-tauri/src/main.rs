@@ -944,6 +944,8 @@ fn main() {
     );
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(config)
         .invoke_handler(tauri::generate_handler![
             push_file,

@@ -386,8 +386,11 @@
           <div class="subtitle">Realtime WebSocket Staging Dashboard</div>
         </div>
       </div>
-      <div class="header-actions">
         <div id="socket" class="badge bad"><span class="badge-dot"></span>Web Offline</div>
+        <button id="updateBtn" class="btn-primary" style="background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3);" onclick="openUpdateModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span id="updateBtnText">v0.1.182</span>
+        </button>
         <button id="uploadAll" class="btn-primary" onclick="uploadAll()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
           Upload All
@@ -988,7 +991,152 @@
     }
     connect();
     setInterval(render, 1000);
+
+    // ==========================================
+    // Software Updates Modal & Checker Logic
+    // ==========================================
+    const CURRENT_MONITOR_VERSION = "0.1.182";
+    let latestReleaseInfo = null;
+
+    function openUpdateModal() {
+      const modal = $("webUpdateModal");
+      if (modal) {
+        modal.style.display = "flex";
+        checkWebUpdates();
+      }
+    }
+
+    function closeUpdateModal() {
+      const modal = $("webUpdateModal");
+      if (modal) modal.style.display = "none";
+    }
+
+    async function checkWebUpdates() {
+      const statusEl = $("updateStatusText");
+      const latestVerEl = $("updateLatestVer");
+      const bodyEl = $("updateChangelog");
+      const notesContainer = $("updateNotesContainer");
+      const actionBtn = $("updateActionBtn");
+
+      if (statusEl) statusEl.innerHTML = '<span style="color: #f97316;">Checking GitHub repository...</span>';
+      if (latestVerEl) latestVerEl.textContent = 'Checking...';
+
+      try {
+        let tag = '';
+        let body = 'Performance improvements and bug fixes.';
+        let res = await fetch('https://api.github.com/repos/endrisusanto/Files/releases/latest', {
+          headers: { Accept: 'application/vnd.github.v3+json' }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          tag = (data.tag_name || data.name || '').replace(/^v/, '');
+          if (data.body) body = data.body;
+        }
+
+        if (!tag) {
+          const raw = await fetch('https://raw.githubusercontent.com/endrisusanto/Files/main/package.json', { cache: 'no-store' });
+          if (raw.ok) {
+            const pkg = await raw.json();
+            if (pkg.version) tag = pkg.version.replace(/^v/, '');
+          }
+        }
+
+        if (!tag) {
+          if (statusEl) statusEl.textContent = 'Unable to fetch update info.';
+          if (latestVerEl) latestVerEl.textContent = '-';
+          return;
+        }
+
+        latestReleaseInfo = { tag, body };
+        if (latestVerEl) latestVerEl.textContent = 'v' + tag;
+
+        const v1 = CURRENT_MONITOR_VERSION.split('.').map(Number);
+        const v2 = tag.split('.').map(Number);
+        let hasUpdate = false;
+        for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
+          const n1 = v1[i] || 0;
+          const n2 = v2[i] || 0;
+          if (n2 > n1) { hasUpdate = true; break; }
+          if (n1 > n2) break;
+        }
+
+        if (hasUpdate) {
+          if (statusEl) statusEl.innerHTML = '<span style="color: #34d399; font-weight: 700;">✨ New update available (v' + tag + ')!</span>';
+          const updateBtnText = $("updateBtnText");
+          const updateBtn = $("updateBtn");
+          if (updateBtnText) updateBtnText.textContent = '⚡ v' + tag + ' Ready';
+          if (updateBtn) updateBtn.style.border = '1px solid rgba(249, 115, 22, 0.7)';
+          if (notesContainer) notesContainer.style.display = 'block';
+          if (bodyEl) bodyEl.textContent = body;
+          if (actionBtn) {
+            actionBtn.textContent = 'Download Update';
+            actionBtn.onclick = () => window.open('https://github.com/endrisusanto/Files/releases', '_blank');
+          }
+        } else {
+          if (statusEl) statusEl.innerHTML = '<span style="color: #a1a1aa;">✅ You are running the latest version.</span>';
+          if (notesContainer) notesContainer.style.display = 'none';
+          if (actionBtn) {
+            actionBtn.textContent = 'View Releases';
+            actionBtn.onclick = () => window.open('https://github.com/endrisusanto/Files/releases', '_blank');
+          }
+        }
+      } catch (err) {
+        if (statusEl) statusEl.textContent = 'Check failed: ' + (err.message || err);
+      }
+    }
+
+    // Run background check on launch
+    setTimeout(checkWebUpdates, 2000);
   </script>
+
+  <!-- Software Update Modal Dialog -->
+  <div id="webUpdateModal" style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 16px;">
+    <div style="background: #141417; border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; width: 100%; max-width: 440px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+      <div style="padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3); display: flex; align-items: center; justify-content: center; color: #f97316;">
+            📦
+          </div>
+          <div>
+            <div style="font-size: 14px; font-weight: 700; color: #fafafa;">Software Updates</div>
+            <div style="font-size: 11px; color: #a1a1aa;">FireFiles Monitor & Staging Nodes</div>
+          </div>
+        </div>
+        <button onclick="closeUpdateModal()" style="background: transparent; border: none; color: #71717a; font-size: 18px; cursor: pointer; padding: 4px;">✕</button>
+      </div>
+      
+      <div style="padding: 20px; display: flex; flex-col; gap: 14px;">
+        <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;">
+            <span style="color: #a1a1aa;">Current Installed:</span>
+            <span style="font-family: monospace; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; color: #fafafa;">v0.1.182</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;">
+            <span style="color: #a1a1aa;">Latest Release:</span>
+            <span id="updateLatestVer" style="font-family: monospace; background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); padding: 2px 6px; border-radius: 4px;">-</span>
+          </div>
+          <div id="updateStatusText" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px;">
+            Checking...
+          </div>
+        </div>
+
+        <div id="updateNotesContainer" style="display: none; margin-top: 10px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #71717a; margin-bottom: 6px;">What's New:</div>
+          <pre id="updateChangelog" style="background: #09090b; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; font-size: 11px; font-family: monospace; color: #d4d4d8; max-height: 120px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5;"></pre>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <button onclick="checkWebUpdates()" style="background: transparent; border: 1px solid rgba(255,255,255,0.12); color: #a1a1aa; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;">
+            🔄 Refresh
+          </button>
+          <button id="updateActionBtn" style="background: linear-gradient(135deg, #f97316, #ea580c); color: white; border: none; font-weight: 600; border-radius: 8px; padding: 7px 16px; font-size: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(249,115,22,0.3);">
+            View Releases
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>

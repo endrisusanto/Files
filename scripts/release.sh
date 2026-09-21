@@ -31,6 +31,9 @@ android = android
   .replace(/versionCode \d+/, `versionCode ${major * 10000 + minor * 100 + patch}`)
   .replace(/versionName ".*"/, `versionName "${pkg.version}"`);
 fs.writeFileSync("android/app/build.gradle", android);
+let appTsx = fs.readFileSync("src/App.tsx", "utf8");
+appTsx = appTsx.replace(/const APP_VERSION = ".*";/, `const APP_VERSION = "${pkg.version}";`);
+fs.writeFileSync("src/App.tsx", appTsx);
 console.log(pkg.version);
 JS
 )"
@@ -42,7 +45,7 @@ if git rev-parse "v${version}" >/dev/null 2>&1; then
   exit 1
 fi
 
-git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json android/app/build.gradle android/app/src
+git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json android/app/build.gradle android/app/src src/App.tsx
 git commit -m "chore: release v${version}" || true
 git tag "v${version}"
 git push
