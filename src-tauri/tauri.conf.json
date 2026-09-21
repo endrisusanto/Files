@@ -33,6 +33,7 @@
   },
   "plugins": {
     "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNDMjY4NjhCRDNGMzE4QgpSV1NMTVQrOWFHakNBeFVtSVphYWlJckNwT0dCYlB3bXRmSEJNRHRrc2hTTkpFWEFFZEZOcEJPawo=",
       "endpoints": [
         "https://github.com/endrisusanto/Files/releases/latest/download/latest.json"
       ]

@@ -36,10 +36,16 @@ jobs:
 
       - name: Build Windows Installers (MSI & NSIS)
         if: runner.os == 'Windows'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri -- build --bundles msi,nsis
 
       - name: Build Linux DEB/RPM
         if: runner.os == 'Linux'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri -- build --bundles deb,rpm
 
       - name: Rename desktop installers
@@ -50,6 +56,11 @@ jobs:
             [ -e "$file" ] || continue
             ext="${file##*.}"
             cp "$file" "release/android-file-bridge-${GITHUB_REF_NAME}-${{ matrix.name }}.${ext}"
+          done
+          # Copy updater artifacts if generated
+          for file in src-tauri/target/release/bundle/updater/*; do
+            [ -e "$file" ] || continue
+            cp "$file" "release/"
           done
 
       - uses: actions/upload-artifact@v4
