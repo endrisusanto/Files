@@ -231,12 +231,11 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [diagnostics, setDiagnostics] = useState("");
   const [diagLoading, setDiagLoading] = useState(false);
-  const [filelistOpen, setFilelistOpen] = useState(true);
-  const [debugOpen, setDebugOpen] = useState(false);
+  const [stagingCardOpen, setStagingCardOpen] = useState(true);
+  const [stagingTab, setStagingTab] = useState<'files' | 'progress' | 'logs'>('files');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem("theme") as 'light' | 'dark') || "dark";
   });
-  const [debugTab, setDebugTab] = useState<'log' | 'progress'>('log');
   const [postTransferAction, setPostTransferAction] = useState<'backup' | 'delete'>(() => {
     return (localStorage.getItem("post_transfer_action") as 'backup' | 'delete') || 'backup';
   });
@@ -1051,23 +1050,100 @@ export default function App() {
       <div className="p-6 space-y-6 w-full">
         <NetworkChart samples={network} />
 
-        {/* Local Staging Folder Card */}
+        {/* Unified 3-Tab Local Staging & Pipeline Card */}
         <section className="ff-card overflow-hidden">
           <div 
-            className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/40 transition" 
-            onClick={() => setFilelistOpen(!filelistOpen)}
+            className="flex flex-wrap items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/40 transition border-b border-gray-150 dark:border-zinc-800 gap-3" 
           >
-            <div className="flex items-center gap-2">
+            <div 
+              className="flex items-center gap-2.5 cursor-pointer select-none"
+              onClick={() => setStagingCardOpen(!stagingCardOpen)}
+            >
               <span className="text-xl">📁</span>
-              <h2 className="text-sm font-bold text-gray-900 dark:text-zinc-100">
-                Local Staging Folder <span className="text-gray-500 dark:text-zinc-400 font-normal text-xs ml-2">Path: {info?.source_dir || "N/A"}</span>
-              </h2>
+              <div>
+                <h2 className="text-sm font-bold text-gray-900 dark:text-zinc-100 flex items-center gap-2">
+                  Local Staging Pipeline
+                </h2>
+                <span className="text-gray-500 dark:text-zinc-400 font-normal text-xs block">
+                  Path: {info?.source_dir || "N/A"}
+                </span>
+              </div>
             </div>
-            <span className="text-xs text-gray-400 dark:text-zinc-500">{filelistOpen ? "▲ Collapse" : "▼ Expand"}</span>
+
+            <div className="flex items-center gap-3">
+              {/* 3-Tab Segmented Switcher */}
+              <div className="flex items-center bg-gray-100 dark:bg-zinc-850 p-1 rounded-lg border border-gray-250 dark:border-zinc-800 text-xs select-none">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStagingTab('files');
+                    if (!stagingCardOpen) setStagingCardOpen(true);
+                  }}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    stagingTab === 'files'
+                      ? "bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-xs border border-blue-500/20 font-extrabold"
+                      : "text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100 hover:bg-gray-200/50 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  <span>📁 Files</span>
+                  <span className="text-[10px] opacity-80 px-1.5 py-0.2 rounded-full bg-gray-200/80 dark:bg-zinc-800">
+                    {files.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStagingTab('progress');
+                    if (!stagingCardOpen) setStagingCardOpen(true);
+                  }}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    stagingTab === 'progress'
+                      ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs border border-emerald-500/20 font-extrabold"
+                      : "text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100 hover:bg-gray-200/50 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  <span>📊 Progress</span>
+                  {transfer && transfer.percent < 100 && (
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStagingTab('logs');
+                    if (!stagingCardOpen) setStagingCardOpen(true);
+                  }}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    stagingTab === 'logs'
+                      ? "bg-white dark:bg-zinc-900 text-purple-600 dark:text-purple-400 shadow-xs border border-purple-500/20 font-extrabold"
+                      : "text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100 hover:bg-gray-200/50 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  <span>📜 Logs</span>
+                </button>
+              </div>
+
+              {/* Collapse Toggle */}
+              <button
+                type="button"
+                onClick={() => setStagingCardOpen(!stagingCardOpen)}
+                className="text-xs text-gray-500 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 font-semibold cursor-pointer px-2 py-1"
+                title={stagingCardOpen ? "Collapse Card" : "Expand Card"}
+              >
+                {stagingCardOpen ? "▲" : "▼"}
+              </button>
+            </div>
           </div>
           
-          {filelistOpen && (
-            <div className="border-t border-gray-150 dark:border-zinc-800 p-4">
+          {stagingCardOpen && (
+            <div className="p-4">
+              {stagingTab === 'files' && (
+                <>
               <div className="mb-4 flex flex-wrap gap-4 items-center justify-between border-b border-gray-150 dark:border-zinc-800 pb-4">
                 <div className="flex flex-wrap gap-4 text-xs font-semibold text-gray-800 dark:text-zinc-200 items-center">
                   <label className="flex items-center gap-2 cursor-pointer text-gray-800 dark:text-zinc-200 font-bold hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
@@ -1300,68 +1376,17 @@ export default function App() {
                 )}
               </div>
 
-              <div className="mt-3 border-t border-gray-150 dark:border-zinc-800 pt-3 text-[10px] text-gray-500 dark:text-zinc-400 space-y-1">
-                <p>Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
-                <p className="break-all">Active Transfer: {transfer ? `${transfer.file} (${transfer.message})` : "None"}</p>
-                {error && <p className="text-[#ef4444] font-semibold">{error}</p>}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* 2-Tab Accordion Card (System Log & Transfer Progress) */}
-        <section className="ff-card overflow-hidden">
-          <div 
-            className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-zinc-900/40 transition" 
-            onClick={() => setDebugOpen(!debugOpen)}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xl">📜</span>
-              <h2 className="text-sm font-bold text-gray-900 dark:text-zinc-100">System Log & Diagnostics</h2>
-            </div>
-            <span className="text-xs text-gray-400 dark:text-zinc-500">{debugOpen ? "▲ Collapse" : "▼ Expand"}</span>
-          </div>
-          
-          {debugOpen && (
-            <div className="border-t border-gray-150 dark:border-zinc-800 p-4">
-              {/* Tab Headers */}
-              <div className="flex gap-4 border-b border-gray-150 dark:border-zinc-800 pb-3 mb-4">
-                <button 
-                  onClick={() => setDebugTab('log')}
-                  className={`pb-2 text-xs font-bold border-b-2 transition ${
-                    debugTab === 'log' 
-                      ? 'border-[#2563eb] text-[#2563eb]' 
-                      : 'border-transparent text-gray-400 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-200'
-                  }`}
-                >
-                  System Logs
-                </button>
-                <button 
-                  onClick={() => setDebugTab('progress')}
-                  className={`pb-2 text-xs font-bold border-b-2 transition ${
-                    debugTab === 'progress' 
-                      ? 'border-[#2563eb] text-[#2563eb]' 
-                      : 'border-transparent text-gray-400 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-200'
-                  }`}
-                >
-                  Transfer Progress List
-                </button>
-              </div>
-
-              {/* Tab 1 Content: Textarea log */}
-              {debugTab === 'log' && (
-                <div className="rounded-[10px] overflow-hidden border border-gray-150 dark:border-zinc-800">
-                  <textarea
-                    readOnly
-                    value={debugLog}
-                    className="h-44 w-full resize-none bg-gray-50 dark:bg-zinc-950 p-3 font-mono text-[10px] text-gray-600 dark:text-zinc-400 outline-none"
-                  />
-                </div>
+                  <div className="mt-3 border-t border-gray-150 dark:border-zinc-800 pt-3 text-[10px] text-gray-500 dark:text-zinc-400 space-y-1">
+                    <p>Connection: {active ? "target bridge available" : "no validated target bridge"}</p>
+                    <p className="break-all">Active Transfer: {transfer ? `${transfer.file} (${transfer.message})` : "None"}</p>
+                    {error && <p className="text-[#ef4444] font-semibold">{error}</p>}
+                  </div>
+                </>
               )}
 
-              {/* Tab 2 Content: Files list with radial progress rings */}
-              {debugTab === 'progress' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+              {/* TAB 2: Transfer Progress View */}
+              {stagingTab === 'progress' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1">
                   {[...(files || [])].sort((a, b) => {
                     const aPrio = isPriorityFile(a.name) ? 1 : 0;
                     const bPrio = isPriorityFile(b.name) ? 1 : 0;
@@ -1376,7 +1401,6 @@ export default function App() {
                     const isUploadingThis = activeRemote?.current_file === f.name;
                     const isUploaded = inSamba || (isPushed && phoneFiles ? !phoneFiles.has(f.name) : false);
 
-                    // Calculate push to phone percentage
                     let phoneProgress = 0;
                     if (isPushed || isUploaded) {
                       phoneProgress = 100;
@@ -1384,7 +1408,6 @@ export default function App() {
                       phoneProgress = transfer.percent;
                     }
 
-                    // Calculate push to samba percentage
                     let sambaProgress = 0;
                     if (isUploaded) {
                       sambaProgress = 100;
@@ -1428,10 +1451,33 @@ export default function App() {
                     );
                   })}
                   {!files.length && (
-                    <p className="col-span-full py-8 text-xs text-gray-455 dark:text-zinc-500 text-center font-medium">
+                    <p className="col-span-full py-8 text-xs text-gray-400 dark:text-zinc-500 text-center font-medium">
                       No staging files available
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* TAB 3: System Logs View */}
+              {stagingTab === 'logs' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-700 dark:text-zinc-300">Live Diagnostic Stream</span>
+                    <button
+                      type="button"
+                      onClick={() => setDebugLog("")}
+                      className="px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 bg-gray-100 dark:bg-zinc-800 rounded-md border border-gray-200 dark:border-zinc-700 transition cursor-pointer"
+                    >
+                      Clear Logs
+                    </button>
+                  </div>
+                  <div className="rounded-[10px] overflow-hidden border border-gray-200 dark:border-zinc-800 shadow-inner">
+                    <textarea
+                      readOnly
+                      value={debugLog || "No logs yet..."}
+                      className="h-52 w-full resize-none bg-gray-900 text-zinc-300 p-3 font-mono text-[11px] outline-none leading-relaxed"
+                    />
+                  </div>
                 </div>
               )}
             </div>
