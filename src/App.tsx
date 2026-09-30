@@ -92,30 +92,41 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
   const last = points[points.length - 1] ?? { rx_bps: 0, tx_bps: 0, adb_push_bps: 0 };
 
   return (
-    <section className="mb-3 rounded border border-zinc-800 bg-zinc-900 p-2 font-mono">
-      <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-xs font-semibold text-zinc-400">Realtime Network Traffic</h2>
-        <div className="flex gap-4 text-[10px] tracking-wider">
-          <span className="text-blue-300">Samba Upload: {speed(last.tx_bps)}</span>
-          <span className="text-orange-400">ADB Push: {speed(last.adb_push_bps || 0)}</span>
+    <section className="mb-3 rounded-xl border border-gray-250/90 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/90 p-3 shadow-xs font-mono backdrop-blur-md transition-colors">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xs font-bold text-gray-800 dark:text-zinc-200 flex items-center gap-1.5">
+          <span className="text-orange-500 text-sm">📈</span> Realtime Network & USB Traffic
+        </h2>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] tracking-tight">
+          <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/50 shadow-2xs">
+            <span className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400 inline-block animate-pulse"></span>
+            Samba: {speed(last.tx_bps)}
+          </span>
+          <span className="flex items-center gap-1.5 text-orange-700 dark:text-orange-300 font-bold bg-orange-50 dark:bg-orange-950/50 px-2.5 py-0.5 rounded-md border border-orange-200 dark:border-orange-800/50 shadow-2xs">
+            <span className="h-2 w-2 rounded-full bg-orange-600 dark:bg-orange-400 inline-block animate-pulse"></span>
+            ADB Push: {speed(last.adb_push_bps || 0)}
+          </span>
         </div>
       </div>
-      <svg className="h-24 w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-        <rect width={width} height={height} fill="#09090b" rx="2" />
+      <svg className="h-24 w-full rounded-lg overflow-hidden" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        <rect width={width} height={height} className="fill-slate-50 dark:fill-[#09090b] stroke-slate-200/80 dark:stroke-zinc-800/80" rx="4" />
+        <line x1="0" y1={height * 0.25} x2={width} y2={height * 0.25} className="stroke-slate-200 dark:stroke-zinc-800/80" strokeWidth="1" strokeDasharray="3 3" />
+        <line x1="0" y1={height * 0.50} x2={width} y2={height * 0.50} className="stroke-slate-200 dark:stroke-zinc-800/80" strokeWidth="1" strokeDasharray="3 3" />
+        <line x1="0" y1={height * 0.75} x2={width} y2={height * 0.75} className="stroke-slate-200 dark:stroke-zinc-800/80" strokeWidth="1" strokeDasharray="3 3" />
         <defs>
           <linearGradient id="chartGradSamba" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.0" />
+            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
           </linearGradient>
           <linearGradient id="chartGradAdb" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f97316" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
+            <stop offset="0%" stopColor="#ea580c" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#ea580c" stopOpacity="0.0" />
           </linearGradient>
         </defs>
         <path d={fillPath("tx_bps")} fill="url(#chartGradSamba)" />
-        <path d={path("tx_bps")} fill="none" stroke="#93c5fd" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <path d={path("tx_bps")} fill="none" className="stroke-blue-600 dark:stroke-blue-400" strokeWidth="2" vectorEffect="non-scaling-stroke" />
         <path d={fillPath("adb_push_bps")} fill="url(#chartGradAdb)" />
-        <path d={path("adb_push_bps")} fill="none" stroke="#f97316" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        <path d={path("adb_push_bps")} fill="none" className="stroke-orange-600 dark:stroke-orange-400" strokeWidth="2" vectorEffect="non-scaling-stroke" />
       </svg>
     </section>
   );
@@ -1058,8 +1069,8 @@ export default function App() {
           {filelistOpen && (
             <div className="border-t border-gray-150 dark:border-zinc-800 p-4">
               <div className="mb-4 flex flex-wrap gap-4 items-center justify-between border-b border-gray-150 dark:border-zinc-800 pb-4">
-                <div className="flex flex-wrap gap-6 text-xs font-semibold text-gray-600 dark:text-zinc-400 items-center">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                <div className="flex flex-wrap gap-4 text-xs font-semibold text-gray-800 dark:text-zinc-200 items-center">
+                  <label className="flex items-center gap-2 cursor-pointer text-gray-800 dark:text-zinc-200 font-bold hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     <input 
                       type="checkbox" 
                       className="ff-checkbox h-4 w-4" 
@@ -1071,10 +1082,10 @@ export default function App() {
                     />
                     Auto Push
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-[#fbbf24] dark:text-[#fbbf24]">
+                  <label className="flex items-center gap-2 cursor-pointer text-amber-950 dark:text-amber-200 font-bold bg-amber-100/90 dark:bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-300/80 dark:border-amber-600/50 shadow-2xs hover:bg-amber-200/80 dark:hover:bg-amber-900/40 transition-colors">
                     <input 
                       type="checkbox" 
-                      className="ff-checkbox h-4 w-4 accent-[#fbbf24]" 
+                      className="ff-checkbox h-4 w-4 accent-amber-600 dark:accent-amber-400" 
                       checked={forceTransfer} 
                       onChange={(e) => setForceTransfer(e.target.checked)} 
                     />
@@ -1082,18 +1093,18 @@ export default function App() {
                   </label>
 
                   {/* Post-Transfer Action Toggle in Staging Bar */}
-                  <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-zinc-850 p-0.5 rounded-lg border border-gray-200 dark:border-zinc-800 text-xs select-none">
-                    <span className="text-[10px] text-gray-500 dark:text-zinc-400 font-bold px-1.5 uppercase">Post-Push:</span>
+                  <div className="flex items-center gap-1.5 bg-gray-200/90 dark:bg-zinc-800 p-1 rounded-lg border border-gray-300 dark:border-zinc-700 text-xs select-none shadow-2xs">
+                    <span className="text-[10px] text-gray-700 dark:text-zinc-300 font-bold px-1.5 uppercase tracking-wide">Post-Push:</span>
                     <button
                       type="button"
                       onClick={() => {
                         setPostTransferAction("backup");
                         localStorage.setItem("post_transfer_action", "backup");
                       }}
-                      className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
                         postTransferAction === "backup"
-                          ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs font-bold border border-emerald-500/20"
-                          : "text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200"
+                          ? "bg-emerald-600 dark:bg-emerald-500 text-white shadow-sm border border-emerald-700 dark:border-emerald-400 ring-1 ring-emerald-500/30 font-extrabold"
+                          : "text-gray-700 dark:text-zinc-300 hover:text-gray-950 dark:hover:text-white hover:bg-gray-300/60 dark:hover:bg-zinc-700/60"
                       }`}
                       title="Move file to local BACKUP subfolder after successful push"
                     >
@@ -1105,10 +1116,10 @@ export default function App() {
                         setPostTransferAction("delete");
                         localStorage.setItem("post_transfer_action", "delete");
                       }}
-                      className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
                         postTransferAction === "delete"
-                          ? "bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-xs font-bold border border-red-500/20"
-                          : "text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200"
+                          ? "bg-red-600 dark:bg-red-500 text-white shadow-sm border border-red-700 dark:border-red-400 ring-1 ring-red-500/30 font-extrabold"
+                          : "text-gray-700 dark:text-zinc-300 hover:text-gray-950 dark:hover:text-white hover:bg-gray-300/60 dark:hover:bg-zinc-700/60"
                       }`}
                       title="Delete source file permanently from PC after successful push"
                     >
@@ -1116,7 +1127,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  <span className="text-[11px] text-amber-500 dark:text-amber-400 font-semibold flex items-center gap-1 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+                  <span className="text-[11px] text-amber-950 dark:text-amber-200 font-bold flex items-center gap-1.5 bg-amber-100/90 dark:bg-amber-950/50 px-3 py-1 rounded-full border border-amber-300/90 dark:border-amber-700/80 shadow-2xs">
                     ⭐ Priority: CP & CSC Default ({files.filter(f => isPriorityFile(f.name)).length} prioritized)
                   </span>
                 </div>
@@ -1647,28 +1658,28 @@ export default function App() {
               </div>
 
               {/* Post-Transfer Action Section in Settings */}
-              <div className="rounded-xl border border-gray-200/80 dark:border-zinc-800 p-3.5 bg-gray-50/50 dark:bg-zinc-900/40 space-y-2">
+              <div className="rounded-xl border border-gray-250/90 dark:border-zinc-800 p-3.5 bg-gray-50 dark:bg-zinc-900/60 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-900 dark:text-zinc-200">Post-Transfer File Action</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  <span className="text-xs font-bold text-gray-900 dark:text-zinc-100">Post-Transfer File Action</span>
+                  <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
                     postTransferAction === "backup"
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                      : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+                      ? "border-emerald-600/40 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300"
+                      : "border-red-600/40 bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300"
                   }`}>
                     {postTransferAction === "backup" ? "Backup Folder" : "Permanent Delete"}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   <button
                     type="button"
                     onClick={() => {
                       setPostTransferAction("backup");
                       localStorage.setItem("post_transfer_action", "backup");
                     }}
-                    className={`px-3 py-2 text-xs font-semibold rounded-[10px] border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 text-xs font-bold rounded-lg border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       postTransferAction === "backup"
-                        ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold"
-                        : "border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-gray-500 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-zinc-900"
+                        ? "border-emerald-600 bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-500/20"
+                        : "border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800"
                     }`}
                   >
                     <span>📁 Move to BACKUP</span>
@@ -1679,16 +1690,16 @@ export default function App() {
                       setPostTransferAction("delete");
                       localStorage.setItem("post_transfer_action", "delete");
                     }}
-                    className={`px-3 py-2 text-xs font-semibold rounded-[10px] border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-2 text-xs font-bold rounded-lg border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       postTransferAction === "delete"
-                        ? "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400 font-bold"
-                        : "border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-gray-500 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-zinc-900"
+                        ? "border-red-600 bg-red-600 text-white shadow-xs ring-2 ring-red-500/20"
+                        : "border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800"
                     }`}
                   >
                     <span>🗑️ Delete Permanently</span>
                   </button>
                 </div>
-                <p className="text-[10px] text-gray-500 dark:text-zinc-400">
+                <p className="text-[11px] text-gray-600 dark:text-zinc-400 leading-normal">
                   {postTransferAction === "backup"
                     ? "Transferred files are safely moved into the local BACKUP subfolder after successful push."
                     : "Transferred files are permanently removed from the source folder on your PC after successful push."}
