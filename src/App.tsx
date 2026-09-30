@@ -226,6 +226,9 @@ export default function App() {
     return (localStorage.getItem("theme") as 'light' | 'dark') || "dark";
   });
   const [debugTab, setDebugTab] = useState<'log' | 'progress'>('log');
+  const [postTransferAction, setPostTransferAction] = useState<'backup' | 'delete'>(() => {
+    return (localStorage.getItem("post_transfer_action") as 'backup' | 'delete') || 'backup';
+  });
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [hasNewUpdate, setHasNewUpdate] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
@@ -854,7 +857,8 @@ export default function App() {
           file_name: current,
           force: force,
           queue_total: queueTotal,
-          queue_success: queueSuccess
+          queue_success: queueSuccess,
+          cleanup_mode: postTransferAction
         });
         console.info("[bridge-ui] push file ok", current);
         appendLog(`push ok ${current}`);
@@ -1076,6 +1080,42 @@ export default function App() {
                     />
                     Force Transfer (Overwrite)
                   </label>
+
+                  {/* Post-Transfer Action Toggle in Staging Bar */}
+                  <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-zinc-850 p-0.5 rounded-lg border border-gray-200 dark:border-zinc-800 text-xs select-none">
+                    <span className="text-[10px] text-gray-500 dark:text-zinc-400 font-bold px-1.5 uppercase">Post-Push:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPostTransferAction("backup");
+                        localStorage.setItem("post_transfer_action", "backup");
+                      }}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                        postTransferAction === "backup"
+                          ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs font-bold border border-emerald-500/20"
+                          : "text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200"
+                      }`}
+                      title="Move file to local BACKUP subfolder after successful push"
+                    >
+                      📁 Backup
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPostTransferAction("delete");
+                        localStorage.setItem("post_transfer_action", "delete");
+                      }}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                        postTransferAction === "delete"
+                          ? "bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-xs font-bold border border-red-500/20"
+                          : "text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200"
+                      }`}
+                      title="Delete source file permanently from PC after successful push"
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+
                   <span className="text-[11px] text-amber-500 dark:text-amber-400 font-semibold flex items-center gap-1 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
                     ⭐ Priority: CP & CSC Default ({files.filter(f => isPriorityFile(f.name)).length} prioritized)
                   </span>
@@ -1604,6 +1644,55 @@ export default function App() {
                     Browse
                   </button>
                 </div>
+              </div>
+
+              {/* Post-Transfer Action Section in Settings */}
+              <div className="rounded-xl border border-gray-200/80 dark:border-zinc-800 p-3.5 bg-gray-50/50 dark:bg-zinc-900/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-900 dark:text-zinc-200">Post-Transfer File Action</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    postTransferAction === "backup"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+                  }`}>
+                    {postTransferAction === "backup" ? "Backup Folder" : "Permanent Delete"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPostTransferAction("backup");
+                      localStorage.setItem("post_transfer_action", "backup");
+                    }}
+                    className={`px-3 py-2 text-xs font-semibold rounded-[10px] border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      postTransferAction === "backup"
+                        ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold"
+                        : "border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-gray-500 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-zinc-900"
+                    }`}
+                  >
+                    <span>📁 Move to BACKUP</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPostTransferAction("delete");
+                      localStorage.setItem("post_transfer_action", "delete");
+                    }}
+                    className={`px-3 py-2 text-xs font-semibold rounded-[10px] border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      postTransferAction === "delete"
+                        ? "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400 font-bold"
+                        : "border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-gray-500 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-zinc-900"
+                    }`}
+                  >
+                    <span>🗑️ Delete Permanently</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 dark:text-zinc-400">
+                  {postTransferAction === "backup"
+                    ? "Transferred files are safely moved into the local BACKUP subfolder after successful push."
+                    : "Transferred files are permanently removed from the source folder on your PC after successful push."}
+                </p>
               </div>
 
               {/* Software Updates Section in Settings */}

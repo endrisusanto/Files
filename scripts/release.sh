@@ -34,6 +34,12 @@ fs.writeFileSync("android/app/build.gradle", android);
 let appTsx = fs.readFileSync("src/App.tsx", "utf8");
 appTsx = appTsx.replace(/const APP_VERSION = ".*";/, `const APP_VERSION = "${pkg.version}";`);
 fs.writeFileSync("src/App.tsx", appTsx);
+if (fs.existsSync("web-monitor/public/index.html")) {
+  let webHtml = fs.readFileSync("web-monitor/public/index.html", "utf8");
+  webHtml = webHtml.replace(/const CURRENT_MONITOR_VERSION = ".*";/, `const CURRENT_MONITOR_VERSION = "${pkg.version}";`);
+  webHtml = webHtml.replace(/<span id="updateBtnText">v.*?<\/span>/, `<span id="updateBtnText">v${pkg.version}</span>`);
+  fs.writeFileSync("web-monitor/public/index.html", webHtml);
+}
 console.log(pkg.version);
 JS
 )"
@@ -45,7 +51,7 @@ if git rev-parse "v${version}" >/dev/null 2>&1; then
   exit 1
 fi
 
-git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json android/app/build.gradle android/app/src src/App.tsx
+git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json android/app/build.gradle android/app/src src/App.tsx web-monitor/public/index.html
 git commit -m "chore: release v${version}" || true
 git tag "v${version}"
 git push

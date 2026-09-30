@@ -527,8 +527,15 @@ fn get_staged_files_count(device_id: &str) -> Result<usize, String> {
     Ok(count)
 }
 
-fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_total: i32, queue_success: i32) -> Result<(), String> {
-    println!("[bridge-tauri] push_file start file={file_name} force={force} queue_total={queue_total} queue_success={queue_success}");
+fn push_file_blocking(
+    app: AppHandle,
+    file_name: String,
+    force: bool,
+    queue_total: i32,
+    queue_success: i32,
+    cleanup_mode: Option<String>,
+) -> Result<(), String> {
+    println!("[bridge-tauri] push_file start file={file_name} force={force} queue_total={queue_total} queue_success={queue_success} cleanup_mode={:?}", cleanup_mode);
     let config = app.state::<Config>().inner().clone();
     let mut cached_devices = config.devices_cache.lock().ok().map(|c| c.clone()).unwrap_or_default();
     if cached_devices.is_empty() {
@@ -694,16 +701,25 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
     ])?;
     println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
 
-    // ponytail: move file to BACKUP on successful push to clean up source directory
-    let backup_dir = source_dir(&config).join("BACKUP");
-    if let Err(e) = fs::create_dir_all(&backup_dir) {
-        eprintln!("[bridge-tauri] failed to create BACKUP dir: {e}");
-    } else {
-        let backup_path = backup_dir.join(&file_name);
-        if let Err(e) = fs::rename(&source, &backup_path) {
-            eprintln!("[bridge-tauri] failed to move file to BACKUP: {e}");
+    // Post-transfer action: "delete" (permanently delete) or "backup" (move to BACKUP folder)
+    let mode = cleanup_mode.as_deref().unwrap_or("backup");
+    if mode == "delete" {
+        if let Err(e) = fs::remove_file(&source) {
+            eprintln!("[bridge-tauri] failed to permanently delete {}: {e}", source.display());
         } else {
-            println!("[bridge-tauri] moved {file_name} to BACKUP");
+            println!("[bridge-tauri] permanently deleted {file_name} from source directory");
+        }
+    } else {
+        let backup_dir = source_dir(&config).join("BACKUP");
+        if let Err(e) = fs::create_dir_all(&backup_dir) {
+            eprintln!("[bridge-tauri] failed to create BACKUP dir: {e}");
+        } else {
+            let backup_path = backup_dir.join(&file_name);
+            if let Err(e) = fs::rename(&source, &backup_path) {
+                eprintln!("[bridge-tauri] failed to move file to BACKUP: {e}");
+            } else {
+                println!("[bridge-tauri] moved {file_name} to BACKUP");
+            }
         }
     }
 
@@ -711,10 +727,19 @@ fn push_file_blocking(app: AppHandle, file_name: String, force: bool, queue_tota
 }
 
 #[tauri::command(rename_all = "snake_case")]
-async fn push_file(app: AppHandle, file_name: String, force: bool, queue_total: i32, queue_success: i32) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || push_file_blocking(app, file_name, force, queue_total, queue_success))
-        .await
-        .map_err(|e| e.to_string())?
+async fn push_file(
+    app: AppHandle,
+    file_name: String,
+    force: bool,
+    queue_total: i32,
+    queue_success: i32,
+    cleanup_mode: Option<String>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        push_file_blocking(app, file_name, force, queue_total, queue_success, cleanup_mode)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
