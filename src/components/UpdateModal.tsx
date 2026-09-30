@@ -8,7 +8,7 @@ import {
   Sparkles,
   AlertCircle,
   Package,
-  HardDrive
+  Globe
 } from 'lucide-react';
 
 interface UpdateModalProps {
@@ -25,9 +25,20 @@ interface ReleaseInfo {
   publishedAt: string;
   htmlUrl: string;
   hasUpdate: boolean;
+  assetUrl?: string;
 }
 
-type UpdatePhase = 'idle' | 'downloading' | 'verifying' | 'installing' | 'relaunching' | 'completed';
+type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'verifying' | 'installing' | 'relaunching' | 'browser_opened' | 'completed';
+
+export const openExternalUrl = async (url: string) => {
+  if (!url) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('open_url', { url });
+  } catch {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+};
 
 export const UpdateModal: React.FC<UpdateModalProps> = ({
   isOpen,
@@ -50,6 +61,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
       setIsInstalling(false);
       setUpdatePhase('idle');
       setDownloadProgress(0);
+      setError(null);
     }
   }, [isOpen]);
 
@@ -68,67 +80,27 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
   const checkForUpdates = async () => {
     setIsChecking(true);
     setError(null);
+    setUpdatePhase('checking');
 
     const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+    let activeVer = currentVersion;
 
-    // 1. Primary check via Tauri updater plugin if available
     if (isTauri) {
       try {
-        const { check } = await import('@tauri-apps/plugin-updater');
-        const update = await check();
-        if (update) {
-          setReleaseInfo({
-            version: update.version,
-            tagName: `v${update.version}`,
-            name: `FireFiles v${update.version}`,
-            body: update.body || 'New improvements and bug fixes.',
-            publishedAt: new Date(update.date || Date.now()).toLocaleDateString(),
-            htmlUrl: 'https://github.com/endrisusanto/Files/releases',
-            hasUpdate: true,
-          });
-          setIsChecking(false);
-          return;
-        } else {
-          let activeVer = currentVersion;
-          try {
-            const { getVersion } = await import('@tauri-apps/api/app');
-            const v = await getVersion();
-            if (v) activeVer = v;
-          } catch {}
-
-          setReleaseInfo({
-            version: activeVer,
-            tagName: `v${activeVer}`,
-            name: `FireFiles v${activeVer}`,
-            body: 'You are running the latest version.',
-            publishedAt: new Date().toLocaleDateString(),
-            htmlUrl: 'https://github.com/endrisusanto/Files/releases',
-            hasUpdate: false,
-          });
-          setIsChecking(false);
-          return;
-        }
-      } catch {
-        // Fallback to GitHub API
-      }
+        const { getVersion } = await import('@tauri-apps/api/app');
+        const v = await getVersion();
+        if (v) activeVer = v;
+      } catch {}
     }
 
-    // 2. Direct GitHub API check
+    // 1. Direct GitHub Releases API Check
     try {
-      let activeVer = currentVersion;
-      if (isTauri) {
-        try {
-          const { getVersion } = await import('@tauri-apps/api/app');
-          const v = await getVersion();
-          if (v) activeVer = v;
-        } catch {}
-      }
-
       let latestTag = '';
       let releaseBody = 'Bug fixes and performance improvements.';
       let publishedDate = new Date().toLocaleDateString();
+      let htmlUrl = 'https://github.com/endrisusanto/Files/releases';
+      let assetUrl = '';
 
-      // Query GitHub Releases API
       try {
         const res = await fetch('https://api.github.com/repos/endrisusanto/Files/releases/latest', {
           headers: { Accept: 'application/vnd.github.v3+json' },
@@ -139,15 +111,31 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           latestTag = (data.tag_name || data.name || '').replace(/^v/, '');
           if (data.body) releaseBody = data.body;
           if (data.published_at) publishedDate = new Date(data.published_at).toLocaleDateString();
+          if (data.html_url) htmlUrl = data.html_url;
+
+          // Find suitable asset for platform
+          if (Array.isArray(data.assets) && data.assets.length > 0) {
+            const asset = data.assets.find((a: any) => 
+              a.name.endsWith('.AppImage') || 
+              a.name.endsWith('.deb') || 
+              a.name.endsWith('.exe') || 
+              a.name.endsWith('.msi') || 
+              a.name.endsWith('.dmg') ||
+              a.name.endsWith('.zip')
+            );
+            if (asset && asset.browser_download_url) {
+              assetUrl = asset.browser_download_url;
+            }
+          }
         } else if (res.status === 404) {
           latestTag = activeVer;
           releaseBody = 'No newer public releases published yet.';
         }
       } catch (apiErr) {
-        console.warn('Direct GitHub API fetch error:', apiErr);
+        console.warn('GitHub API check warning:', apiErr);
       }
 
-      // Fallback: fetch raw package.json from main branch
+      // Fallback: fetch package.json from raw repository if release API is rate-limited or unreachable
       if (!latestTag) {
         try {
           const rawRes = await fetch('https://raw.githubusercontent.com/endrisusanto/Files/main/package.json', {
@@ -161,7 +149,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
             }
           }
         } catch (rawErr) {
-          console.warn('Raw package.json fetch error:', rawErr);
+          console.warn('Raw package check warning:', rawErr);
         }
       }
 
@@ -176,6 +164,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           hasUpdate: false,
         });
         setIsChecking(false);
+        setUpdatePhase('idle');
         return;
       }
 
@@ -187,89 +176,84 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
         name: `FireFiles v${latestTag}`,
         body: releaseBody,
         publishedAt: publishedDate,
-        htmlUrl: 'https://github.com/endrisusanto/Files/releases',
+        htmlUrl,
+        assetUrl: assetUrl || htmlUrl,
         hasUpdate,
       });
     } catch (err: any) {
       setError(`Unable to check for updates: ${err.message || err}`);
     } finally {
       setIsChecking(false);
+      setUpdatePhase('idle');
     }
   };
 
   const handleInstallUpdate = async () => {
     setIsInstalling(true);
     setError(null);
-    setDownloadProgress(5);
+    setDownloadProgress(15);
     setUpdatePhase('downloading');
 
     const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+    const targetUrl = releaseInfo?.assetUrl || releaseInfo?.htmlUrl || 'https://github.com/endrisusanto/Files/releases';
 
-    try {
-      if (isTauri) {
-        try {
-          const { check } = await import('@tauri-apps/plugin-updater');
+    // 1. Try Tauri native updater plugin if binary manifest exists
+    if (isTauri) {
+      try {
+        const { check } = await import('@tauri-apps/plugin-updater');
+        const update = await check();
+
+        if (update) {
+          setDownloadProgress(25);
+          setUpdatePhase('downloading');
+
+          let currentDownloaded = 0;
+          let totalContentLength = 0;
+
+          await update.downloadAndInstall((event: any) => {
+            switch (event.event) {
+              case 'Started':
+                totalContentLength = event.data.contentLength || 20 * 1024 * 1024;
+                setTotalBytes(totalContentLength);
+                setUpdatePhase('downloading');
+                break;
+              case 'Progress':
+                currentDownloaded += event.data.chunkLength;
+                setDownloadBytes(currentDownloaded);
+                if (totalContentLength > 0) {
+                  const pct = Math.min(92, Math.round((currentDownloaded / totalContentLength) * 90));
+                  setDownloadProgress(pct);
+                }
+                break;
+              case 'Finished':
+                setDownloadProgress(95);
+                setUpdatePhase('installing');
+                break;
+            }
+          });
+
+          setDownloadProgress(100);
+          setUpdatePhase('relaunching');
+          await new Promise(r => setTimeout(r, 600));
           const { relaunch } = await import('@tauri-apps/plugin-process');
-
-          const update = await check();
-          if (update) {
-            setDownloadProgress(10);
-            setUpdatePhase('downloading');
-
-            let currentDownloaded = 0;
-            let totalContentLength = 0;
-
-            await update.downloadAndInstall((event: any) => {
-              switch (event.event) {
-                case 'Started':
-                  totalContentLength = event.data.contentLength || 15 * 1024 * 1024;
-                  setTotalBytes(totalContentLength);
-                  setUpdatePhase('downloading');
-                  break;
-                case 'Progress':
-                  currentDownloaded += event.data.chunkLength;
-                  setDownloadBytes(currentDownloaded);
-                  if (totalContentLength > 0) {
-                    const pct = Math.min(92, Math.round((currentDownloaded / totalContentLength) * 90));
-                    setDownloadProgress(pct);
-                  }
-                  break;
-                case 'Finished':
-                  setDownloadProgress(95);
-                  setUpdatePhase('installing');
-                  break;
-              }
-            });
-
-            setDownloadProgress(100);
-            setUpdatePhase('relaunching');
-            await new Promise(r => setTimeout(r, 600));
-            await relaunch();
-            return;
-          }
-        } catch (tErr: any) {
-          console.warn('Tauri updater failed, opening release page:', tErr);
+          await relaunch();
+          return;
         }
+      } catch (tErr: any) {
+        console.warn('[bridge-tauri] Native updater notice:', tErr);
       }
-    } catch (e: any) {
-      console.warn('Direct installer error:', e);
-      setError(`Automatic install notice: ${e.message}. Opening GitHub releases...`);
     }
 
-    // Fallback: open GitHub release download page
-    if (releaseInfo?.htmlUrl) {
-      window.open(releaseInfo.htmlUrl, '_blank', 'noopener,noreferrer');
-    }
-    setIsInstalling(false);
-    setUpdatePhase('idle');
+    // 2. Seamlessly open release download in system default browser
+    setDownloadProgress(100);
+    setUpdatePhase('browser_opened');
+    await openExternalUrl(targetUrl);
   };
 
   if (!isOpen) return null;
 
-  const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div 
         className="w-full max-w-md rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-[#121215] shadow-2xl overflow-hidden flex flex-col transition-all duration-300"
         onClick={(e) => e.stopPropagation()}
@@ -296,7 +280,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            disabled={isInstalling}
+            disabled={isInstalling && updatePhase !== 'browser_opened'}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition disabled:opacity-40 cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -305,7 +289,43 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
 
         {/* Body */}
         <div className="p-5 space-y-4">
-          {isInstalling ? (
+          {updatePhase === 'browser_opened' ? (
+            /* BROWSER DOWNLOAD OPENED CONFIRMATION VIEW */
+            <div className="py-4 flex flex-col items-center justify-center text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+                <Globe className="w-6 h-6" />
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-gray-900 dark:text-zinc-100">
+                  Release Page Opened
+                </h4>
+                <p className="text-xs text-gray-600 dark:text-zinc-400 max-w-xs mx-auto leading-relaxed">
+                  The latest package download has been opened in your default web browser. You can install the downloaded build to update FireFiles.
+                </p>
+              </div>
+
+              <div className="pt-3 flex items-center gap-2.5 w-full justify-center">
+                <button
+                  onClick={() => openExternalUrl(releaseInfo?.htmlUrl || 'https://github.com/endrisusanto/Files/releases')}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-gray-700 dark:text-zinc-300 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-lg transition cursor-pointer border border-gray-250 dark:border-zinc-700"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open Again</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setIsInstalling(false);
+                    setUpdatePhase('idle');
+                    onClose();
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition cursor-pointer"
+                >
+                  <span>Done</span>
+                </button>
+              </div>
+            </div>
+          ) : isInstalling ? (
             /* INSTALLING PROGRESS VIEW */
             <div className="py-6 flex flex-col items-center justify-center text-center space-y-4">
               <div className="relative">
@@ -318,8 +338,8 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
 
               <div className="space-y-1">
                 <h4 className="text-sm font-bold text-gray-900 dark:text-zinc-100 capitalize">
-                  {updatePhase === 'downloading' && 'Downloading Update Package...'}
-                  {updatePhase === 'verifying' && 'Verifying Integrity...'}
+                  {updatePhase === 'downloading' && 'Connecting to Update Package...'}
+                  {updatePhase === 'verifying' && 'Verifying Package...'}
                   {updatePhase === 'installing' && 'Installing New Version...'}
                   {updatePhase === 'relaunching' && 'Restarting Application...'}
                   {updatePhase === 'completed' && 'Update Complete!'}
@@ -339,7 +359,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
               </div>
 
               <div className="text-[11px] text-gray-400 dark:text-zinc-500">
-                Please wait while the auto-installer completes the update process.
+                Please wait while the update process prepares the package.
               </div>
             </div>
           ) : (
@@ -349,14 +369,14 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
               <div className="p-4 rounded-xl bg-gray-50 dark:bg-zinc-900/60 border border-gray-200/80 dark:border-zinc-800 flex flex-col gap-2.5">
                 <div className="flex items-center justify-between text-xs font-semibold">
                   <span className="text-gray-500 dark:text-zinc-400">Current Installed:</span>
-                  <span className="font-mono bg-gray-200/70 dark:bg-zinc-800 px-2 py-0.5 rounded text-gray-800 dark:text-zinc-200">
+                  <span className="font-mono bg-gray-200/70 dark:bg-zinc-800 px-2 py-0.5 rounded text-gray-800 dark:text-zinc-200 font-bold">
                     v{currentVersion}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs font-semibold">
                   <span className="text-gray-500 dark:text-zinc-400">Latest Release:</span>
-                  <span className="font-mono bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/60">
+                  <span className="font-mono bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/60 font-bold">
                     {isChecking ? 'Checking...' : releaseInfo ? `v${releaseInfo.version}` : '-'}
                   </span>
                 </div>
@@ -407,32 +427,31 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                 <button
                   onClick={checkForUpdates}
                   disabled={isChecking || isInstalling}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <RotateCw className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin' : ''}`} />
                   <span>Refresh</span>
                 </button>
 
                 <div className="flex items-center gap-2">
-                  {releaseInfo?.hasUpdate ? (
+                  <button
+                    type="button"
+                    onClick={() => openExternalUrl(releaseInfo?.htmlUrl || 'https://github.com/endrisusanto/Files/releases')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded-lg transition-colors cursor-pointer border border-blue-200/60 dark:border-blue-900/60"
+                  >
+                    <span>Releases</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
+
+                  {releaseInfo?.hasUpdate && (
                     <button
                       onClick={handleInstallUpdate}
                       disabled={isInstalling}
-                      className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 active:scale-95 rounded-lg shadow-sm shadow-orange-500/20 transition-all disabled:opacity-50 cursor-pointer"
+                      className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 active:scale-95 rounded-lg shadow-sm shadow-orange-500/20 transition-all disabled:opacity-50 cursor-pointer"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>{isTauri ? 'Install Update' : 'Get Update'}</span>
+                      <span>Download Update</span>
                     </button>
-                  ) : (
-                    <a
-                      href="https://github.com/endrisusanto/Files/releases"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <span>Releases</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
                   )}
                 </div>
               </div>

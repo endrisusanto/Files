@@ -913,6 +913,39 @@ async fn get_devices(app: AppHandle) -> Result<Vec<DeviceInfo>, String> {
     Ok(devices)
 }
 
+#[tauri::command]
+async fn open_url(url: String) -> Result<(), String> {
+    println!("[bridge-tauri] open_url: {}", url);
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            let mut cmd = std::process::Command::new("cmd");
+            cmd.creation_flags(0x08000000);
+            cmd.args(["/C", "start", "", &url])
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
+        #[cfg(target_os = "macos")]
+        {
+            std::process::Command::new("open")
+                .arg(&url)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
+        #[cfg(target_os = "linux")]
+        {
+            std::process::Command::new("xdg-open")
+                .arg(&url)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn start_usb_relay(app: AppHandle) {
     thread::spawn(move || {
         let listener = match std::net::TcpListener::bind("0.0.0.0:1421") {
@@ -980,7 +1013,8 @@ fn main() {
             set_source_dir,
             pick_source_dir,
             debug_adb,
-            get_devices
+            get_devices,
+            open_url
         ])
         .setup(|app| {
             setup_tray(app)?;
