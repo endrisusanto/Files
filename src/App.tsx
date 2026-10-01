@@ -65,7 +65,7 @@ const statusClass = (status: string | undefined | null) => {
   }
 };
 
-function NetworkChart({ samples }: { samples: NetworkSample[] }) {
+function NetworkChart({ samples, sambaBps, adbBps }: { samples: NetworkSample[]; sambaBps?: number; adbBps?: number }) {
   const width = 600;
   const height = 80;
   const points = [
@@ -102,6 +102,8 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
     return `${linePath} L ${width} ${height} L 0 ${height} Z`;
   };
   const last = points[points.length - 1] ?? { rx_bps: 0, tx_bps: 0, adb_push_bps: 0 };
+  const currentSamba = sambaBps !== undefined ? sambaBps : (last.tx_bps || 0);
+  const currentAdb = adbBps !== undefined ? adbBps : (last.adb_push_bps || 0);
 
   return (
     <section className="mb-3 rounded-xl border border-gray-250/90 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/90 p-3 shadow-xs font-mono backdrop-blur-md transition-colors">
@@ -112,11 +114,11 @@ function NetworkChart({ samples }: { samples: NetworkSample[] }) {
         <div className="flex flex-wrap items-center gap-2 text-[11px] tracking-tight">
           <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/50 shadow-2xs">
             <span className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400 inline-block animate-pulse"></span>
-            Samba: {speed(last.tx_bps)}
+            Samba: {speed(currentSamba)}
           </span>
           <span className="flex items-center gap-1.5 text-orange-700 dark:text-orange-300 font-bold bg-orange-50 dark:bg-orange-950/50 px-2.5 py-0.5 rounded-md border border-orange-200 dark:border-orange-800/50 shadow-2xs">
             <span className="h-2 w-2 rounded-full bg-orange-600 dark:bg-orange-400 inline-block animate-pulse"></span>
-            ADB Push: {speed(last.adb_push_bps || 0)}
+            ADB Push: {speed(currentAdb)}
           </span>
         </div>
       </div>
@@ -211,6 +213,9 @@ export default function App() {
   const [phoneFiles, setPhoneFiles] = useState<Set<string>>(new Set());
   const [pushSpeed, setPushSpeed] = useState("");
   const adbPushBpsRef = useRef(0);
+  const sambaTxBpsRef = useRef(0);
+  const sambaRxBpsRef = useRef(0);
+  const lastSambaTelemetryTimeRef = useRef(0);
   const lastTime = useRef(0);
   const lastBytes = useRef(0);
   const devicesRef = useRef<Device[]>([]);
@@ -549,6 +554,11 @@ export default function App() {
       listen<any>("usb_telemetry", (e) => {
         const sample = e.payload;
         if (!sample) return;
+        
+        sambaTxBpsRef.current = sample.tx_bps || 0;
+        sambaRxBpsRef.current = sample.rx_bps || 0;
+        lastSambaTelemetryTimeRef.current = Date.now();
+
         // 1. Forward USB telemetry directly to Cloud Web Monitor
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify({
@@ -607,15 +617,16 @@ export default function App() {
     };
   }, []);
 
-  // Periodic network chart sampler for ADB Push speed
+  // Periodic network chart sampler for live Samba and ADB Push speeds
   useEffect(() => {
     const interval = setInterval(() => {
       const activeAdbBps = adbPushBpsRef.current;
+      const now = Date.now();
+      const activeSambaBps = (now - lastSambaTelemetryTimeRef.current < 4000) ? sambaTxBpsRef.current : 0;
       setNetwork((current) => {
-        const last = current[current.length - 1] || { rx_bps: 0, tx_bps: 0, adb_push_bps: 0 };
         const newSample: NetworkSample = {
-          rx_bps: last.rx_bps,
-          tx_bps: last.tx_bps,
+          rx_bps: sambaRxBpsRef.current,
+          tx_bps: activeSambaBps,
           adb_push_bps: activeAdbBps
         };
         return [...current.slice(-299), newSample];
@@ -683,6 +694,11 @@ export default function App() {
           } else if (msg.type === "telemetry") {
             const device = msg.device || {};
             const sample = msg.sample;
+            if (sample) {
+              sambaTxBpsRef.current = sample.tx_bps || 0;
+              sambaRxBpsRef.current = sample.rx_bps || 0;
+              lastSambaTelemetryTimeRef.current = Date.now();
+            }
             setRemoteDevices((current) => {
               const index = current.findIndex((d) => d.id === device.id || (device.model && d.model === device.model));
               const previous = index >= 0 ? current[index] : {};
@@ -1087,7 +1103,13 @@ export default function App() {
       </header>
 
       <div className="p-6 space-y-6 w-full">
-        <NetworkChart samples={network} />
+        {(() => {
+          const liveSambaBps = (isBridgeLive && activeRemote?.tx_bps !== undefined)
+            ? activeRemote.tx_bps
+            : (Date.now() - lastSambaTelemetryTimeRef.current < 4000 ? sambaTxBpsRef.current : 0);
+          const liveAdbBps = adbPushBpsRef.current || (transfer?.percent && transfer.percent < 100 ? (transfer.speed_bps || 0) : 0);
+          return <NetworkChart samples={network} sambaBps={liveSambaBps} adbBps={liveAdbBps} />;
+        })()}
 
         {/* Unified 3-Tab Local Staging & Pipeline Card */}
         <section className="ff-card overflow-hidden">
@@ -1481,9 +1503,9 @@ export default function App() {
                           </div>
                           <p className="text-[10px] text-gray-400 dark:text-zinc-500 mt-0.5">
                             {isPushingThis ? (
-                              `${fileGb((transfer.percent / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed}`
+                              `${fileGb((transfer.percent / 100) * f.size)} / ${fileGb(f.size)}${pushSpeed || (adbPushBpsRef.current > 0 ? ` · ${speed(adbPushBpsRef.current)}` : '')}`
                             ) : isUploadingThis ? (
-                              `${fileGb((activeRemote.upload_percent / 100) * f.size)} / ${fileGb(f.size)}`
+                              `${fileGb((activeRemote.upload_percent / 100) * f.size)} / ${fileGb(f.size)}${activeRemote.tx_bps > 0 ? ` · ${speed(activeRemote.tx_bps)}` : ''}`
                             ) : (
                               fileGb(f.size)
                             )}
