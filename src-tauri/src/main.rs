@@ -2,7 +2,7 @@
 
 use notify::{recommended_watcher, RecursiveMode, Watcher};
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, OpenOptions},
     io::{BufReader, Read},
@@ -29,14 +29,74 @@ const MIN_FREE_KB: u64 = 1 * 1024 * 1024;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+struct PersistedSettings {
+    #[serde(default)]
+    source_dir: Option<String>,
+    #[serde(default)]
+    samba_dir: Option<String>,
+    #[serde(default)]
+    auto_push: Option<bool>,
+    #[serde(default)]
+    force_transfer: Option<bool>,
+    #[serde(default)]
+    post_transfer_action: Option<String>,
+    #[serde(default)]
+    selected_fingerprint: Option<String>,
+    #[serde(default)]
+    theme: Option<String>,
+    #[serde(default)]
+    priority_files: Option<Vec<String>>,
+    #[serde(default)]
+    user_unchecked_priority: Option<Vec<String>>,
+}
+
+fn get_config_path() -> PathBuf {
+    #[cfg(windows)]
+    {
+        if let Ok(app_data) = std::env::var("APPDATA") {
+            let dir = PathBuf::from(app_data).join("FireFiles");
+            let _ = std::fs::create_dir_all(&dir);
+            return dir.join("config.json");
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let dir = PathBuf::from(home).join(".config").join("firefiles");
+            let _ = std::fs::create_dir_all(&dir);
+            return dir.join("config.json");
+        }
+    }
+    PathBuf::from("config.json")
+}
+
+fn load_persisted_settings() -> PersistedSettings {
+    let path = get_config_path();
+    if let Ok(data) = std::fs::read_to_string(&path) {
+        if let Ok(settings) = serde_json::from_str::<PersistedSettings>(&data) {
+            return settings;
+        }
+    }
+    PersistedSettings::default()
+}
+
+fn save_persisted_settings(settings: &PersistedSettings) {
+    let path = get_config_path();
+    if let Ok(json) = serde_json::to_string_pretty(settings) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
 #[derive(Clone)]
 struct Config {
     target_fingerprint: String,
     selected_fingerprint: Arc<Mutex<Option<String>>>,
     service: String,
     source_dir: Arc<Mutex<PathBuf>>,
-    samba_dir: PathBuf,
+    samba_dir: Arc<Mutex<PathBuf>>,
     devices_cache: Arc<Mutex<Vec<DeviceInfo>>>,
+    settings: Arc<Mutex<PersistedSettings>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -66,8 +126,6 @@ struct TransferProgress {
     speed_bps: u64,
 }
 
-
-
 #[derive(Serialize, Clone)]
 struct AppInfo {
     platform: String,
@@ -75,6 +133,13 @@ struct AppInfo {
     samba_dir: String,
     target_fingerprint_set: bool,
     hostname: String,
+    auto_push: bool,
+    force_transfer: bool,
+    post_transfer_action: String,
+    selected_fingerprint: Option<String>,
+    theme: String,
+    priority_files: Vec<String>,
+    user_unchecked_priority: Vec<String>,
 }
 
 fn get_adb_path() -> String {
@@ -151,6 +216,34 @@ fn adb(args: &[&str]) -> Result<String, String> {
 
 fn source_dir(config: &Config) -> PathBuf {
     config.source_dir.lock().map(|v| v.clone()).unwrap_or_else(|_| PathBuf::from(DEFAULT_SOURCE_DIR))
+}
+
+fn samba_dir(config: &Config) -> PathBuf {
+    config.samba_dir.lock().map(|v| v.clone()).unwrap_or_else(|_| PathBuf::from(DEFAULT_SAMBA_DIR))
+}
+
+fn get_app_info_internal(config: &Config) -> AppInfo {
+    let hostname = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_else(|_| "tauri".into());
+    let src = source_dir(config);
+    let smb = samba_dir(config);
+    let settings = config.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    
+    AppInfo {
+        platform: std::env::consts::OS.into(),
+        source_dir: src.display().to_string(),
+        samba_dir: smb.display().to_string(),
+        target_fingerprint_set: config.target_fingerprint != "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE",
+        hostname,
+        auto_push: settings.auto_push.unwrap_or(true),
+        force_transfer: settings.force_transfer.unwrap_or(false),
+        post_transfer_action: settings.post_transfer_action.unwrap_or_else(|| "backup".into()),
+        selected_fingerprint: config.selected_fingerprint.lock().ok().and_then(|fp| fp.clone()),
+        theme: settings.theme.unwrap_or_else(|| "dark".into()),
+        priority_files: settings.priority_files.unwrap_or_default(),
+        user_unchecked_priority: settings.user_unchecked_priority.unwrap_or_default(),
+    }
 }
 
 fn get_device_details(id: &str) -> (String, u64, String, bool) {
@@ -370,15 +463,12 @@ fn emit_loop(app: AppHandle) {
         if let Err(e) = app.emit("files", bridge_files(&source_dir(&config))) {
             eprintln!("[bridge-tauri] emit files error: {}", e);
         }
-        if let Err(e) = app.emit("samba-files", bridge_files(&config.samba_dir)) {
+        if let Err(e) = app.emit("samba-files", bridge_files(&samba_dir(&config))) {
             eprintln!("[bridge-tauri] emit samba-files error: {}", e);
         }
         thread::sleep(Duration::from_secs(5));
     });
 }
-
-
-
 
 fn watch_source(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
@@ -402,13 +492,14 @@ fn watch_samba(app: AppHandle) {
     thread::spawn(move || {
         let (tx, rx) = channel();
         let Ok(mut watcher) = recommended_watcher(tx) else { return };
-        if watcher.watch(&config.samba_dir, RecursiveMode::NonRecursive).is_err() {
+        let dir = samba_dir(&config);
+        if watcher.watch(&dir, RecursiveMode::NonRecursive).is_err() {
             return;
         }
         while rx.recv().is_ok() {
             thread::sleep(Duration::from_millis(200));
             while rx.try_recv().is_ok() {}
-            let _ = app.emit("samba-files", bridge_files(&config.samba_dir));
+            let _ = app.emit("samba-files", bridge_files(&samba_dir(&config)));
         }
     });
 }
@@ -772,7 +863,12 @@ async fn get_phone_files(app: AppHandle) -> Result<Vec<String>, String> {
 async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String> {
     println!("[bridge-tauri] select_bridge fingerprint={fingerprint}");
     let config = app.state::<Config>().inner().clone();
-    *config.selected_fingerprint.lock().map_err(|e| e.to_string())? = Some(fingerprint);
+    let fp_val = if fingerprint.is_empty() { None } else { Some(fingerprint.clone()) };
+    *config.selected_fingerprint.lock().map_err(|e| e.to_string())? = fp_val.clone();
+    if let Ok(mut s) = config.settings.lock() {
+        s.selected_fingerprint = fp_val;
+        save_persisted_settings(&s);
+    }
     // ponytail: blocking adb scan, keep selection click from freezing the UI.
     tauri::async_runtime::spawn_blocking(move || {
         let devices = list_devices(&config);
@@ -785,26 +881,7 @@ async fn select_bridge(app: AppHandle, fingerprint: String) -> Result<(), String
 async fn app_info(app: AppHandle) -> AppInfo {
     let config = app.state::<Config>().inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let hostname = std::env::var("COMPUTERNAME")
-            .or_else(|_| std::env::var("HOSTNAME"))
-            .unwrap_or_else(|_| "tauri".into());
-        
-        let path = source_dir(&config);
-        
-        println!(
-            "[bridge-tauri] app_info platform={} source={} samba={} hostname={}",
-            std::env::consts::OS,
-            path.display(),
-            config.samba_dir.display(),
-            hostname
-        );
-        AppInfo {
-            platform: std::env::consts::OS.into(),
-            source_dir: path.display().to_string(),
-            samba_dir: config.samba_dir.display().to_string(),
-            target_fingerprint_set: config.target_fingerprint != "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE",
-            hostname,
-        }
+        get_app_info_internal(&config)
     })
     .await
     .unwrap_or_else(|_| AppInfo {
@@ -813,6 +890,13 @@ async fn app_info(app: AppHandle) -> AppInfo {
         samba_dir: "".into(),
         target_fingerprint_set: false,
         hostname: "tauri".into(),
+        auto_push: true,
+        force_transfer: false,
+        post_transfer_action: "backup".into(),
+        selected_fingerprint: None,
+        theme: "dark".into(),
+        priority_files: vec![],
+        user_unchecked_priority: vec![],
     })
 }
 
@@ -820,11 +904,15 @@ async fn app_info(app: AppHandle) -> AppInfo {
 async fn set_source_dir(app: AppHandle, path: String) -> Result<Vec<LocalFile>, String> {
     let config = app.state::<Config>().inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let dir = PathBuf::from(path);
+        let dir = PathBuf::from(&path);
         if !dir.is_dir() {
             return Err(format!("source folder not found: {}", dir.display()));
         }
         *config.source_dir.lock().map_err(|e| e.to_string())? = dir.clone();
+        if let Ok(mut s) = config.settings.lock() {
+            s.source_dir = Some(path.clone());
+            save_persisted_settings(&s);
+        }
         let files = bridge_files(&dir);
         println!("[bridge-tauri] source_dir set {} files={}", dir.display(), files.len());
         let _ = app.emit("files", files.clone());
@@ -832,6 +920,46 @@ async fn set_source_dir(app: AppHandle, path: String) -> Result<Vec<LocalFile>, 
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command(rename_all = "snake_case")]
+async fn save_settings(app: AppHandle, settings: PersistedSettings) -> Result<AppInfo, String> {
+    let config = app.state::<Config>().inner().clone();
+    
+    if let Some(ref src) = settings.source_dir {
+        let p = PathBuf::from(src);
+        if p.is_dir() {
+            if let Ok(mut l) = config.source_dir.lock() {
+                *l = p;
+            }
+        }
+    }
+    if let Some(ref smb) = settings.samba_dir {
+        let p = PathBuf::from(smb);
+        if let Ok(mut l) = config.samba_dir.lock() {
+            *l = p;
+        }
+    }
+    if let Some(ref fp) = settings.selected_fingerprint {
+        if let Ok(mut l) = config.selected_fingerprint.lock() {
+            *l = if fp.is_empty() { None } else { Some(fp.clone()) };
+        }
+    }
+    
+    if let Ok(mut current) = config.settings.lock() {
+        if settings.source_dir.is_some() { current.source_dir = settings.source_dir.clone(); }
+        if settings.samba_dir.is_some() { current.samba_dir = settings.samba_dir.clone(); }
+        if settings.auto_push.is_some() { current.auto_push = settings.auto_push; }
+        if settings.force_transfer.is_some() { current.force_transfer = settings.force_transfer; }
+        if settings.post_transfer_action.is_some() { current.post_transfer_action = settings.post_transfer_action.clone(); }
+        if settings.selected_fingerprint.is_some() { current.selected_fingerprint = settings.selected_fingerprint.clone(); }
+        if settings.theme.is_some() { current.theme = settings.theme.clone(); }
+        if settings.priority_files.is_some() { current.priority_files = settings.priority_files.clone(); }
+        if settings.user_unchecked_priority.is_some() { current.user_unchecked_priority = settings.user_unchecked_priority.clone(); }
+        save_persisted_settings(&current);
+    }
+
+    Ok(get_app_info_internal(&config))
 }
 
 #[tauri::command]
@@ -986,18 +1114,35 @@ fn start_usb_relay(app: AppHandle) {
 }
 
 fn main() {
+    let persisted = load_persisted_settings();
+    
+    let default_source = std::env::var("SOURCE_DIR")
+        .map(PathBuf::from)
+        .ok()
+        .or_else(|| persisted.source_dir.as_ref().map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_SOURCE_DIR));
+
+    let default_samba = std::env::var("SAMBA_DIR")
+        .map(PathBuf::from)
+        .ok()
+        .or_else(|| persisted.samba_dir.as_ref().map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_SAMBA_DIR));
+
+    let initial_fp = persisted.selected_fingerprint.clone();
+
     let config = Config {
         target_fingerprint: std::env::var("TARGET_BRIDGE_FINGERPRINT").unwrap_or_else(|_| "PUT_TARGET_RO_BUILD_FINGERPRINT_HERE".into()),
-        selected_fingerprint: Arc::new(Mutex::new(None)),
+        selected_fingerprint: Arc::new(Mutex::new(initial_fp)),
         service: std::env::var("ANDROID_BRIDGE_SERVICE").unwrap_or_else(|_| "com.example.bridge/.BridgeService".into()),
-        source_dir: Arc::new(Mutex::new(PathBuf::from(std::env::var("SOURCE_DIR").unwrap_or_else(|_| DEFAULT_SOURCE_DIR.into())))),
-        samba_dir: PathBuf::from(std::env::var("SAMBA_DIR").unwrap_or_else(|_| DEFAULT_SAMBA_DIR.into())),
+        source_dir: Arc::new(Mutex::new(default_source)),
+        samba_dir: Arc::new(Mutex::new(default_samba)),
         devices_cache: Arc::new(Mutex::new(vec![])),
+        settings: Arc::new(Mutex::new(persisted)),
     };
     println!(
         "[bridge-tauri] startup source={} samba={} service={}",
         source_dir(&config).display(),
-        config.samba_dir.display(),
+        samba_dir(&config).display(),
         config.service
     );
 
@@ -1014,7 +1159,8 @@ fn main() {
             pick_source_dir,
             debug_adb,
             get_devices,
-            open_url
+            open_url,
+            save_settings
         ])
         .setup(|app| {
             setup_tray(app)?;

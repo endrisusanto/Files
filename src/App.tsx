@@ -24,8 +24,20 @@ type LocalFile = {
 };
 
 type Transfer = { file: string; percent: number; message: string; speed_bps?: number };
-type NetworkSample = { rx_bps: number; tx_bps: number; adb_push_bps?: number };
-type AppInfo = { platform: string; source_dir: string; samba_dir: string; target_fingerprint_set: boolean; hostname: string };
+type AppInfo = {
+  platform: string;
+  source_dir: string;
+  samba_dir: string;
+  target_fingerprint_set: boolean;
+  hostname: string;
+  auto_push?: boolean;
+  force_transfer?: boolean;
+  post_transfer_action?: 'backup' | 'delete';
+  selected_fingerprint?: string | null;
+  theme?: 'light' | 'dark';
+  priority_files?: string[];
+  user_unchecked_priority?: string[];
+};
 
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 const speed = (b: number) => `${(b / 1024 / 1024).toFixed(2)} MB/s`;
@@ -227,7 +239,7 @@ export default function App() {
 
   // Source Configuration
   const [sourcePath, setSourcePath] = useState(() => localStorage.getItem("source_path") || "");
-  const [forceTransfer, setForceTransfer] = useState(false);
+  const [forceTransfer, setForceTransfer] = useState(() => localStorage.getItem("force_transfer") === "true");
   const [showSettings, setShowSettings] = useState(false);
   const [diagnostics, setDiagnostics] = useState("");
   const [diagLoading, setDiagLoading] = useState(false);
@@ -242,6 +254,12 @@ export default function App() {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [hasNewUpdate, setHasNewUpdate] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
+
+  const persistSetting = (patch: Record<string, any>) => {
+    invoke("save_settings", { settings: patch }).catch((err) => {
+      console.error("[bridge-ui] Failed to persist settings to disk:", err);
+    });
+  };
 
   useEffect(() => {
     const checkBgUpdate = async () => {
@@ -311,29 +329,31 @@ export default function App() {
   function togglePriority(name: string) {
     const current = isPriorityFile(name);
     if (current) {
-      setPriorityFiles((prev) => {
-        const next = new Set(prev);
-        next.delete(name);
-        try { localStorage.setItem("priority_files", JSON.stringify(Array.from(next))); } catch {}
-        return next;
-      });
-      setUserUncheckedPriority((prev) => {
-        const next = new Set(prev).add(name);
-        try { localStorage.setItem("user_unchecked_priority", JSON.stringify(Array.from(next))); } catch {}
-        return next;
-      });
+      const nextP = new Set(priorityFiles);
+      nextP.delete(name);
+      setPriorityFiles(nextP);
+      const nextU = new Set(userUncheckedPriority).add(name);
+      setUserUncheckedPriority(nextU);
+      const pArr = Array.from(nextP);
+      const uArr = Array.from(nextU);
+      try {
+        localStorage.setItem("priority_files", JSON.stringify(pArr));
+        localStorage.setItem("user_unchecked_priority", JSON.stringify(uArr));
+      } catch {}
+      persistSetting({ priority_files: pArr, user_unchecked_priority: uArr });
     } else {
-      setPriorityFiles((prev) => {
-        const next = new Set(prev).add(name);
-        try { localStorage.setItem("priority_files", JSON.stringify(Array.from(next))); } catch {}
-        return next;
-      });
-      setUserUncheckedPriority((prev) => {
-        const next = new Set(prev);
-        next.delete(name);
-        try { localStorage.setItem("user_unchecked_priority", JSON.stringify(Array.from(next))); } catch {}
-        return next;
-      });
+      const nextP = new Set(priorityFiles).add(name);
+      setPriorityFiles(nextP);
+      const nextU = new Set(userUncheckedPriority);
+      nextU.delete(name);
+      setUserUncheckedPriority(nextU);
+      const pArr = Array.from(nextP);
+      const uArr = Array.from(nextU);
+      try {
+        localStorage.setItem("priority_files", JSON.stringify(pArr));
+        localStorage.setItem("user_unchecked_priority", JSON.stringify(uArr));
+      } catch {}
+      persistSetting({ priority_files: pArr, user_unchecked_priority: uArr });
     }
   }
 
@@ -341,6 +361,7 @@ export default function App() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     localStorage.setItem("theme", next);
+    persistSetting({ theme: next });
   };
 
   function appendLog(line: string) {
@@ -354,19 +375,36 @@ export default function App() {
     invoke<AppInfo>("app_info")
       .then((value) => {
         console.info("[bridge-ui] app_info", value);
-        const savedSource = localStorage.getItem("source_path");
         setInfo(value);
-        setSourcePath(savedSource || value.source_dir);
-        appendLog(`app_info source=${value.source_dir} samba=${value.samba_dir}`);
-        if (savedSource && savedSource !== value.source_dir) {
-          invoke<LocalFile[]>("set_source_dir", { path: savedSource })
-            .then((list) => {
-              setFiles(list);
-              setInfo((current) => current && { ...current, source_dir: savedSource });
-              appendLog(`restore source ok files=${list.length}`);
-            })
-            .catch((err) => appendLog(`restore source failed ${String(err)}`));
+        if (value.source_dir) {
+          setSourcePath(value.source_dir);
+          localStorage.setItem("source_path", value.source_dir);
         }
+        if (typeof value.auto_push === "boolean") {
+          setAutoPush(value.auto_push);
+          localStorage.setItem("auto_push", String(value.auto_push));
+        }
+        if (typeof value.force_transfer === "boolean") {
+          setForceTransfer(value.force_transfer);
+          localStorage.setItem("force_transfer", String(value.force_transfer));
+        }
+        if (value.post_transfer_action) {
+          setPostTransferAction(value.post_transfer_action as 'backup' | 'delete');
+          localStorage.setItem("post_transfer_action", value.post_transfer_action);
+        }
+        if (value.theme) {
+          setTheme(value.theme as 'light' | 'dark');
+          localStorage.setItem("theme", value.theme);
+        }
+        if (Array.isArray(value.priority_files)) {
+          setPriorityFiles(new Set(value.priority_files));
+          localStorage.setItem("priority_files", JSON.stringify(value.priority_files));
+        }
+        if (Array.isArray(value.user_unchecked_priority)) {
+          setUserUncheckedPriority(new Set(value.user_unchecked_priority));
+          localStorage.setItem("user_unchecked_priority", JSON.stringify(value.user_unchecked_priority));
+        }
+        appendLog(`app_info source=${value.source_dir} samba=${value.samba_dir}`);
       })
       .catch((e) => {
         console.error("[bridge-ui] app_info failed", e);
@@ -938,6 +976,7 @@ export default function App() {
       setFiles(list);
       setInfo((value) => value && { ...value, source_dir: path });
       localStorage.setItem("source_path", path);
+      persistSetting({ source_dir: path });
       appendLog(`set source ok files=${list.length}`);
     } catch (err) {
       appendLog(`set source failed ${String(err)}`);
@@ -1154,6 +1193,7 @@ export default function App() {
                       onChange={(e) => {
                         setAutoPush(e.target.checked);
                         localStorage.setItem("auto_push", e.target.checked ? "true" : "false");
+                        persistSetting({ auto_push: e.target.checked });
                       }} 
                     />
                     Auto Push
@@ -1163,7 +1203,11 @@ export default function App() {
                       type="checkbox" 
                       className="ff-checkbox h-4 w-4 accent-amber-600 dark:accent-amber-400" 
                       checked={forceTransfer} 
-                      onChange={(e) => setForceTransfer(e.target.checked)} 
+                      onChange={(e) => {
+                        setForceTransfer(e.target.checked);
+                        localStorage.setItem("force_transfer", e.target.checked ? "true" : "false");
+                        persistSetting({ force_transfer: e.target.checked });
+                      }} 
                     />
                     Force Transfer (Overwrite)
                   </label>
@@ -1176,6 +1220,7 @@ export default function App() {
                       onClick={() => {
                         setPostTransferAction("backup");
                         localStorage.setItem("post_transfer_action", "backup");
+                        persistSetting({ post_transfer_action: "backup" });
                       }}
                       className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
                         postTransferAction === "backup"
@@ -1191,6 +1236,7 @@ export default function App() {
                       onClick={() => {
                         setPostTransferAction("delete");
                         localStorage.setItem("post_transfer_action", "delete");
+                        persistSetting({ post_transfer_action: "delete" });
                       }}
                       className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
                         postTransferAction === "delete"
@@ -1721,6 +1767,7 @@ export default function App() {
                     onClick={() => {
                       setPostTransferAction("backup");
                       localStorage.setItem("post_transfer_action", "backup");
+                      persistSetting({ post_transfer_action: "backup" });
                     }}
                     className={`px-3 py-2 text-xs font-bold rounded-lg border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       postTransferAction === "backup"
@@ -1735,6 +1782,7 @@ export default function App() {
                     onClick={() => {
                       setPostTransferAction("delete");
                       localStorage.setItem("post_transfer_action", "delete");
+                      persistSetting({ post_transfer_action: "delete" });
                     }}
                     className={`px-3 py-2 text-xs font-bold rounded-lg border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       postTransferAction === "delete"
