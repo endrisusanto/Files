@@ -869,6 +869,81 @@
       color: var(--text-secondary);
       font-family: var(--font-mono);
     }
+
+    /* Studio Reminders & Alarms UI Polish */
+    .studio-section-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    .studio-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #0d1117;
+      border-bottom: 1px solid var(--border-subtle);
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .studio-section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .studio-section-subtitle {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: normal;
+    }
+    .studio-form-control {
+      background: #0d1117;
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 5px 8px;
+      font-size: 11px;
+      outline: none;
+      transition: border-color 0.15s ease;
+      font-family: inherit;
+    }
+    .studio-form-control:focus {
+      border-color: var(--accent-primary);
+    }
+    .studio-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .studio-table th {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-secondary);
+      font-weight: 700;
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .studio-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+    }
+    .studio-table tr:last-child td {
+      border-bottom: none;
+    }
+    .studio-row-dimmed {
+      opacity: 0.55;
+    }
   </style>
 </head>
 
@@ -1459,8 +1534,15 @@
     // Periodic heartbeat render to keep timer & stats active
     setInterval(render, 1000);
 
-    // Auto resize canvas
     window.addEventListener("resize", draw);
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
 
     // ==========================================
     // Update Modal Logic
@@ -1998,71 +2080,218 @@
       populateStudioMappingForm();
     }
 
-    const DEFAULT_TABY_ALARMS = {
-      hydrate_enabled: true,
-      hydrate_interval_min: 45,
-      hydrate_anim: "daily_05_drink",
-      stretch_enabled: true,
-      stretch_interval_min: 60,
-      stretch_anim: "sports_01_stretching",
-      morning_enabled: true,
-      morning_time: "08:30",
-      morning_anim: "daily_01_wakeup",
-      lunch_enabled: true,
-      lunch_time: "12:00",
-      lunch_anim: "daily_04_eating",
-      clockout_enabled: true,
-      clockout_time: "17:30",
-      clockout_anim: "work_04_finished",
-      duration_sec: 10
+    const DEFAULT_TABY_ALARMS_CONFIG = {
+      reminders: [
+        { id: "rem_1", enabled: true, intervalMin: 45, text: "Minum Air & Hidrasi", subtext: "💧 Desk Health Reminder", anim: "daily_05_drink" },
+        { id: "rem_2", enabled: true, intervalMin: 60, text: "Peregangan Badan & Postur", subtext: "🧘 Desk Health Reminder", anim: "sports_01_stretching" }
+      ],
+      alarms: [
+        { id: "alm_1", enabled: true, time: "08:30", text: "Selamat Pagi!", subtext: "💖 Morning Greeting", anim: "daily_01_wakeup" },
+        { id: "alm_2", enabled: true, time: "12:00", text: "Istirahat Makan Siang", subtext: "🍱 Lunch Break", anim: "daily_04_eating" },
+        { id: "alm_3", enabled: true, time: "17:30", text: "Jam Pulang Kerja", subtext: "🏠 Clock Out", anim: "work_04_finished" }
+      ],
+      durationSec: 10
     };
 
-    function getSavedTabyAlarms() {
+    let studioAlarmsState = null;
+
+    function getSavedTabyAlarmsConfig() {
       try {
-        const saved = localStorage.getItem("taby_alarms_config");
-        return saved ? { ...DEFAULT_TABY_ALARMS, ...JSON.parse(saved) } : { ...DEFAULT_TABY_ALARMS };
+        const saved = localStorage.getItem("taby_alarms_config_v2");
+        if (saved) return JSON.parse(saved);
+        
+        const oldSaved = localStorage.getItem("taby_alarms_config");
+        if (oldSaved) {
+          const old = JSON.parse(oldSaved);
+          return {
+            reminders: [
+              { id: "rem_1", enabled: !!old.hydrate_enabled, intervalMin: Number(old.hydrate_interval_min) || 45, text: "Minum Air & Hidrasi", subtext: "💧 Desk Health Reminder", anim: old.hydrate_anim || "daily_05_drink" },
+              { id: "rem_2", enabled: !!old.stretch_enabled, intervalMin: Number(old.stretch_interval_min) || 60, text: "Peregangan Badan & Postur", subtext: "🧘 Desk Health Reminder", anim: old.stretch_anim || "sports_01_stretching" }
+            ],
+            alarms: [
+              { id: "alm_1", enabled: !!old.morning_enabled, time: old.morning_time || "08:30", text: "Selamat Pagi!", subtext: "💖 Morning Greeting", anim: old.morning_anim || "daily_01_wakeup" },
+              { id: "alm_2", enabled: !!old.lunch_enabled, time: old.lunch_time || "12:00", text: "Istirahat Makan Siang", subtext: "🍱 Lunch Break", anim: old.lunch_anim || "daily_04_eating" },
+              { id: "alm_3", enabled: !!old.clockout_enabled, time: old.clockout_time || "17:30", text: "Jam Pulang Kerja", subtext: "🏠 Clock Out", anim: old.clockout_anim || "work_04_finished" }
+            ],
+            durationSec: Number(old.duration_sec) || 10
+          };
+        }
+        return JSON.parse(JSON.stringify(DEFAULT_TABY_ALARMS_CONFIG));
       } catch (e) {
-        return { ...DEFAULT_TABY_ALARMS };
+        return JSON.parse(JSON.stringify(DEFAULT_TABY_ALARMS_CONFIG));
       }
     }
 
     function populateStudioAlarmsForm() {
-      const alarms = getSavedTabyAlarms();
+      if (!studioAlarmsState) {
+        studioAlarmsState = getSavedTabyAlarmsConfig();
+      }
+      renderStudioRemindersTable();
+      renderStudioAlarmsTable();
       
-      const setVal = (id, val) => {
-        const el = $(id);
-        if (!el) return;
-        if (el.type === "checkbox") el.checked = !!val;
-        else el.value = val;
-      };
-
-      setVal("alarmHydrateCheck", alarms.hydrate_enabled);
-      setVal("alarmHydrateInterval", alarms.hydrate_interval_min);
-      setVal("alarmHydrateAnim", alarms.hydrate_anim);
-
-      setVal("alarmStretchCheck", alarms.stretch_enabled);
-      setVal("alarmStretchInterval", alarms.stretch_interval_min);
-      setVal("alarmStretchAnim", alarms.stretch_anim);
-
-      setVal("alarmMorningCheck", alarms.morning_enabled);
-      setVal("alarmMorningTime", alarms.morning_time);
-      setVal("alarmMorningAnim", alarms.morning_anim);
-
-      setVal("alarmLunchCheck", alarms.lunch_enabled);
-      setVal("alarmLunchTime", alarms.lunch_time);
-      setVal("alarmLunchAnim", alarms.lunch_anim);
-
-      setVal("alarmClockoutCheck", alarms.clockout_enabled);
-      setVal("alarmClockoutTime", alarms.clockout_time);
-      setVal("alarmClockoutAnim", alarms.clockout_anim);
-
-      setVal("alarmDurationSelect", alarms.duration_sec);
+      const durEl = $("alarmDurationSelect");
+      if (durEl) durEl.value = studioAlarmsState.durationSec || 10;
     }
 
-    function testStudioAlarm(alarmType) {
-      const animSelectId = "alarm" + alarmType.charAt(0).toUpperCase() + alarmType.slice(1) + "Anim";
-      const animVal = $(animSelectId) ? $(animSelectId).value : "daily_05_drink";
-      const item = TABY_STUDIO_ITEMS.find(a => a.id === animVal) || TABY_STUDIO_ITEMS[0];
+    function getTabyAnimOptionsHtml(selectedAnim) {
+      return TABY_STUDIO_ITEMS.map(opt => 
+        `<option value="${opt.id}" ${opt.id === selectedAnim ? 'selected' : ''}>[${opt.category}] ${opt.id} · ${opt.label}</option>`
+      ).join("");
+    }
+
+    function renderStudioRemindersTable() {
+      const tbody = $("studioRemindersTableBody");
+      if (!tbody) return;
+
+      if (!studioAlarmsState.reminders || studioAlarmsState.reminders.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 14px 10px;">Belum ada custom reminder. Klik <b>+ Tambah Reminder</b> di atas.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = studioAlarmsState.reminders.map((rem) => {
+        const isDimmed = !rem.enabled;
+        const optionsHtml = getTabyAnimOptionsHtml(rem.anim);
+        return `
+          <tr id="rem_row_${rem.id}" class="${isDimmed ? 'studio-row-dimmed' : ''}">
+            <td style="width: 40px; text-align: center;">
+              <input type="checkbox" id="rem_en_${rem.id}" ${rem.enabled ? 'checked' : ''} onchange="toggleReminderRow('${rem.id}', this.checked)" style="accent-color: var(--accent-primary); cursor: pointer;" />
+            </td>
+            <td style="width: 120px;">
+              <select id="rem_int_${rem.id}" class="studio-form-control" style="width: 100%;" onchange="updateReminderField('${rem.id}', 'intervalMin', Number(this.value))">
+                <option value="15" ${rem.intervalMin === 15 ? 'selected' : ''}>Setiap 15m</option>
+                <option value="30" ${rem.intervalMin === 30 ? 'selected' : ''}>Setiap 30m</option>
+                <option value="45" ${rem.intervalMin === 45 ? 'selected' : ''}>Setiap 45m</option>
+                <option value="60" ${rem.intervalMin === 60 ? 'selected' : ''}>Setiap 60m</option>
+                <option value="90" ${rem.intervalMin === 90 ? 'selected' : ''}>Setiap 90m</option>
+                <option value="120" ${rem.intervalMin === 120 ? 'selected' : ''}>Setiap 120m</option>
+              </select>
+            </td>
+            <td>
+              <input type="text" id="rem_txt_${rem.id}" class="studio-form-control" style="width: 100%;" value="${escapeHtml(rem.text || '')}" placeholder="Teks Pengingat (cth: 💧 Minum Air)" oninput="updateReminderField('${rem.id}', 'text', this.value)" />
+            </td>
+            <td style="min-width: 180px;">
+              <select id="rem_anim_${rem.id}" class="studio-form-control" style="width: 100%;" onchange="updateReminderField('${rem.id}', 'anim', this.value)">
+                ${optionsHtml}
+              </select>
+            </td>
+            <td style="width: 90px; text-align: right; white-space: nowrap;">
+              <button onclick="testStudioReminder('${rem.id}')" class="btn-pill" style="padding: 3px 8px; font-size: 10px; color: var(--accent-text);" title="Test Trigger Live">▶</button>
+              <button onclick="deleteStudioReminder('${rem.id}')" class="btn-pill" style="padding: 3px 6px; font-size: 10px; color: #f85149;" title="Hapus Reminder">✕</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function renderStudioAlarmsTable() {
+      const tbody = $("studioAlarmsTableBody");
+      if (!tbody) return;
+
+      if (!studioAlarmsState.alarms || studioAlarmsState.alarms.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 14px 10px;">Belum ada custom alarm. Klik <b>+ Tambah Alarm</b> di atas.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = studioAlarmsState.alarms.map((alm) => {
+        const isDimmed = !alm.enabled;
+        const optionsHtml = getTabyAnimOptionsHtml(alm.anim);
+        return `
+          <tr id="alm_row_${alm.id}" class="${isDimmed ? 'studio-row-dimmed' : ''}">
+            <td style="width: 40px; text-align: center;">
+              <input type="checkbox" id="alm_en_${alm.id}" ${alm.enabled ? 'checked' : ''} onchange="toggleAlarmRow('${alm.id}', this.checked)" style="accent-color: var(--accent-primary); cursor: pointer;" />
+            </td>
+            <td style="width: 100px;">
+              <input type="time" id="alm_time_${alm.id}" class="studio-form-control" style="width: 100%;" value="${alm.time || '12:00'}" onchange="updateAlarmField('${alm.id}', 'time', this.value)" />
+            </td>
+            <td>
+              <input type="text" id="alm_txt_${alm.id}" class="studio-form-control" style="width: 100%;" value="${escapeHtml(alm.text || '')}" placeholder="Nama / Pesan Alarm (cth: 🍱 Istirahat Makan)" oninput="updateAlarmField('${alm.id}', 'text', this.value)" />
+            </td>
+            <td style="min-width: 180px;">
+              <select id="alm_anim_${alm.id}" class="studio-form-control" style="width: 100%;" onchange="updateAlarmField('${alm.id}', 'anim', this.value)">
+                ${optionsHtml}
+              </select>
+            </td>
+            <td style="width: 90px; text-align: right; white-space: nowrap;">
+              <button onclick="testStudioAlarmItem('${alm.id}')" class="btn-pill" style="padding: 3px 8px; font-size: 10px; color: var(--accent-text);" title="Test Trigger Live">▶</button>
+              <button onclick="deleteStudioAlarmItem('${alm.id}')" class="btn-pill" style="padding: 3px 6px; font-size: 10px; color: #f85149;" title="Hapus Alarm">✕</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function toggleReminderRow(id, enabled) {
+      const rem = studioAlarmsState.reminders.find(r => r.id === id);
+      if (rem) {
+        rem.enabled = enabled;
+        const row = $("rem_row_" + id);
+        if (row) row.className = enabled ? '' : 'studio-row-dimmed';
+      }
+    }
+
+    function updateReminderField(id, key, val) {
+      const rem = studioAlarmsState.reminders.find(r => r.id === id);
+      if (rem) rem[key] = val;
+    }
+
+    function addStudioReminder() {
+      const newId = "rem_" + Date.now();
+      studioAlarmsState.reminders.push({
+        id: newId,
+        enabled: true,
+        intervalMin: 45,
+        text: "Custom Reminder",
+        subtext: "Desk Health Nudge",
+        anim: "daily_05_drink"
+      });
+      renderStudioRemindersTable();
+      const txtEl = $("rem_txt_" + newId);
+      if (txtEl) { txtEl.focus(); txtEl.select(); }
+    }
+
+    function deleteStudioReminder(id) {
+      studioAlarmsState.reminders = studioAlarmsState.reminders.filter(r => r.id !== id);
+      renderStudioRemindersTable();
+    }
+
+    function toggleAlarmRow(id, enabled) {
+      const alm = studioAlarmsState.alarms.find(a => a.id === id);
+      if (alm) {
+        alm.enabled = enabled;
+        const row = $("alm_row_" + id);
+        if (row) row.className = enabled ? '' : 'studio-row-dimmed';
+      }
+    }
+
+    function updateAlarmField(id, key, val) {
+      const alm = studioAlarmsState.alarms.find(a => a.id === id);
+      if (alm) alm[key] = val;
+    }
+
+    function addStudioAlarm() {
+      const newId = "alm_" + Date.now();
+      studioAlarmsState.alarms.push({
+        id: newId,
+        enabled: true,
+        time: "15:00",
+        text: "Custom Alarm",
+        subtext: "Fixed Alarm",
+        anim: "daily_06_coffee"
+      });
+      renderStudioAlarmsTable();
+      const txtEl = $("alm_txt_" + newId);
+      if (txtEl) { txtEl.focus(); txtEl.select(); }
+    }
+
+    function deleteStudioAlarmItem(id) {
+      studioAlarmsState.alarms = studioAlarmsState.alarms.filter(a => a.id !== id);
+      renderStudioAlarmsTable();
+    }
+
+    function testStudioReminder(id) {
+      const rem = studioAlarmsState.reminders.find(r => r.id === id);
+      if (!rem) return;
+      const item = TABY_STUDIO_ITEMS.find(a => a.id === rem.anim) || TABY_STUDIO_ITEMS[0];
       const durSec = Number($("alarmDurationSelect") ? $("alarmDurationSelect").value : 10);
       
       previewStudioAnimation(item);
@@ -2072,58 +2301,59 @@
           type: "command",
           target: "all",
           command: "taby_trigger",
-          anim: animVal,
-          title: "ALARM: " + alarmType.toUpperCase(),
-          subtext: "Desk Reminder",
+          anim: rem.anim,
+          title: rem.text || "REMINDER",
+          subtext: "Setiap " + rem.intervalMin + " Menit",
+          duration: durSec * 1000
+        }));
+      }
+    }
+
+    function testStudioAlarmItem(id) {
+      const alm = studioAlarmsState.alarms.find(a => a.id === id);
+      if (!alm) return;
+      const item = TABY_STUDIO_ITEMS.find(a => a.id === alm.anim) || TABY_STUDIO_ITEMS[0];
+      const durSec = Number($("alarmDurationSelect") ? $("alarmDurationSelect").value : 10);
+      
+      previewStudioAnimation(item);
+
+      if (_ws && _ws.readyState === 1) {
+        _ws.send(JSON.stringify({
+          type: "command",
+          target: "all",
+          command: "taby_trigger",
+          anim: alm.anim,
+          title: alm.text || "ALARM",
+          subtext: "Waktu: " + alm.time,
           duration: durSec * 1000
         }));
       }
     }
 
     function saveStudioAlarms() {
-      const getVal = (id, isCheck = false) => {
-        const el = $(id);
-        if (!el) return isCheck ? false : "";
-        return isCheck ? el.checked : el.value;
-      };
+      const durEl = $("alarmDurationSelect");
+      if (durEl) studioAlarmsState.durationSec = Number(durEl.value) || 10;
 
-      const alarms = {
-        hydrate_enabled: getVal("alarmHydrateCheck", true),
-        hydrate_interval_min: Number(getVal("alarmHydrateInterval")) || 45,
-        hydrate_anim: getVal("alarmHydrateAnim") || "daily_05_drink",
-        stretch_enabled: getVal("alarmStretchCheck", true),
-        stretch_interval_min: Number(getVal("alarmStretchInterval")) || 60,
-        stretch_anim: getVal("alarmStretchAnim") || "sports_01_stretching",
-        morning_enabled: getVal("alarmMorningCheck", true),
-        morning_time: getVal("alarmMorningTime") || "08:30",
-        morning_anim: getVal("alarmMorningAnim") || "daily_01_wakeup",
-        lunch_enabled: getVal("alarmLunchCheck", true),
-        lunch_time: getVal("alarmLunchTime") || "12:00",
-        lunch_anim: getVal("alarmLunchAnim") || "daily_04_eating",
-        clockout_enabled: getVal("alarmClockoutCheck", true),
-        clockout_time: getVal("alarmClockoutTime") || "17:30",
-        clockout_anim: getVal("alarmClockoutAnim") || "work_04_finished",
-        duration_sec: Number(getVal("alarmDurationSelect")) || 10
-      };
-
-      localStorage.setItem("taby_alarms_config", JSON.stringify(alarms));
+      localStorage.setItem("taby_alarms_config_v2", JSON.stringify(studioAlarmsState));
 
       if (_ws && _ws.readyState === 1) {
         _ws.send(JSON.stringify({
           type: "command",
           target: "all",
           command: "set_taby_alarms",
-          alarms: alarms
+          alarms: studioAlarmsState
         }));
       }
 
-      alert("Alarm & Health Reminder schedules saved & synchronized!");
+      alert("Semua Custom Reminder & Fixed Alarm berhasil disimpan dan disinkronkan!");
       closeTabyStudioModal();
     }
 
     function resetStudioAlarms() {
-      if (!confirm("Reset all alarms and reminders to factory defaults?")) return;
+      if (!confirm("Reset semua custom reminder dan alarm ke default bawaan?")) return;
+      localStorage.removeItem("taby_alarms_config_v2");
       localStorage.removeItem("taby_alarms_config");
+      studioAlarmsState = JSON.parse(JSON.stringify(DEFAULT_TABY_ALARMS_CONFIG));
       populateStudioAlarmsForm();
     }
   </script>
@@ -2255,136 +2485,89 @@
           </div>
         </div>
 
-        <!-- Sub-Tab 3: Reminders & Health Alarms -->
-        <div id="studioSubTabAlarms" style="display: none; flex-direction: column; gap: 12px;">
-          <div class="server-cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
-            <!-- Health Reminders Card -->
-            <div class="server-card">
-              <div class="server-card-header">
-                <div class="server-info">
-                  <div class="server-name">💧 Desk Health Reminders</div>
-                  <div class="server-meta">Periodic posture & hydration nudges</div>
+        <!-- Sub-Tab 3: Dynamic Custom Reminders & Fixed Alarms -->
+        <div id="studioSubTabAlarms" style="display: none; flex-direction: column; gap: 14px;">
+          <!-- Section 1: Periodic Interval Health Reminders -->
+          <div class="studio-section-card">
+            <div class="studio-section-header">
+              <div>
+                <div class="studio-section-title">
+                  <span>💧</span> Periodic Desk Health Reminders
+                </div>
+                <div class="studio-section-subtitle">
+                  Pengingat berkala interval (minum air, postur tubuh, istirahat mata) dengan teks dan animasi kustom
                 </div>
               </div>
-              <div class="kv-grid" style="font-size: 11px; gap: 8px;">
-                <!-- Hydration -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
-                  <label style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--text-primary); cursor: pointer;">
-                    <input type="checkbox" id="alarmHydrateCheck" checked style="accent-color: var(--accent-primary);" />
-                    Hydration Nudge
-                  </label>
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <select id="alarmHydrateInterval" style="background: var(--bg-surface); color: var(--text-primary); font-size: 11px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px 6px;">
-                      <option value="15">Every 15m</option>
-                      <option value="30">Every 30m</option>
-                      <option value="45" selected>Every 45m</option>
-                      <option value="60">Every 60m</option>
-                      <option value="90">Every 90m</option>
-                      <option value="120">Every 120m</option>
-                    </select>
-                    <button class="btn-pill" style="font-size: 10px; padding: 2px 6px;" onclick="testStudioAlarm('hydrate')" title="Test trigger on simulator and devices">▶ Test</button>
-                  </div>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
-                  <span style="color: var(--text-secondary);">Animation:</span>
-                  <select id="alarmHydrateAnim" style="background: var(--bg-surface); color: var(--text-primary); font-size: 11px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px 6px; max-width: 160px;">
-                    <option value="daily_05_drink" selected>daily_05_drink (🍵)</option>
-                    <option value="daily_04_eating">daily_04_eating (🍱)</option>
-                    <option value="daily_06_coffee">daily_06_coffee (☕)</option>
-                    <option value="calm_02_breathe">calm_02_breathe (🧘)</option>
-                  </select>
-                </div>
-
-                <!-- Stretch -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); margin-top: 6px;">
-                  <label style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--text-primary); cursor: pointer;">
-                    <input type="checkbox" id="alarmStretchCheck" checked style="accent-color: var(--accent-primary);" />
-                    Stretch & Posture
-                  </label>
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <select id="alarmStretchInterval" style="background: var(--bg-surface); color: var(--text-primary); font-size: 11px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px 6px;">
-                      <option value="30">Every 30m</option>
-                      <option value="45">Every 45m</option>
-                      <option value="60" selected>Every 60m</option>
-                      <option value="90">Every 90m</option>
-                      <option value="120">Every 120m</option>
-                    </select>
-                    <button class="btn-pill" style="font-size: 10px; padding: 2px 6px;" onclick="testStudioAlarm('stretch')" title="Test trigger on simulator and devices">▶ Test</button>
-                  </div>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
-                  <span style="color: var(--text-secondary);">Animation:</span>
-                  <select id="alarmStretchAnim" style="background: var(--bg-surface); color: var(--text-primary); font-size: 11px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px 6px; max-width: 160px;">
-                    <option value="sports_01_stretching" selected>sports_01_stretching (🤸)</option>
-                    <option value="sports_02_squat">sports_02_squat (🏋️)</option>
-                    <option value="calm_01_meditate">calm_01_meditate (🧘)</option>
-                    <option value="daily_02_wash_face">daily_02_wash_face (🚿)</option>
-                  </select>
-                </div>
-              </div>
+              <button onclick="addStudioReminder()" class="btn-pill" style="background: var(--accent-subtle); border-color: var(--accent-border); color: var(--accent-text); font-weight: 700;">
+                + Tambah Reminder
+              </button>
             </div>
 
-            <!-- Daily Schedule Alarms Card -->
-            <div class="server-card">
-              <div class="server-card-header">
-                <div class="server-info">
-                  <div class="server-name">⏰ Daily Fixed Alarms</div>
-                  <div class="server-meta">Morning greeting, lunch break, and clock out</div>
-                </div>
-              </div>
-              <div class="kv-grid" style="font-size: 11px; gap: 8px;">
-                <!-- Morning -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border-subtle);">
-                  <label style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--text-primary); cursor: pointer;">
-                    <input type="checkbox" id="alarmMorningCheck" checked style="accent-color: var(--accent-primary);" />
-                    Morning Greeting
-                  </label>
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <input type="time" id="alarmMorningTime" value="08:30" style="background: var(--bg-surface); color: var(--text-primary); font-size: 11px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px 4px;" />
-                    <button class="btn-pill" style="font-size: 10px; padding: 2px 6px;" onclick="testStudioAlarm('morning')">▶</button>
-                  </div>
-                </div>
-
-                <!-- Lunch -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border-subtle);">
-                  <label style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--text-primary); cursor: pointer;">
-                    <input type="checkbox" id="alarmLunchCheck" checked style="accent-color: var(--accent-primary);" />
-                    Lunch Break
-                  </label>
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <input type="time" id="alarmLunchTime" value="12:00" style="background: var(--bg-surface); color: var(--text-primary); font-size: 11px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px 4px;" />
-                    <button class="btn-pill" style="font-size: 10px; padding: 2px 6px;" onclick="testStudioAlarm('lunch')">▶</button>
-                  </div>
-                </div>
-
-                <!-- Clock Out -->
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
-                  <label style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--text-primary); cursor: pointer;">
-                    <input type="checkbox" id="alarmClockoutCheck" checked style="accent-color: var(--accent-primary);" />
-                    Clock Out / Wrap Up
-                  </label>
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <input type="time" id="alarmClockoutTime" value="17:30" style="background: var(--bg-surface); color: var(--text-primary); font-size: 11px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px 4px;" />
-                    <button class="btn-pill" style="font-size: 10px; padding: 2px 6px;" onclick="testStudioAlarm('clockout')">▶</button>
-                  </div>
-                </div>
-              </div>
+            <div style="overflow-x: auto;">
+              <table class="studio-table">
+                <thead>
+                  <tr>
+                    <th style="width: 40px; text-align: center;">Aktif</th>
+                    <th style="width: 120px;">Interval</th>
+                    <th>Teks & Pesan Pengingat</th>
+                    <th style="min-width: 180px;">Animasi Taby</th>
+                    <th style="width: 90px; text-align: right;">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="studioRemindersTableBody">
+                  <!-- Rendered via renderStudioRemindersTable() -->
+                </tbody>
+              </table>
             </div>
           </div>
 
-          <!-- Preferences Banner -->
-          <div style="display: flex; gap: 16px; align-items: center; background: #0d1117; padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); justify-content: space-between;">
+          <!-- Section 2: Fixed Daily Schedule Alarms -->
+          <div class="studio-section-card">
+            <div class="studio-section-header">
+              <div>
+                <div class="studio-section-title">
+                  <span>⏰</span> Fixed Daily Schedule Alarms
+                </div>
+                <div class="studio-section-subtitle">
+                  Jadwal alarm harian tetap (jam masuk kerja, makan siang, meeting, jam pulang) dengan pesan kustom
+                </div>
+              </div>
+              <button onclick="addStudioAlarm()" class="btn-pill" style="background: var(--accent-subtle); border-color: var(--accent-border); color: var(--accent-text); font-weight: 700;">
+                + Tambah Alarm
+              </button>
+            </div>
+
+            <div style="overflow-x: auto;">
+              <table class="studio-table">
+                <thead>
+                  <tr>
+                    <th style="width: 40px; text-align: center;">Aktif</th>
+                    <th style="width: 100px;">Jam</th>
+                    <th>Nama / Pesan Alarm</th>
+                    <th style="min-width: 180px;">Animasi Taby</th>
+                    <th style="width: 90px; text-align: right;">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="studioAlarmsTableBody">
+                  <!-- Rendered via renderStudioAlarmsTable() -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Section 3: Alarm Global Preferences -->
+          <div style="display: flex; gap: 16px; align-items: center; background: #0d1117; padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); justify-content: space-between; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 11px; font-weight: 700; color: var(--text-secondary);">Alarm Display Duration:</span>
-              <select id="alarmDurationSelect" style="background: var(--bg-surface); color: var(--text-primary); font-weight: 700; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 11px;">
-                <option value="5">5 Seconds</option>
-                <option value="8">8 Seconds</option>
-                <option value="10" selected>10 Seconds</option>
-                <option value="15">15 Seconds</option>
-                <option value="30">30 Seconds</option>
+              <span style="font-size: 11px; font-weight: 700; color: var(--text-secondary);">Durasi Tampilan Alarm:</span>
+              <select id="alarmDurationSelect" class="studio-form-control" style="font-weight: 700;">
+                <option value="5">5 Detik</option>
+                <option value="8">8 Detik</option>
+                <option value="10" selected>10 Detik</option>
+                <option value="15">15 Detik</option>
+                <option value="30">30 Detik</option>
               </select>
             </div>
-            <span style="font-size: 10px; color: var(--text-muted);">Alarms automatically resume your active idle loop once finished.</span>
+            <span style="font-size: 11px; color: var(--text-secondary);">Setiap reminder & alarm otomatis kembali ke animasi idle loop setelah selesai berbunyi/tampil.</span>
           </div>
         </div>
       </div>
@@ -2409,7 +2592,7 @@
           <button onclick="resetStudioAlarms()" class="btn-pill">🔄 Reset Alarms</button>
           <div style="display: flex; gap: 6px;">
             <button onclick="closeTabyStudioModal()" class="btn-pill">Cancel</button>
-            <button onclick="saveStudioAlarms()" class="btn-pill" style="background: var(--accent-primary); border-color: var(--accent-border); color: #fff; font-weight: 700;">💾 Save & Sync Alarms</button>
+            <button onclick="saveStudioAlarms()" class="btn-pill" style="background: var(--accent-primary); border-color: var(--accent-border); color: #fff; font-weight: 700;">💾 Simpan & Sinkronkan</button>
           </div>
         </div>
       </div>
