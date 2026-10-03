@@ -1746,7 +1746,6 @@
       const tabyImg = $("studioTabyImg");
       const badgeIdx = $("studioBadgeIndex");
       const hudText = $("studioHudText");
-      const hudIcon = $("studioHudIcon");
       const activeLabel = $("studioActiveItemLabel");
 
       if (tabyImg) {
@@ -1758,11 +1757,7 @@
       }
 
       if (hudText) {
-        hudText.textContent = item.label + " · " + item.category;
-      }
-
-      if (hudIcon) {
-        hudIcon.textContent = item.category === "WORK" ? "💻" : item.category === "SUCCESS" ? "🎉" : item.category === "DAILY" ? "🧘" : item.category === "SPORTS" ? "🏀" : "👀";
+        hudText.textContent = item.id;
       }
 
       if (activeLabel) {
@@ -2031,7 +2026,7 @@
 
             <div class="studio-hud-overlay" id="studioHudOverlay">
               <div class="studio-hud-main">
-                <span id="studioHudIcon">👀</span> <span id="studioHudText">STANDBY · IDLE</span>
+                <span id="studioHudText">idle_01_loop</span>
               </div>
               <div class="studio-progress-bar">
                 <div class="studio-progress-fill" id="studioProgressFill"></div>

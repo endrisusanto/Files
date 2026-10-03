@@ -131,10 +131,10 @@
       border-color: #f85149;
     }
 
-    /* Bottom HUD status overlay */
+    /* Top Center Minimal Badge */
     .hud-overlay {
       position: absolute;
-      bottom: 16px;
+      top: 16px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
@@ -142,32 +142,23 @@
       align-items: center;
       gap: 4px;
       pointer-events: none;
-      max-width: 90%;
+      max-width: 60%;
     }
     .hud-main {
       font-size: 11px;
       font-weight: 700;
       color: #f0f6fc;
       font-family: ui-monospace, SFMono-Regular, monospace;
-      display: flex;
-      align-items: center;
-      gap: 6px;
       background: rgba(22, 27, 34, 0.85);
       border: 1px solid rgba(56, 139, 253, 0.4);
       backdrop-filter: blur(8px);
-      padding: 5px 14px;
+      padding: 4px 12px;
       border-radius: 12px;
       text-align: center;
       letter-spacing: 0.5px;
-    }
-    .hud-sub {
-      font-size: 9px;
-      color: #8b949e;
-      font-family: ui-monospace, monospace;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 280px;
     }
   </style>
 </head>
@@ -180,19 +171,21 @@
 
     <!-- Minimal Overlay Layer (auto fades) -->
     <div class="ui-layer" id="uiLayer">
+      <!-- Top Left Pulse Dot -->
       <div class="top-dot-badge" id="topBadge" title="Hub Online">
         <span class="pulse-dot"></span>
       </div>
 
-      <div class="exit-btn-minimal" id="exitBtn" onclick="onExit(event)" title="Exit to Dashboard">
-        ✕
-      </div>
-
+      <!-- Top Center Clean Badge -->
       <div class="hud-overlay" id="hudOverlay">
         <div class="hud-main" id="hudMain">
-          <span id="hudIcon">👀</span> <span id="hudText">STANDBY · IDLE</span>
+          <span id="hudText">STANDBY</span>
         </div>
-        <div class="hud-sub" id="hudSub" style="display: none;"></div>
+      </div>
+
+      <!-- Top Right Exit X -->
+      <div class="exit-btn-minimal" id="exitBtn" onclick="onExit(event)" title="Exit to Dashboard">
+        ✕
       </div>
     </div>
   </div>
@@ -200,10 +193,9 @@
   <script>
     const tabyImg = document.getElementById("tabyImage");
     const uiLayer = document.getElementById("uiLayer");
+    const hudOverlay = document.getElementById("hudOverlay");
     const hudMain = document.getElementById("hudMain");
-    const hudIcon = document.getElementById("hudIcon");
     const hudText = document.getElementById("hudText");
-    const hudSub = document.getElementById("hudSub");
 
     const ANIM_MAP = {
       "idle": "5e63dbe6.gif",
@@ -259,30 +251,10 @@
       const file = ANIM_MAP[animKey] || (animKey.endsWith(".gif") ? animKey : ANIM_MAP["idle"]);
       tabyImg.src = "taby/" + file;
 
-      if (title) hudText.textContent = title;
-      if (subtext) {
-        hudSub.textContent = subtext;
-        hudSub.style.display = "block";
+      if (title) {
+        hudText.textContent = title;
       } else {
-        hudSub.style.display = "none";
-      }
-
-      if (animKey.includes("work") || animKey.includes("push") || animKey.includes("samba")) {
-        hudIcon.textContent = "⚡";
-      } else if (animKey.includes("completed") || animKey.includes("yeah") || animKey.includes("trophy")) {
-        hudIcon.textContent = "🎉";
-      } else if (animKey.includes("drink")) {
-        hudIcon.textContent = "💧";
-      } else if (animKey.includes("stretch") || animKey.includes("posture")) {
-        hudIcon.textContent = "🧘";
-      } else if (animKey.includes("break") || animKey.includes("couch")) {
-        hudIcon.textContent = "🍱";
-      } else if (animKey.includes("copy")) {
-        hudIcon.textContent = "📋";
-      } else if (animKey.includes("busy") || animKey.includes("waiting")) {
-        hudIcon.textContent = "⏳";
-      } else {
-        hudIcon.textContent = "👀";
+        hudText.textContent = "STANDBY";
       }
 
       if (animKey !== "idle" && animKey !== "idle_01_loop") {
@@ -291,7 +263,7 @@
 
       if (durationMs && durationMs > 0) {
         resetTimer = setTimeout(() => {
-          playExpression("idle_01_loop", "STANDBY · IDLE", "", 0);
+          playExpression("idle_01_loop", "STANDBY", "", 0);
         }, durationMs);
       }
     }
@@ -299,24 +271,24 @@
     function setTransferProgress(speedText, percent, fileName) {
       if (percent >= 100) {
         isTransferring = false;
-        playExpression("task_completed", "TRANSFER COMPLETE (100%)", fileName, 4000);
+        playExpression("task_completed", "TRANSFER COMPLETE (100%)", "", 4000);
         showUiBriefly(4000);
       } else {
         isTransferring = true;
         uiLayer.classList.add("visible");
-        playExpression("working_loop", "UPLOADING · " + (speedText || "") + " (" + percent + "%)", fileName, 0);
+        playExpression("working_loop", "UPLOADING · " + (speedText || "") + " (" + percent + "%)", "", 0);
       }
     }
 
     function setAdbPushProgress(speedText, percent, fileName) {
       if (percent >= 100) {
         isTransferring = false;
-        playExpression("task_completed", "PUSH COMPLETE (100%)", fileName, 4000);
+        playExpression("task_completed", "PUSH COMPLETE (100%)", "", 4000);
         showUiBriefly(4000);
       } else {
         isTransferring = true;
         uiLayer.classList.add("visible");
-        playExpression("working_laptop_excited_loop", "ADB PUSH · " + (speedText || "") + " (" + percent + "%)", fileName, 0);
+        playExpression("working_laptop_excited_loop", "ADB PUSH · " + (speedText || "") + " (" + percent + "%)", "", 0);
       }
     }
 
