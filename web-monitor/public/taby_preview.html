@@ -1,10 +1,55 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Taby Desk Assistant - Complete 84 Chip Showcase</title>
+  <title>Taby Desk Assistant & Expression Studio - Octopus Design</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+
+      --bg-base: #0d1117;
+      --bg-surface: #161b22;
+      --bg-subtle: #21262d;
+      --bg-hover: #30363d;
+      --bg-active: #3b434d;
+
+      --border-subtle: #30363d;
+      --border-strong: #6e7681;
+      --border-active: #58a6ff;
+
+      --text-primary: #f0f6fc;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+
+      --status-ready-text: #3fb950;
+      --status-ready-bg: #122619;
+      --status-ready-border: #238636;
+
+      --status-warning-text: #d29922;
+      --status-warning-bg: #2b2011;
+      --status-warning-border: #9e6a03;
+
+      --status-active-text: #58a6ff;
+      --status-active-bg: #112338;
+      --status-active-border: #1f6feb;
+
+      --accent-primary: #2f81f7;
+      --accent-hover: #58a6ff;
+      --accent-subtle: #112338;
+      --accent-border: #388bfd;
+      --accent-text: #58a6ff;
+
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 18px;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -12,42 +57,88 @@
       user-select: none;
     }
     body {
-      background-color: #08080b;
-      color: #f4f4f5;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 20px 14px;
+      padding: 1.25rem 1rem;
+      -webkit-font-smoothing: antialiased;
     }
 
     .container {
       width: 100%;
-      max-width: 1120px;
+      max-width: 1180px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 1rem;
       align-items: center;
     }
 
-    .header {
-      text-align: center;
-    }
-    .header h1 {
-      font-size: 24px;
-      font-weight: 800;
-      background: linear-gradient(135deg, #38bdf8, #818cf8, #f472b6);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 4px;
-    }
-    .header p {
-      font-size: 12px;
-      color: #a1a1aa;
+    .header-bar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.75rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
     }
 
-    /* Screen Stage */
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+    .brand-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* Tab Switcher in Octopus Header Pill Style */
+    .main-tab-nav {
+      display: inline-flex;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      gap: 4px;
+    }
+    .tab-nav-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .tab-nav-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+    .tab-nav-btn.active {
+      background: var(--accent-primary);
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    /* Screen Simulator Stage */
     .stage-wrapper {
       display: flex;
       flex-direction: column;
@@ -59,14 +150,15 @@
       width: 480px;
       height: 310px;
       background-color: #000000;
-      border: 4px solid #27272a;
-      border-radius: 32px;
-      box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.9), 0 0 45px rgba(56, 189, 248, 0.16);
+      border: 3px solid var(--border-subtle);
+      border-radius: 28px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
       position: relative;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: border-color 0.2s;
     }
 
     @media (max-width: 540px) {
@@ -105,25 +197,25 @@
     .top-badge {
       position: absolute;
       top: 12px;
-      left: 16px;
-      background: rgba(24, 24, 27, 0.75);
+      left: 14px;
+      background: rgba(22, 27, 34, 0.85);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #38bdf8;
+      border: 1px solid var(--border-subtle);
+      color: var(--accent-text);
       font-size: 10px;
       font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 12px;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
       gap: 5px;
-      font-family: ui-monospace, monospace;
+      font-family: var(--font-mono);
     }
 
     /* Bottom Progress Timer HUD */
     .hud-overlay {
       position: absolute;
-      bottom: 12px;
+      bottom: 10px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -135,27 +227,27 @@
       font-size: 11px;
       font-weight: 700;
       color: #ffffff;
-      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-family: var(--font-mono);
       display: flex;
       align-items: center;
       gap: 6px;
-      background: rgba(14, 165, 233, 0.2);
-      border: 1px solid rgba(56, 189, 248, 0.4);
+      background: rgba(22, 27, 34, 0.85);
+      border: 1px solid var(--border-subtle);
       backdrop-filter: blur(8px);
       padding: 4px 12px;
-      border-radius: 12px;
+      border-radius: var(--radius-sm);
     }
     .playlist-progress-bar {
       width: 100%;
       height: 3px;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--border-subtle);
       border-radius: 2px;
       overflow: hidden;
     }
     .playlist-progress-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      background: var(--accent-primary);
       transition: width 0.1s linear;
     }
 
@@ -166,113 +258,112 @@
       justify-content: space-between;
       width: 100%;
       max-width: 480px;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
     }
     .toolbar-group {
       display: flex;
       align-items: center;
-      gap: 5px;
-      background: #141418;
-      border: 1px solid #27272a;
-      padding: 4px 8px;
-      border-radius: 12px;
+      gap: 4px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      padding: 4px 6px;
+      border-radius: var(--radius-md);
     }
     .toolbar-label {
       font-size: 10px;
       font-weight: 700;
-      color: #71717a;
+      color: var(--text-secondary);
       text-transform: uppercase;
       padding: 0 4px;
     }
     .toolbar-btn {
-      background: #1c1c22;
-      border: 1px solid #2d2d36;
-      color: #d4d4d8;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
       font-size: 11px;
-      font-weight: 700;
-      padding: 5px 10px;
-      border-radius: 8px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       transition: all 0.15s;
     }
     .toolbar-btn:hover {
-      background: #2a2a34;
-      color: #fff;
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
     }
     .toolbar-btn.active {
-      background: #0284c7;
-      border-color: #38bdf8;
-      color: #fff;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+      background: var(--accent-primary);
+      border-color: var(--accent-border);
+      color: #ffffff;
+      font-weight: 700;
     }
 
-    /* Chip Explorer Card */
+    /* Chip Explorer & Settings Cards */
     .explorer-card {
       width: 100%;
-      max-width: 1120px;
-      background-color: #111115;
-      border: 1px solid #24242c;
-      border-radius: 20px;
-      padding: 16px 20px;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      gap: 0.75rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     }
 
     /* Category Chips Filter Bar */
     .category-chips-bar {
       display: flex;
-      gap: 6px;
+      gap: 4px;
       overflow-x: auto;
       padding-bottom: 2px;
       width: 100%;
     }
     .cat-chip {
-      background: #18181e;
-      border: 1px solid #2a2a34;
-      color: #a1a1aa;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
       font-size: 11px;
-      font-weight: 700;
-      padding: 6px 12px;
-      border-radius: 20px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       white-space: nowrap;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       transition: all 0.15s;
     }
     .cat-chip:hover {
-      background: #22222a;
-      color: #fff;
+      background: var(--bg-hover);
+      color: var(--text-primary);
     }
     .cat-chip.active {
-      background: #0284c7;
-      border-color: #38bdf8;
-      color: #ffffff;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+      background: var(--bg-subtle);
+      border-color: var(--accent-border);
+      color: var(--accent-text);
+      font-weight: 700;
     }
 
     .search-row {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
     }
     .search-input {
       flex: 1;
-      background: #16161c;
-      border: 1px solid #2a2a34;
-      color: #f4f4f5;
+      background: #0d1117;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
       font-size: 12px;
-      padding: 8px 12px;
-      border-radius: 10px;
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
       outline: none;
       transition: border-color 0.2s;
     }
     .search-input:focus {
-      border-color: #38bdf8;
+      border-color: var(--border-active);
     }
 
     /* Complete Full Chip Grid */
@@ -282,63 +373,65 @@
       gap: 6px;
       max-height: 480px;
       overflow-y: auto;
-      padding: 4px 2px;
-    }
-    .chip-cloud::-webkit-scrollbar {
-      width: 6px;
-    }
-    .chip-cloud::-webkit-scrollbar-thumb {
-      background: #2a2a34;
-      border-radius: 6px;
+      padding: 2px;
     }
 
     .anim-chip {
-      background: #18181f;
-      border: 1px solid #2a2a36;
-      color: #e4e4e7;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
       font-size: 11px;
       font-weight: 600;
-      padding: 6px 12px;
-      border-radius: 10px;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       transition: all 0.15s ease;
     }
     .anim-chip:hover {
-      background: #262632;
-      border-color: #404052;
-      color: #ffffff;
-      transform: translateY(-1px);
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
     }
     .anim-chip.active {
-      background: #0284c7;
-      border-color: #38bdf8;
-      color: #ffffff;
-      font-weight: 800;
-      box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
+      background: var(--accent-subtle);
+      border-color: var(--accent-border);
+      color: var(--accent-text);
+      font-weight: 700;
     }
     .chip-badge {
       font-size: 9px;
       background: rgba(255, 255, 255, 0.08);
-      padding: 2px 6px;
-      border-radius: 6px;
-      color: #a1a1aa;
-      font-family: ui-monospace, monospace;
-    }
-    .anim-chip.active .chip-badge {
-      background: rgba(0, 0, 0, 0.25);
-      color: #ffffff;
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <div class="header">
-      <h1>🤖 Taby 84-GIF Desk Assistant Showcase</h1>
-      <p>All 84 official animations in Full Interactive Chips · Rotate & Continuous Auto-Playlist</p>
+    <!-- Header -->
+    <div class="header-bar">
+      <div class="brand-section">
+        <span style="font-size: 22px;">🤖</span>
+        <div>
+          <div class="brand-title">TABY DESK ASSISTANT STUDIO</div>
+          <div class="brand-subtitle">84 Official GIF Animations & Live Activity Mapper</div>
+        </div>
+      </div>
+
+      <!-- Main Tab Navigation -->
+      <div class="main-tab-nav">
+        <button class="tab-nav-btn active" id="tabBtnExplorer" onclick="switchMainTab('explorer')">
+          🎭 84 Showcase Explorer
+        </button>
+        <button class="tab-nav-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">
+          ⚙️ Expression & Event Mapping
+        </button>
+      </div>
     </div>
 
     <!-- Phone Screen Simulator -->
@@ -354,7 +447,7 @@
 
         <div class="hud-overlay" id="hudOverlay">
           <div class="hud-main" id="hudMain">
-            <span id="hudIcon">👀</span> <span id="hudText">ANGRY_01_LOOP</span>
+            <span id="hudIcon">👀</span> <span id="hudText">STANDBY · IDLE</span>
           </div>
           <div class="playlist-progress-bar">
             <div class="playlist-progress-fill" id="progressFill"></div>
@@ -379,12 +472,15 @@
           <button class="toolbar-btn" onclick="prevAnimation()">⏮️ Prev</button>
           <button class="toolbar-btn" onclick="nextAnimation()">⏭️ Next</button>
           <button class="toolbar-btn" onclick="playRandom()">🔀 Random</button>
+          <button class="toolbar-btn" onclick="switchMainTab('settings')" style="color: #c084fc; border-color: rgba(192, 132, 252, 0.4); font-weight: 700;">
+            ⚙️ Settings Menu
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Full Chip Explorer Section -->
-    <div class="explorer-card">
+    <!-- VIEW 1: Full Chip Explorer Section -->
+    <div class="explorer-card" id="viewExplorer">
       <!-- Category Filter Chips -->
       <div class="category-chips-bar">
         <button class="cat-chip active" onclick="filterCategory('ALL')">🌟 All (84)</button>
@@ -414,6 +510,68 @@
         <!-- Injected via JavaScript -->
       </div>
     </div>
+
+    <!-- VIEW 2: Expression & Event Mapping Settings Panel -->
+    <div class="explorer-card" id="viewSettings" style="display: none;">
+      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #24242c; padding-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px;">⚙️</span>
+          <div>
+            <h2 style="font-size: 16px; font-weight: 800; color: #ffffff;">Desk Assistant Expression & Event Mapping</h2>
+            <p style="font-size: 11px; color: #a1a1aa;">Customise which Taby GIF activates during desktop and bridge events</p>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button onclick="resetExprSettings()" style="background: rgba(255,255,255,0.05); border: 1px solid #3f3f46; color: #a1a1aa; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer;">
+            🔄 Reset Defaults
+          </button>
+          <button onclick="saveExprSettings()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #ffffff; border: none; font-weight: 700; border-radius: 8px; padding: 6px 16px; font-size: 11px; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.4);">
+            💾 Save Settings
+          </button>
+        </div>
+      </div>
+
+      <!-- Display & HUD Config -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; background: #16161c; border: 1px solid #24242c; padding: 12px 16px; border-radius: 12px;">
+        <div>
+          <label style="display: block; font-size: 10px; font-weight: 700; color: #a1a1aa; text-transform: uppercase; margin-bottom: 4px;">
+            🔄 Screen Stand Orientation
+          </label>
+          <select id="settingRotSelect" onchange="setRotation(Number(this.value))" style="width: 100%; background: #09090b; color: #38bdf8; font-weight: 700; border: 1px solid #38bdf8; border-radius: 8px; padding: 6px 10px; font-size: 12px;">
+            <option value="90" selected>90° (Upright Stand - Default)</option>
+            <option value="270">270° (Reverse Upright Stand)</option>
+            <option value="0">0° (Horizontal / Landscape)</option>
+            <option value="180">180° (Inverted Horizontal)</option>
+          </select>
+        </div>
+        <div>
+          <label style="display: block; font-size: 10px; font-weight: 700; color: #a1a1aa; text-transform: uppercase; margin-bottom: 4px;">
+            💬 Status Text HUD
+          </label>
+          <select id="settingHudSelect" onchange="toggleHudVisibility(this.value === '1')" style="width: 100%; background: #09090b; color: #fafafa; font-weight: 700; border: 1px solid #3f3f46; border-radius: 8px; padding: 6px 10px; font-size: 12px;">
+            <option value="1">Show HUD (Status & Speed Overlay)</option>
+            <option value="0">Hide HUD (Pure Clean Expression)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Expression Mapping Table -->
+      <div style="border: 1px solid #24242c; border-radius: 12px; overflow: hidden; background: #09090b;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+          <thead>
+            <tr style="background: rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 11px; color: #a1a1aa;">
+              <th style="padding: 10px 14px;">Trigger Activity / Event</th>
+              <th style="padding: 10px 14px;">Assigned Taby Animation</th>
+              <th style="padding: 10px 14px; text-align: right;">Live Test</th>
+            </tr>
+          </thead>
+          <tbody id="pageExprTableBody">
+            <!-- Populated via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
   </div>
 
   <script>
@@ -1236,10 +1394,167 @@
       }, 50);
     }
 
+    let currentRotation = Number(localStorage.getItem("taby_rotation")) || 90;
+
     // Init
     renderChips();
     playAnimation(ALL_ITEMS[0]);
+    setRotation(currentRotation);
     startAutoPlayLoop();
+
+    // ==========================================
+    // Main Tab Switcher & Expression Mapper
+    // ==========================================
+    function switchMainTab(tab) {
+      const btnExp = document.getElementById("tabBtnExplorer");
+      const btnSet = document.getElementById("tabBtnSettings");
+      const viewExp = document.getElementById("viewExplorer");
+      const viewSet = document.getElementById("viewSettings");
+
+      if (tab === "settings") {
+        btnExp.classList.remove("active");
+        btnSet.classList.add("active");
+        viewExp.style.display = "none";
+        viewSet.style.display = "flex";
+        populatePageExprSettings();
+        // Pause auto play while configuring
+        if (isAutoPlay) toggleAutoPlay();
+      } else {
+        btnSet.classList.remove("active");
+        btnExp.classList.add("active");
+        viewSet.style.display = "none";
+        viewExp.style.display = "flex";
+      }
+    }
+
+    function toggleHudVisibility(show) {
+      const hud = document.getElementById("hudOverlay");
+      if (hud) {
+        hud.style.display = show ? "flex" : "none";
+      }
+    }
+
+    const DEFAULT_MAP = {
+      idle: "5e63dbe6.gif",
+      work_normal: "ae5cd9c4.gif",
+      work_fast: "8d8c83cf.gif",
+      copy_paste: "9ba1094c.gif",
+      high_load: "120a9943.gif",
+      transfer_active: "ff09215b.gif",
+      transfer_done: "2a3d7c56.gif",
+      drink_water: "9da16b65.gif",
+      stretching: "51374816.gif",
+      lunch_break: "453f80ff.gif",
+      clock_out: "3bbde2ff.gif",
+      greeting: "7f1c7a6d.gif"
+    };
+
+    const EVENT_DEFINITIONS = [
+      { key: "idle", label: "💤 Standby / Idle", desc: "Default resting desk face", title: "STANDBY · IDLE", icon: "👀" },
+      { key: "work_normal", label: "💻 Typing Normal", desc: "Focus coding / typing speed", title: "CODING · FOCUS", icon: "💻" },
+      { key: "work_fast", label: "⚡ High Intensity / Fast Work", desc: "Rapid keystrokes / deep sprint", title: "FAST TYPING · SPRINT", icon: "⚡" },
+      { key: "copy_paste", label: "📋 Copy & Paste Action", desc: "Clipboard / quick duplicate", title: "CLIPBOARD · COPY", icon: "📋" },
+      { key: "high_load", label: "⏳ High CPU / System Busy", desc: "Heavy background compile / busy", title: "SYSTEM BUSY · HIGH LOAD", icon: "⏳" },
+      { key: "transfer_active", label: "📁 File Transfer Ingest", desc: "Active ADB Push or Samba upload", title: "UPLOADING · 35.8 MB/s", icon: "⚡" },
+      { key: "transfer_done", label: "🎉 Transfer Complete 100%", desc: "Batch push finished successfully", title: "COMPLETE · 100%", icon: "🎉" },
+      { key: "drink_water", label: "💧 Minum Air / Hydration", desc: "Wellness water reminder alarm", title: "MINUM AIR · HYDRATE", icon: "💧" },
+      { key: "stretching", label: "🧘 Gerak / Posture Stretch", desc: "Wellness stretch & posture alarm", title: "STRETCH · POSTURE BREAK", icon: "🧘" },
+      { key: "lunch_break", label: "🍱 Jam Makan Siang", desc: "Lunch break reminder", title: "LUNCH BREAK · TIME TO EAT", icon: "🍱" },
+      { key: "clock_out", label: "🏠 Jam Pulang / Clock Out", desc: "Workday finished greeting", title: "CLOCK OUT · GO HOME", icon: "🏠" },
+      { key: "greeting", label: "💖 Greeting Masuk Kerja", desc: "Morning arrival / boot greeting", title: "HELLO MASTER · WELCOME", icon: "💖" }
+    ];
+
+    function getSavedMap() {
+      try {
+        const saved = localStorage.getItem("taby_expression_map");
+        return saved ? { ...DEFAULT_MAP, ...JSON.parse(saved) } : { ...DEFAULT_MAP };
+      } catch {
+        return { ...DEFAULT_MAP };
+      }
+    }
+
+    function populatePageExprSettings() {
+      const map = getSavedMap();
+      const rot = currentRotation;
+      const rotSelect = document.getElementById("settingRotSelect");
+      if (rotSelect) rotSelect.value = String(rot);
+
+      const tbody = document.getElementById("pageExprTableBody");
+      if (!tbody) return;
+
+      tbody.innerHTML = EVENT_DEFINITIONS.map(ev => {
+        const curFile = map[ev.key] || DEFAULT_MAP[ev.key];
+        const optionsHtml = ALL_ITEMS.map(item => 
+          `<option value="${item.file}" ${item.file === curFile ? 'selected' : ''}>${item.id} · ${item.label}</option>`
+        ).join("");
+
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); transition: background 0.15s;">
+            <td style="padding: 12px 14px; vertical-align: middle;">
+              <div style="font-weight: 700; font-size: 13px; color: #fafafa;">${ev.label}</div>
+              <div style="font-size: 11px; color: #71717a; margin-top: 2px;">${ev.desc}</div>
+            </td>
+            <td style="padding: 12px 14px; vertical-align: middle;">
+              <select id="page_map_${ev.key}" style="width: 100%; max-width: 380px; background: #16161c; color: #38bdf8; border: 1px solid #2d2d38; border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 600; outline: none;">
+                ${optionsHtml}
+              </select>
+            </td>
+            <td style="padding: 12px 14px; vertical-align: middle; text-align: right; white-space: nowrap;">
+              <button onclick="testTriggerEvent('${ev.key}')" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; font-size: 11px; font-weight: 700; padding: 6px 14px; cursor: pointer; transition: all 0.15s;">
+                ▶ Test Trigger
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function testTriggerEvent(key) {
+      const selectEl = document.getElementById("page_map_" + key) || document.getElementById("modal_map_" + key);
+      const chosenFile = selectEl ? selectEl.value : (DEFAULT_MAP[key] || "5e63dbe6.gif");
+      const evDef = EVENT_DEFINITIONS.find(d => d.key === key) || { title: key.toUpperCase(), icon: "👀" };
+      
+      const matched = ALL_ITEMS.find(i => i.file === chosenFile) || { file: chosenFile, id: key, label: key };
+      
+      tabyImage.src = ASSET_BASE + matched.file;
+      hudText.textContent = evDef.title;
+      hudIcon.textContent = evDef.icon;
+      badgeIndex.textContent = "TEST · " + evDef.key.toUpperCase();
+      
+      // Flash the phone screen border
+      const phone = document.getElementById("phoneScreen");
+      phone.style.borderColor = "#38bdf8";
+      setTimeout(() => {
+        phone.style.borderColor = "#27272a";
+      }, 1000);
+    }
+
+    function saveExprSettings() {
+      const map = {};
+      EVENT_DEFINITIONS.forEach(ev => {
+        const el = document.getElementById("page_map_" + ev.key) || document.getElementById("modal_map_" + ev.key);
+        if (el) map[ev.key] = el.value;
+      });
+
+      const rot = document.getElementById("settingRotSelect")?.value || "90";
+      currentRotation = Number(rot);
+      setRotation(currentRotation);
+
+      localStorage.setItem("taby_expression_map", JSON.stringify(map));
+      localStorage.setItem("taby_rotation", rot);
+
+      alert("🎉 Taby expression mappings & display settings saved successfully!");
+    }
+
+    function resetExprSettings() {
+      if (!confirm("Reset all expression mappings to factory defaults?")) return;
+      localStorage.removeItem("taby_expression_map");
+      localStorage.removeItem("taby_rotation");
+      currentRotation = 90;
+      setRotation(90);
+      populatePageExprSettings();
+      alert("Reset to default settings (90° upright orientation).");
+    }
   </script>
 </body>
 </html>

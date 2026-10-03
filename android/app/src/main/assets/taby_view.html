@@ -149,6 +149,11 @@
       <span id="badgeText">FIREFILES TABY</span>
     </div>
 
+    <!-- Quick Flip Button -->
+    <div class="top-badge" id="flipBtn" onclick="cycleRotation()" style="left: 140px; cursor: pointer; color: #58a6ff; border-color: rgba(88,166,255,0.3);">
+      <span>🔄</span> <span>Flip</span>
+    </div>
+
     <div class="exit-btn" id="exitBtn" onclick="onExit()">
       <span>✕</span> Dashboard
     </div>
@@ -262,8 +267,37 @@
       }
     }
 
+    let currentRot = Number(localStorage.getItem("taby_rotation")) || 90;
+
     function setRotation(deg) {
+      currentRot = deg;
       tabyImg.className = "taby-gif rot-" + deg;
+    }
+
+    function cycleRotation() {
+      if (currentRot === 90) currentRot = 270;
+      else if (currentRot === 270) currentRot = 0;
+      else if (currentRot === 0) currentRot = 180;
+      else currentRot = 90;
+      setRotation(currentRot);
+      localStorage.setItem("taby_rotation", currentRot);
+    }
+
+    function updateConfig(configJson) {
+      try {
+        const cfg = typeof configJson === "string" ? JSON.parse(configJson) : configJson;
+        if (cfg.rotation !== undefined) {
+          setRotation(cfg.rotation);
+        }
+        if (cfg.hud_visible !== undefined) {
+          hudOverlay.style.display = cfg.hud_visible ? "flex" : "none";
+        }
+        if (cfg.map && typeof cfg.map === "object") {
+          Object.assign(ANIM_MAP, cfg.map);
+        }
+      } catch(e) {
+        console.error("Failed to parse config:", e);
+      }
     }
 
     function onExit() {

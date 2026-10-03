@@ -1,248 +1,517 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FireFiles Monitor - Realtime Staging Dashboard</title>
+  <title>FireFiles Hub - Realtime Staging & Bridge Monitor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    * {
+    :root {
+      /* Octopus Design Tokens (GitHub Dark Theme Aesthetic) */
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+
+      --bg-base: #0d1117;
+      --bg-surface: #161b22;
+      --bg-subtle: #21262d;
+      --bg-hover: #30363d;
+      --bg-active: #3b434d;
+
+      --border-subtle: #30363d;
+      --border-strong: #6e7681;
+      --border-active: #58a6ff;
+
+      --text-primary: #f0f6fc;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+
+      /* Solid Status Colors */
+      --status-ready-text: #3fb950;
+      --status-ready-bg: #122619;
+      --status-ready-border: #238636;
+
+      --status-warning-text: #d29922;
+      --status-warning-bg: #2b2011;
+      --status-warning-border: #9e6a03;
+
+      --status-active-text: #58a6ff;
+      --status-active-bg: #112338;
+      --status-active-border: #1f6feb;
+
+      --status-fail-text: #f85149;
+      --status-fail-bg: #2c1418;
+      --status-fail-border: #da3633;
+
+      --status-offline-text: #8b949e;
+      --status-offline-bg: #1c2128;
+      --status-offline-border: #373e47;
+
+      --accent-primary: #2f81f7;
+      --accent-hover: #58a6ff;
+      --accent-subtle: #112338;
+      --accent-border: #388bfd;
+      --accent-text: #58a6ff;
+
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 18px;
+
+      --duration-fast: 120ms;
+      --duration-normal: 200ms;
+      --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
 
     body {
-      background-color: #09090b;
-      color: #f4f4f5;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 13px;
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 14px;
       line-height: 1.5;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
-    main {
+    /* Header Bar */
+    .header-bar {
+      background-color: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 40;
       width: 100%;
-      max-width: 100%;
-      margin: 0;
-      padding: 12px 10px;
     }
 
-    header {
+    .header-inner {
+      max-width: 1720px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0.6rem 1.25rem;
       display: flex;
+      flex-direction: row;
+      align-items: center;
       justify-content: space-between;
-      gap: 14px;
-      align-items: center;
-      margin-bottom: 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding-bottom: 12px;
+      gap: 1rem;
     }
 
-    .brand {
+    .brand-section {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 0.65rem;
+      flex-shrink: 0;
     }
 
     .brand-logo {
-      width: 44px;
-      height: 44px;
-      transition: transform 0.3s ease;
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      display: block;
     }
 
-    .brand-logo:hover {
-      transform: scale(1.05) rotate(-3deg);
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 22px;
+    .brand-title {
+      font-size: 1.05rem;
       font-weight: 800;
-      letter-spacing: -0.03em;
-      color: #fafafa;
-    }
-
-    .subtitle {
-      color: #a1a1aa;
-      font-size: 12px;
-      font-weight: 500;
-      margin-top: 2px;
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    /* Executive Stat Summary Cards */
-    .stat-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-
-    .stat-card {
-      background: rgba(24, 24, 27, 0.7);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      padding: 12px 14px;
-      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .stat-card:hover {
-      border-color: rgba(255, 255, 255, 0.16);
-      transform: translateY(-2px);
-    }
-
-    .stat-label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #a1a1aa;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .stat-value {
-      font-size: 24px;
-      font-weight: 800;
-      color: #fafafa;
-      margin-top: 4px;
+      color: var(--text-primary);
       letter-spacing: -0.02em;
-    }
-
-    .stat-desc {
-      font-size: 11px;
-      color: #71717a;
-      margin-top: 2px;
-    }
-
-    h2 {
-      margin: 16px 0 10px 0;
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      color: #fafafa;
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .panel {
-      background: rgba(24, 24, 27, 0.75);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      padding: 14px;
-      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    .version-tag {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
     }
 
-    .panel:hover {
-      border-color: rgba(255, 255, 255, 0.14);
+    /* Fleet Stats Bar */
+    .fleet-stats-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      flex: 1;
+      margin: 0 auto;
+      white-space: nowrap;
+      overflow-x: auto;
+      padding: 2px 0;
     }
 
-    .flex-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
+    .stat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      height: 30px;
+      padding: 0 0.65rem;
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      font-size: 0.775rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all var(--duration-fast);
     }
 
-    .flex-cards .panel {
+    .stat-pill.active {
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+
+    .stat-pill .count {
+      font-weight: 700;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+    }
+
+    /* Header Actions */
+    .header-actions-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.45rem;
+      flex-shrink: 0;
+    }
+
+    .online-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      height: 30px;
+      padding: 0 0.65rem;
+      font-size: 0.775rem;
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      white-space: nowrap;
+      flex-shrink: 0;
+      border: 1px solid var(--border-subtle);
+      background: var(--status-offline-bg);
+      color: var(--status-offline-text);
+      transition: all var(--duration-fast);
+    }
+
+    .online-pill.is-online {
+      background: var(--status-ready-bg);
+      border-color: var(--status-ready-border);
+      color: var(--status-ready-text);
+    }
+
+    .online-pill .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .online-pill.is-online .dot {
+      box-shadow: 0 0 8px var(--status-ready-text);
+      animation: pulse 2s infinite;
+    }
+
+    .btn-header-action {
+      height: 30px;
+      padding: 0 0.75rem;
+      font-size: 0.775rem;
+      font-weight: 600;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      background-color: var(--bg-subtle);
+      color: var(--text-primary);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all var(--duration-fast);
+    }
+
+    .btn-header-action:hover {
+      background-color: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+
+    .btn-header-primary {
+      background-color: var(--accent-primary);
+      border-color: var(--accent-border);
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .btn-header-primary:hover {
+      background-color: var(--accent-hover);
+    }
+
+    /* Main Content */
+    .main-content {
+      max-width: 1720px;
       width: 100%;
+      margin: 0 auto;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
     }
 
-    .bottom-split {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin-top: 14px;
-      width: 100%;
+    /* Cards & Panels */
+    .card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.6rem;
+    }
+
+    .card-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Canvas Traffic Chart */
+    .chart-wrapper {
+      position: relative;
+      background: #090d13;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 6px;
+      overflow: hidden;
     }
 
     canvas {
       width: 100%;
       height: 180px;
       display: block;
-      background: rgba(9, 9, 11, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      margin-top: 10px;
-      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
     }
 
-    /* Badges & Pills */
+    /* Grid layout for Tauri & Android */
+    .split-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 960px) {
+      .split-grid {
+        grid-template-columns: 1fr;
+      }
+      .header-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .fleet-stats-bar {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .header-actions-row {
+        width: 100%;
+        justify-content: flex-start;
+        overflow-x: auto;
+      }
+    }
+
+    .cards-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .node-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      transition: border-color var(--duration-fast);
+    }
+
+    .node-card:hover {
+      border-color: var(--border-strong);
+    }
+
+    .node-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .node-name {
+      font-weight: 700;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Solid Status Badges */
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 999px;
-      padding: 3px 10px;
-      background: rgba(39, 39, 42, 0.8);
-      color: #fafafa;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+      font-size: 0.725rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
       white-space: nowrap;
-      flex-shrink: 0;
+      border: 1px solid transparent;
     }
 
     .badge-dot {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      display: inline-block;
+      background: currentColor;
     }
 
-    .ok {
-      border-color: rgba(34, 197, 94, 0.3);
-      color: #4ade80;
-      background: rgba(5, 46, 22, 0.6);
-    }
-    .ok .badge-dot {
-      background: #4ade80;
-      box-shadow: 0 0 8px #4ade80;
-      animation: pulse 2s infinite;
+    .badge.ok {
+      background: var(--status-ready-bg);
+      color: var(--status-ready-text);
+      border-color: var(--status-ready-border);
     }
 
-    .bad {
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
-      background: rgba(69, 10, 10, 0.6);
-    }
-    .bad .badge-dot {
-      background: #f87171;
+    .badge.bad {
+      background: var(--status-fail-bg);
+      color: var(--status-fail-text);
+      border-color: var(--status-fail-border);
     }
 
-    .warn {
-      border-color: rgba(234, 179, 8, 0.3);
-      color: #facc15;
-      background: rgba(66, 32, 6, 0.6);
-    }
-    .warn .badge-dot {
-      background: #facc15;
+    .badge.warn {
+      background: var(--status-warning-bg);
+      color: var(--status-warning-text);
+      border-color: var(--status-warning-border);
     }
 
-    .info {
-      border-color: rgba(59, 130, 246, 0.3);
-      color: #60a5fa;
-      background: rgba(23, 37, 84, 0.6);
+    .badge.info {
+      background: var(--status-active-bg);
+      color: var(--status-active-text);
+      border-color: var(--status-active-border);
     }
-    .info .badge-dot {
-      background: #60a5fa;
-      animation: pulse 1.5s infinite;
+
+    /* Key Value Grid */
+    .kv-grid {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 6px 12px;
+      font-size: 0.775rem;
+      background: #0d1117;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+    }
+
+    .kv-key {
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .kv-val {
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      word-break: break-all;
+    }
+
+    /* Staging Table */
+    .files-table-container {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      background: #0d1117;
+      overflow: hidden;
+    }
+
+    .files-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+      text-align: left;
+    }
+
+    .files-table th {
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      padding: 6px 10px;
+      font-weight: 700;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .files-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-primary);
+    }
+
+    .files-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .file-name-cell {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Action Buttons in Cards */
+    .btn-pill {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all var(--duration-fast);
+    }
+
+    .btn-pill:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+
+    .empty-state {
+      padding: 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-style: italic;
     }
 
     @keyframes pulse {
@@ -250,230 +519,176 @@
       50% { opacity: 0.4; transform: scale(0.85); }
     }
 
-    .btn-primary {
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-      color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 999px;
-      padding: 6px 16px;
-      font-family: inherit;
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
-      transition: all 0.2s ease;
-      display: inline-flex;
+    /* Modal Dialogs in Octopus Style */
+    .octopus-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
       align-items: center;
-      gap: 6px;
+      justify-content: center;
+      padding: 16px;
     }
 
-    .btn-primary:hover {
-      background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
-      transform: translateY(-1px);
-    }
-
-    .btn-primary:active {
-      transform: translateY(0);
-    }
-
-    .card-title {
+    .octopus-modal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      width: 100%;
+      max-width: 680px;
+      max-height: 90vh;
       display: flex;
-      justify-content: space-between;
-      gap: 12px;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .octopus-modal-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-subtle);
+      display: flex;
       align-items: center;
-      margin-bottom: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding-bottom: 8px;
+      justify-content: space-between;
     }
 
-    .card-title strong {
-      font-size: 14px;
-      font-weight: 700;
-      color: #fafafa;
+    .octopus-modal-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
     }
 
-    .kv {
-      display: grid;
-      grid-template-columns: 110px 1fr;
-      gap: 8px 12px;
-      font-size: 12px;
-    }
-
-    .value {
-      overflow-wrap: anywhere;
-      color: #e4e4e7;
-    }
-
-    code {
-      background: rgba(39, 39, 42, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 11px;
-      color: #f4f4f5;
-    }
-
-    .empty-state {
-      padding: 24px;
-      text-align: center;
-      color: #71717a;
-      font-size: 13px;
-      font-weight: 500;
-    }
-
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #09090b;
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #27272a;
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #3f3f46;
-    }
-
-    @media (max-width: 900px) {
-      main {
-        padding: 8px 6px;
-      }
-      header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-      }
-      .header-actions {
-        justify-content: space-between;
-        width: 100%;
-      }
-      .stat-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-      }
-      .bottom-split {
-        grid-template-columns: 1fr;
-        gap: 12px;
-      }
-      .flex-cards {
-        grid-template-columns: 1fr;
-        gap: 10px;
-      }
+    .octopus-modal-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
   </style>
 </head>
 
 <body>
-  <main>
-    <header>
-      <div class="brand">
-        <svg class="brand-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="FireFiles burning folder logo">
-          <rect width="256" height="256" rx="48" fill="#111827"/>
-          <path d="M42 83c0-13 10-23 23-23h45l20 22h61c13 0 23 10 23 23v72c0 13-10 23-23 23H65c-13 0-23-10-23-23V83z" fill="#f59e0b"/>
-          <path d="M42 110h172v69c0 12-10 21-22 21H64c-12 0-22-9-22-21v-69z" fill="#f97316"/>
-          <path d="M137 183c-25 0-43-17-43-40 0-18 12-30 25-43 8-8 16-17 19-29 25 17 24 38 19 52 9-6 15-16 17-27 16 13 25 28 25 45 0 25-22 42-62 42z" fill="#fee2e2"/>
-          <path d="M139 179c-16 0-27-11-27-25 0-12 8-20 16-28 5-5 11-11 13-19 16 11 15 25 12 34 6-4 10-10 11-17 10 8 16 18 16 29 0 16-14 26-41 26z" fill="#dc2626"/>
-          <path d="M142 177c-9 0-16-6-16-15 0-7 5-12 10-17 3-3 6-7 8-12 10 7 9 15 7 21 4-2 6-6 7-10 6 5 10 11 10 18 0 9-9 15-26 15z" fill="#facc15"/>
-        </svg>
-        <div>
-          <h1>FireFiles Monitor</h1>
-          <div class="subtitle">Realtime WebSocket Staging Dashboard</div>
+  <div class="app-container">
+    <!-- Octopus-Styled Header -->
+    <header class="header-bar">
+      <div class="header-inner">
+        <div class="brand-section">
+          <svg class="brand-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+            <rect width="256" height="256" rx="48" fill="#161b22" stroke="#30363d" stroke-width="8"/>
+            <path d="M42 83c0-13 10-23 23-23h45l20 22h61c13 0 23 10 23 23v72c0 13-10 23-23 23H65c-13 0-23-10-23-23V83z" fill="#f59e0b"/>
+            <path d="M42 110h172v69c0 12-10 21-22 21H64c-12 0-22-9-22-21v-69z" fill="#f97316"/>
+            <path d="M137 183c-25 0-43-17-43-40 0-18 12-30 25-43 8-8 16-17 19-29 25 17 24 38 19 52 9-6 15-16 17-27 16 13 25 28 25 45 0 25-22 42-62 42z" fill="#fee2e2"/>
+            <path d="M139 179c-16 0-27-11-27-25 0-12 8-20 16-28 5-5 11-11 13-19 16 11 15 25 12 34 6-4 10-10 11-17 10 8 16 18 16 29 0 16-14 26-41 26z" fill="#dc2626"/>
+            <path d="M142 177c-9 0-16-6-16-15 0-7 5-12 10-17 3-3 6-7 8-12 10 7 9 15 7 21 4-2 6-6 7-10 6 5 10 11 10 18 0 9-9 15-26 15z" fill="#facc15"/>
+          </svg>
+          <div class="brand-title">
+            <span>FIREFILES HUB</span>
+            <span class="version-tag">v0.1.193</span>
+          </div>
         </div>
-      </div>
-      <div class="header-actions">
-        <div id="socket" class="badge bad"><span class="badge-dot"></span>Web Offline</div>
-        <button id="tabyBtn" class="btn-primary" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);" onclick="window.open('taby_preview.html', '_blank')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-          Taby Preview
-        </button>
-        <button id="updateBtn" class="btn-primary" style="background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3);" onclick="openUpdateModal()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          <span id="updateBtnText">v0.1.193</span>
-        </button>
-        <button id="uploadAll" class="btn-primary" onclick="uploadAll()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-          Upload All
-        </button>
+
+        <!-- Fleet Stats Bar (Center Header) -->
+        <div class="fleet-stats-bar">
+          <div class="stat-pill active">
+            <span>🖥️ Hosts:</span>
+            <span class="count" id="statTauriCount">0</span>
+          </div>
+          <div class="stat-pill active">
+            <span>📱 Android:</span>
+            <span class="count" id="statAndroidCount" style="color: var(--status-ready-text);">0</span>
+          </div>
+          <div class="stat-pill">
+            <span>📁 Staging:</span>
+            <span class="count" id="statFilesCount">0</span>
+          </div>
+          <div class="stat-pill">
+            <span>⚡ ADB Push:</span>
+            <span class="count" id="statAdbSpeed" style="color: #fb923c;">0.00 MB/s</span>
+          </div>
+          <div class="stat-pill">
+            <span>⬆️ Samba Upload:</span>
+            <span class="count" id="statSpeed" style="color: var(--accent-text);">0.00 MB/s</span>
+          </div>
+        </div>
+
+        <!-- Action Row (Right Header) -->
+        <div class="header-actions-row">
+          <div id="socket" class="online-pill">
+            <span class="dot"></span>
+            <span id="socketText">Hub Offline</span>
+          </div>
+
+          <button class="btn-header-action" onclick="openTabySettingsModal()" title="Konfigurasi Ekspresi Taby Desk Assistant">
+            ⚙️ Taby Settings
+          </button>
+
+          <button class="btn-header-action" onclick="window.open('taby_preview.html', '_blank')" title="Buka Taby 84-GIF Studio & Preview">
+            🎭 Taby Studio
+          </button>
+
+          <button id="updateBtn" class="btn-header-action" onclick="openUpdateModal()" title="Periksa Pembaruan Sistem">
+            <span id="updateBtnText">v0.1.193</span>
+          </button>
+
+          <button class="btn-header-action btn-header-primary" onclick="uploadAll()" title="Trigger upload_all ke seluruh node">
+            🚀 Upload All
+          </button>
+        </div>
       </div>
     </header>
 
-    <!-- Executive Summary Stat Bar -->
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-label">
-          <span>Active Tauri Hosts</span>
-          <span style="color: #60a5fa;">🖥️</span>
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Traffic Chart Card -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <span>📈 Realtime Network & USB Transfer Traffic</span>
+          </div>
+          <div style="display: flex; gap: 8px; font-size: 11px; font-weight: 600;">
+            <span style="color: #58a6ff; display: inline-flex; align-items: center; gap: 4px;">● Samba Upload</span>
+            <span style="color: #fb923c; display: inline-flex; align-items: center; gap: 4px;">● ADB Push</span>
+          </div>
         </div>
-        <div class="stat-value" id="statTauriCount">0</div>
-        <div class="stat-desc">Desktop Staging Clients</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">
-          <span>Android Devices</span>
-          <span style="color: #34d399;">📱</span>
+        <div class="chart-wrapper">
+          <canvas id="chart"></canvas>
         </div>
-        <div class="stat-value" id="statAndroidCount">0</div>
-        <div class="stat-desc">Bridge Mobile Nodes</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">
-          <span>Staging Files</span>
-          <span style="color: #a78bfa;">📁</span>
-        </div>
-        <div class="stat-value" id="statFilesCount">0</div>
-        <div class="stat-desc">Queued in Pipeline</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">
-          <span>ADB Push Speed</span>
-          <span style="color: #f97316;">⚡</span>
-        </div>
-        <div class="stat-value" id="statAdbSpeed">0.00 <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span></div>
-        <div class="stat-desc">Live USB Transfer</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">
-          <span>Samba Bandwidth</span>
-          <span style="color: #60a5fa;">⬆️</span>
-        </div>
-        <div class="stat-value" id="statSpeed">0.00 <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span></div>
-        <div class="stat-desc">Live Samba Upload</div>
-      </div>
-    </div>
+      </section>
 
-    <h2>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.5"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-      Realtime Network & USB Transfer Traffic
-    </h2>
-    <canvas id="chart" width="1100" height="200"></canvas>
+      <!-- Grid Split for Tauri Staging Hosts & Android Nodes -->
+      <div class="split-grid">
+        <!-- Tauri Hosts Column -->
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>🖥️ Tauri Staging Hosts</span>
+            </div>
+          </div>
+          <div class="cards-stack" id="tauriList">
+            <div class="empty-state">Waiting For Active Tauri Staging Hosts...</div>
+          </div>
+        </section>
 
-    <div class="bottom-split">
-      <div>
-        <h2>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
-          Tauri Staging Hosts
-        </h2>
-        <section class="flex-cards" id="tauriList">
-          <div class="panel empty-state">Waiting For Active Tauri Hosts...</div>
+        <!-- Android Devices Column -->
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>📱 Android Bridge Nodes</span>
+            </div>
+          </div>
+          <div class="cards-stack" id="androidList">
+            <div class="empty-state">Waiting For Active Android Bridge Nodes...</div>
+          </div>
         </section>
       </div>
-      <div>
-        <h2>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5"><rect width="14" height="20" x="5" y="2" rx="2"/><line x1="12" x2="12.01" y1="18" y2="18"/></svg>
-          Android Devices
-        </h2>
-        <section class="flex-cards" id="androidList">
-          <div class="panel empty-state">Waiting For Active Android Devices...</div>
-        </section>
-      </div>
-    </div>
-  </main>
+    </main>
+  </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
@@ -485,23 +700,20 @@
     function toggleDetails(el, key) {
       detailsState[key] = !detailsState[key];
       const isOpen = detailsState[key];
-      if (el) el.textContent = isOpen ? '▼ Hide Device Info' : '▶ Show Device Info';
+      if (el) el.textContent = isOpen ? '▼ Hide Node Info' : '▶ Show Node Info';
       const kv = el?.nextElementSibling;
       if (kv) {
         kv.style.display = isOpen ? 'grid' : 'none';
-        kv.style.marginBottom = isOpen ? (key.startsWith('tauri') ? '12px' : '8px') : '0px';
+        kv.style.marginBottom = isOpen ? (key.startsWith('tauri') ? '10px' : '6px') : '0px';
       }
     }
 
-    // Distinct color palette for per-device upload lines
     const DEVICE_COLORS = [
-      { stroke: "#60a5fa", fill: "rgba(96, 165, 250, 0.15)" },
-      { stroke: "#f472b6", fill: "rgba(244, 114, 182, 0.15)" },
-      { stroke: "#a78bfa", fill: "rgba(167, 139, 250, 0.15)" },
-      { stroke: "#34d399", fill: "rgba(52, 211, 153, 0.15)" },
-      { stroke: "#22d3ee", fill: "rgba(34, 211, 238, 0.15)" },
-      { stroke: "#facc15", fill: "rgba(250, 204, 21, 0.15)" },
-      { stroke: "#e879f9", fill: "rgba(232, 121, 249, 0.15)" },
+      { stroke: "#58a6ff", fill: "rgba(88, 166, 255, 0.12)" },
+      { stroke: "#3fb950", fill: "rgba(63, 185, 80, 0.12)" },
+      { stroke: "#d29922", fill: "rgba(210, 153, 34, 0.12)" },
+      { stroke: "#bc8cff", fill: "rgba(188, 140, 255, 0.12)" },
+      { stroke: "#f778ba", fill: "rgba(247, 120, 186, 0.12)" },
     ];
 
     function draw() {
@@ -520,8 +732,8 @@
 
       ctx.clearRect(0, 0, w, h);
 
-      // Grid lines with subtle opacity
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+      // Octopus Clean Grid Lines
+      ctx.strokeStyle = "#21262d";
       ctx.lineWidth = 1;
       for (let i = 1; i < 5; i++) {
         const y = (h / 5) * i;
@@ -531,7 +743,6 @@
         ctx.stroke();
       }
 
-      // Determine global max across all active Samba upload (tx_bps) and ADB push samples
       const allTx = [
         ...state.flatMap(d => (d.samples || []).map(s => s.tx_bps || 0)),
         ...state.map(d => d.tx_bps || 0)
@@ -545,12 +756,12 @@
       const max = Math.max(1024 * 1024, ...allTx, ...allAdb);
 
       // Top right scale badge
-      ctx.fillStyle = "#71717a";
-      ctx.font = "500 10px 'Inter', sans-serif";
+      ctx.fillStyle = "#8b949e";
+      ctx.font = "600 10px 'JetBrains Mono', monospace";
       ctx.textAlign = "right";
-      ctx.fillText(`Scale: 0 - ${(max / 1024 / 1024).toFixed(1)} MB/s`, w - 12, 18);
+      ctx.fillText(`Scale: 0 - ${(max / 1024 / 1024).toFixed(1)} MB/s`, w - 10, 16);
 
-      // Draw Samba upload and ADB push lines per Android device
+      // Draw Samba upload lines
       state.forEach((d, di) => {
         let samples = (d.samples || []).slice(-60);
         if (samples.length === 0) {
@@ -561,25 +772,17 @@
               { t: Date.now() - 1000, tx_bps: curTx, rx_bps: 0, adb_push_bps: curAdb },
               { t: Date.now(), tx_bps: curTx, rx_bps: 0, adb_push_bps: curAdb }
             ];
-          } else {
-            return;
-          }
+          } else return;
         }
-        if (samples.length === 1) {
-          samples = [{ ...samples[0], t: samples[0].t - 1000 }, samples[0]];
-        }
+        if (samples.length === 1) samples = [{ ...samples[0], t: samples[0].t - 1000 }, samples[0]];
 
         const { stroke: strokeColor, fill: fillColor } = DEVICE_COLORS[di % DEVICE_COLORS.length];
         const grad = ctx.createLinearGradient(0, 0, 0, h);
         grad.addColorStop(0, fillColor);
-        grad.addColorStop(1, "rgba(9, 9, 11, 0)");
+        grad.addColorStop(1, "rgba(13, 17, 23, 0)");
 
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = strokeColor;
         ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
+        ctx.lineWidth = 2;
         ctx.beginPath();
 
         const fillPath = new Path2D();
@@ -598,14 +801,12 @@
             const prevX = (i - 1) * w / (samples.length - 1);
             const prevY = h - (prev.tx_bps / max) * (h * 0.82) - 4;
             const cp1x = prevX + (x - prevX) * 0.5;
-            const cp2x = cp1x;
-            ctx.bezierCurveTo(cp1x, prevY, cp2x, y, x, y);
-            fillPath.bezierCurveTo(cp1x, prevY, cp2x, y, x, y);
+            ctx.bezierCurveTo(cp1x, prevY, cp1x, y, x, y);
+            fillPath.bezierCurveTo(cp1x, prevY, cp1x, y, x, y);
           }
           lastX = x;
         });
         ctx.stroke();
-        ctx.shadowBlur = 0;
 
         fillPath.lineTo(lastX, h);
         fillPath.lineTo(firstX, h);
@@ -616,12 +817,9 @@
         // Draw ADB Push line for this device if active
         const hasAdb = samples.some(s => (s.adb_push_bps || 0) > 0) || (d.adb_push_bps || 0) > 0;
         if (hasAdb) {
-          ctx.shadowBlur = 10;
-          ctx.shadowColor = "#f97316";
           ctx.strokeStyle = "#fb923c";
-          ctx.lineWidth = 2.5;
+          ctx.lineWidth = 2;
           ctx.beginPath();
-
           samples.forEach((s, i) => {
             const x = i * w / (samples.length - 1);
             const y = h - ((s.adb_push_bps || 0) / max) * (h * 0.82) - 4;
@@ -635,17 +833,7 @@
             }
           });
           ctx.stroke();
-          ctx.shadowBlur = 0;
         }
-
-        // Draw device label in its color at the right edge
-        const label = d.model || d.id?.slice(0, 12) || `Device ${di + 1}`;
-        const lastSample = samples.at(-1) || {};
-        const labelY = Math.max(24, h - ((lastSample.tx_bps || d.tx_bps || 0) / max) * (h * 0.82) - 8);
-        ctx.fillStyle = strokeColor;
-        ctx.font = "bold 11px 'Inter', sans-serif";
-        ctx.textAlign = "right";
-        ctx.fillText(`⬆ Samba: ${label}`, w - 12, labelY);
       });
 
       // Draw ADB Push lines for Tauri Hosts if active
@@ -658,22 +846,15 @@
               { t: Date.now() - 1000, tx_bps: 0, rx_bps: 0, adb_push_bps: curAdb },
               { t: Date.now(), tx_bps: 0, rx_bps: 0, adb_push_bps: curAdb }
             ];
-          } else {
-            return;
-          }
+          } else return;
         }
-        if (samples.length === 1) {
-          samples = [{ ...samples[0], t: samples[0].t - 1000 }, samples[0]];
-        }
+        if (samples.length === 1) samples = [{ ...samples[0], t: samples[0].t - 1000 }, samples[0]];
         const hasAdb = samples.some(s => (s.adb_push_bps || 0) > 0) || (th.adb_push_bps || 0) > 0;
         if (!hasAdb) return;
 
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = "#f97316";
         ctx.strokeStyle = "#fb923c";
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-
         samples.forEach((s, i) => {
           const x = i * w / (samples.length - 1);
           const y = h - ((s.adb_push_bps || 0) / max) * (h * 0.82) - 4;
@@ -687,38 +868,9 @@
           }
         });
         ctx.stroke();
-        ctx.shadowBlur = 0;
-
-        const lastSample = samples.at(-1) || {};
-        const labelY = Math.max(38, h - (((lastSample.adb_push_bps || th.adb_push_bps || 0)) / max) * (h * 0.82) - 8);
-        ctx.fillStyle = "#fb923c";
-        ctx.font = "bold 11px 'Inter', sans-serif";
-        ctx.textAlign = "right";
-        ctx.fillText(`⚡ USB ADB: ${th.host || th.id || 'Host'}`, w - 12, labelY);
       });
-
-      // Draw global chart legend
-      ctx.textAlign = "left";
-      ctx.font = "500 11px 'Inter', sans-serif";
-      
-      // Samba Upload indicator
-      ctx.fillStyle = "#60a5fa";
-      ctx.beginPath();
-      ctx.arc(14, 16, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#e4e4e7";
-      ctx.fillText("⬆ Samba Upload", 24, 20);
-
-      // ADB Push indicator
-      ctx.fillStyle = "#fb923c";
-      ctx.beginPath();
-      ctx.arc(140, 16, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#e4e4e7";
-      ctx.fillText("⚡ ADB Push (USB)", 150, 20);
     }
 
-    // Save and restore scroll positions to prevent jump-to-top on re-render
     function saveScrolls() {
       const map = {};
       document.querySelectorAll('[data-scroll-key]').forEach(el => {
@@ -731,19 +883,15 @@
       if (!map) return;
       document.querySelectorAll('[data-scroll-key]').forEach(el => {
         const key = el.dataset.scrollKey;
-        if (key in map && map[key] > 0) {
-          el.scrollTop = map[key];
-        } else if (key in detailsState && detailsState[key] > 0) {
-          el.scrollTop = detailsState[key];
-        }
+        if (key in map && map[key] > 0) el.scrollTop = map[key];
+        else if (key in detailsState && detailsState[key] > 0) el.scrollTop = detailsState[key];
       });
     }
 
     function fileSortPriority(status, name = "") {
       const upper = (name || "").toUpperCase();
-      const isPrio = upper.startsWith("CP_") || upper.startsWith("CSC_") || upper.startsWith("HOME_CSC_") || upper.includes("_CP_") || upper.includes("_CSC_") || upper.startsWith("CP") || upper.startsWith("CSC");
+      const isPrio = upper.startsWith("CP_") || upper.startsWith("CSC_") || upper.startsWith("HOME_CSC_") || upper.includes("_CP_") || upper.includes("_CSC_");
       const prioOffset = isPrio ? 0 : 0.4;
-
       if (!status) return 1 + prioOffset;
       const s = status.toLowerCase();
       if (s.includes('pushing') || s.includes('uploading') || s === 'locked') return 0;
@@ -760,12 +908,11 @@
       let activeAndroidCount = 0;
       let totalFilesCount = 0;
 
-      // Capture scroll positions synchronously BEFORE re-render
       const scrollSnapshot = saveScrolls();
 
       // Render Tauri Host cards
       if (tauri.length === 0) {
-        $("tauriList").innerHTML = `<div class="panel empty-state">No Active Tauri Staging Hosts.</div>`;
+        $("tauriList").innerHTML = `<div class="empty-state">No Active Tauri Staging Hosts Connected.</div>`;
       } else {
         $("tauriList").innerHTML = tauri.map((host) => {
           const isOnline = Date.now() - (host.last_seen || 0) < 15000;
@@ -780,22 +927,24 @@
           }
 
           const filesTable = sortedFiles.length > 0 ? `
-            <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px;">
-              <div style="font-size: 11px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa;">Staging Files (${sortedFiles.length})</div>
-              <div data-scroll-key="filelist-${hostKey}" onscroll="detailsState['filelist-${hostKey}'] = this.scrollTop" style="max-height: 160px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 4px 8px; background: rgba(12, 12, 14, 0.8);">
-                <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+            <div style="margin-top: 10px; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
+              <div style="font-size: 11px; font-weight: 700; margin-bottom: 6px; color: var(--text-secondary); text-transform: uppercase;">
+                Staging Queue (${sortedFiles.length})
+              </div>
+              <div class="files-table-container" data-scroll-key="filelist-${hostKey}" onscroll="detailsState['filelist-${hostKey}'] = this.scrollTop" style="max-height: 160px; overflow-y: auto;">
+                <table class="files-table">
                   <thead>
-                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); text-align: left; color: #71717a;">
-                      <th style="padding: 6px 0; font-weight: 600;">Name</th>
-                      <th style="padding: 6px 0; text-align: right; font-weight: 600;">Size</th>
-                      <th style="padding: 6px 0; text-align: right; font-weight: 600; white-space: nowrap;">Status</th>
+                    <tr>
+                      <th>Filename</th>
+                      <th style="text-align: right;">Size</th>
+                      <th style="text-align: right;">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     ${sortedFiles.map(f => {
                       const s = f.status || '';
                       const upper = (f.name || '').toUpperCase();
-                      const isPrio = upper.startsWith('CP_') || upper.startsWith('CSC_') || upper.startsWith('HOME_CSC_') || upper.includes('_CP_') || upper.includes('_CSC_') || upper.startsWith('CP') || upper.startsWith('CSC');
+                      const isPrio = upper.startsWith('CP_') || upper.startsWith('CSC_') || upper.startsWith('HOME_CSC_') || upper.includes('_CP_') || upper.includes('_CSC_');
                       const isComplete = s === 'Transfer Complete';
                       const isAlready = s === 'Already in Destination';
                       const isInProgress = s.includes('Pushing') || s.includes('Uploading');
@@ -804,13 +953,13 @@
                       const statusClass = isComplete ? 'ok' : isAlready ? 'warn' : isInProgress ? 'info' : isSuccess ? 'warn' : isLocked ? 'bad' : '';
                       const fileGbSize = (f.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
                       return `
-                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.04);">
-                          <td style="padding: 6px 0; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; color: #fafafa;" title="${f.name}">
-                            ${isPrio ? '<span style="color:#fbbf24; font-weight:700; margin-right:4px;">⭐</span>' : ''}${f.name}
+                        <tr>
+                          <td class="file-name-cell" title="${f.name}">
+                            ${isPrio ? '<span style="color:#d29922; font-weight:700; margin-right:4px;">⭐</span>' : ''}${f.name}
                           </td>
-                          <td style="padding: 6px 0; text-align: right; color: #a1a1aa; white-space: nowrap;">${fileGbSize}</td>
-                          <td style="padding: 6px 0; text-align: right; white-space: nowrap;">
-                            <span class="badge ${statusClass}" style="font-size: 9px; padding: 2px 6px; white-space: nowrap;"><span class="badge-dot"></span>${f.status}</span>
+                          <td style="text-align: right; color: var(--text-secondary); font-family: var(--font-mono); white-space: nowrap;">${fileGbSize}</td>
+                          <td style="text-align: right; white-space: nowrap;">
+                            <span class="badge ${statusClass}">${f.status}</span>
                           </td>
                         </tr>
                       `;
@@ -820,28 +969,29 @@
               </div>
             </div>
           ` : `
-            <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px;">
-              <div style="font-size: 11px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; color: #71717a;">Staging Files (0)</div>
-              <div style="font-style: italic; color: #71717a; font-size: 12px;">No Files In Staging Folder.</div>
+            <div style="margin-top: 10px; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
+              <div style="font-style: italic; color: var(--text-muted); font-size: 11px;">No files currently queued in staging folder.</div>
             </div>
           `;
 
           return `
-            <div class="panel">
-              <div class="card-title">
-                <strong>🖥️ ${host.host || host.id || "-"}</strong>
+            <div class="node-card">
+              <div class="node-card-top">
+                <span class="node-name">🖥️ ${host.host || host.id || "-"}</span>
                 <span class="badge ${isOnline ? 'ok' : 'bad'}"><span class="badge-dot"></span>${isOnline ? 'Online' : 'Offline'}</span>
               </div>
-              <div onclick="toggleDetails(this, 'tauri-${hostKey}')" style="cursor:pointer; font-size:11px; font-weight:600; color:#a1a1aa; margin-bottom:8px; user-select:none; display:inline-flex; align-items:center; gap:4px;">
-                ${detailsState['tauri-' + hostKey] ? '▼ Hide Device Info' : '▶ Show Device Info'}
+              <div onclick="toggleDetails(this, 'tauri-${hostKey}')" style="cursor:pointer; font-size:11px; font-weight:600; color:var(--text-secondary); user-select:none;">
+                ${detailsState['tauri-' + hostKey] ? '▼ Hide Node Info' : '▶ Show Node Info'}
               </div>
-              <div class="kv" style="display: ${detailsState['tauri-' + hostKey] ? 'grid' : 'none'}; ${detailsState['tauri-' + hostKey] ? 'margin-bottom: 12px;' : ''}">
-                <div style="color:#a1a1aa; font-weight:500;">Platform</div><div class="value">${host.platform || "-"}</div>
-                <div style="color:#a1a1aa; font-weight:500;">Local Source</div><div class="value"><code>${host.source_dir || "-"}</code></div>
-                <div style="color:#a1a1aa; font-weight:500;">Samba Target</div><div class="value"><code>${host.samba_dir || "-"}</code></div>
-                <div style="color:#a1a1aa; font-weight:500;">USB Devices</div><div class="value">${host.devices?.length || 0} Devices</div>
-                <div style="color:#a1a1aa; font-weight:500;">ADB Push Speed</div>
-                <div class="value"><span style="color: #fb923c; font-weight:700;">⚡ ${host.push_speed || (host.adb_push_bps ? mb(host.adb_push_bps) + ' MB/s' : '0.00 MB/s')}</span></div>
+              <div class="kv-grid" style="display: ${detailsState['tauri-' + hostKey] ? 'grid' : 'none'};">
+                <div class="kv-key">Platform</div><div class="kv-val">${host.platform || "-"}</div>
+                <div class="kv-key">Source Dir</div><div class="kv-val">${host.source_dir || "-"}</div>
+                <div class="kv-key">Samba Target</div><div class="kv-val">${host.samba_dir || "-"}</div>
+                <div class="kv-key">ADB Devices</div><div class="kv-val">${host.devices?.length || 0} Connected</div>
+                <div class="kv-key">Push Speed</div>
+                <div class="kv-val" style="color: #fb923c; font-weight:700;">
+                  ⚡ ${host.push_speed || (host.adb_push_bps ? mb(host.adb_push_bps) + ' MB/s' : '0.00 MB/s')}
+                </div>
               </div>
               ${filesTable}
             </div>
@@ -851,7 +1001,7 @@
 
       // Render Android Device cards
       if (state.length === 0) {
-        $("androidList").innerHTML = `<div class="panel empty-state">No Active Android Bridge Devices.</div>`;
+        $("androidList").innerHTML = `<div class="empty-state">No Active Android Bridge Nodes Connected.</div>`;
       } else {
         $("androidList").innerHTML = state.map((d) => {
           const isOnline = Date.now() - (d.last_seen || 0) < 15000;
@@ -864,67 +1014,56 @@
             if (devAdb) totalAdb = Math.max(totalAdb, devAdb);
           }
           return `
-            <div class="panel">
-              <div class="card-title">
-                <strong>📱 ${d.model || d.id || "-"}</strong>
+            <div class="node-card">
+              <div class="node-card-top">
+                <span class="node-name">📱 ${d.model || d.id || "-"}</span>
                 <div style="display:flex; gap:6px; align-items:center;">
                   ${d.battery_level !== undefined && d.battery_level >= 0 ? `
-                    <span class="badge ${d.is_charging ? 'ok' : 'info'}" style="font-size:10px; padding:2px 7px;">
+                    <span class="badge ${d.is_charging ? 'ok' : 'info'}">
                       🔋 ${d.battery_level}%${d.is_charging ? ' ⚡' : ''}
                     </span>
                   ` : ''}
                   <span class="badge ${isOnline ? 'ok' : 'bad'}"><span class="badge-dot"></span>${isOnline ? 'Online' : 'Offline'}</span>
                 </div>
               </div>
-              <div onclick="toggleDetails(this, 'android-${(d.id || d.model).replace(/[^a-z0-9]/gi, '_')}')" style="cursor:pointer; font-size:11px; font-weight:600; color:#a1a1aa; margin-bottom:8px; user-select:none; display:inline-flex; align-items:center; gap:4px;">
-                ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? '▼ Hide Device Info' : '▶ Show Device Info'}
+              <div onclick="toggleDetails(this, 'android-${(d.id || d.model).replace(/[^a-z0-9]/gi, '_')}')" style="cursor:pointer; font-size:11px; font-weight:600; color:var(--text-secondary); user-select:none;">
+                ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? '▼ Hide Node Info' : '▶ Show Node Info'}
               </div>
-              <div class="kv" style="display: ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? 'grid' : 'none'}; ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? 'margin-bottom: 8px;' : ''}">
-                <div style="color:#a1a1aa; font-weight:500;">Battery Status</div>
-                <div class="value">
-                  ${d.battery_level !== undefined && d.battery_level >= 0 ? `🔋 ${d.battery_level}% ${d.is_charging ? '(Charging ⚡)' : '(On Battery)'}` : '-'}
-                </div>
-                <div style="color:#a1a1aa; font-weight:500;">Samba Status</div>
-                <div class="value">
+              <div class="kv-grid" style="display: ${detailsState['android-' + (d.id || d.model).replace(/[^a-z0-9]/gi, '_')] ? 'grid' : 'none'};">
+                <div class="kv-key">Samba State</div>
+                <div class="kv-val">
                   <span class="badge ${d.samba === 'connected' ? 'ok' : 'bad'}">
-                    <span class="badge-dot"></span>
                     ${d.samba === 'connected' ? 'Connected' : d.samba ? d.samba.charAt(0).toUpperCase() + d.samba.slice(1) : 'Disconnected'}
                   </span>
                 </div>
-                <div style="color:#a1a1aa; font-weight:500;">Samba Target</div><div class="value"><code>${d.target || "-"}</code></div>
-                <div style="color:#a1a1aa; font-weight:500;">Latest File</div><div class="value"><code>${d.latest || "-"}</code></div>
-                <div style="color:#a1a1aa; font-weight:500;">ADB Push Speed</div>
-                <div class="value">
-                  <span style="color: #fb923c; font-weight: 700;">⚡ ${mb(devAdb)} MB/s</span>
-                </div>
-                <div style="color:#a1a1aa; font-weight:500;">Samba Upload Speed</div>
-                <div class="value">
-                  <span style="color: #60a5fa; font-weight: 700;">⬆ ${mb(devTx)} MB/s</span>
-                </div>
-                <div style="color:#a1a1aa; font-weight:500;">Taby Assistant</div>
-                <div class="value" style="display:flex; flex-wrap:wrap; gap:4px; padding-top:2px;">
-                  <button onclick="triggerDeskExpression('${d.id}', 'drink_water', 'STAY HYDRATED!', 'Time for a fresh drink', 7000)" style="background:#1e293b; color:#38bdf8; border:1px solid #0284c7; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">💧 Water</button>
-                  <button onclick="triggerDeskExpression('${d.id}', 'stretching', 'POSTURE & STRETCH', 'Roll shoulders', 7000)" style="background:#1e293b; color:#4ade80; border:1px solid #16a34a; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">🧘 Stretch</button>
-                  <button onclick="triggerDeskExpression('${d.id}', 'break_start', 'LUNCH BREAK!', 'Enjoy lunch', 10000)" style="background:#1e293b; color:#facc15; border:1px solid #ca8a04; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">🍱 Lunch</button>
-                  <button onclick="triggerDeskExpression('${d.id}', 'trophy', 'CLOCK OUT TIME!', 'Time to go home', 10000)" style="background:#1e293b; color:#c084fc; border:1px solid #9333ea; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">🏠 Clock Out</button>
-                  <button onclick="toggleAndroidDeskMode('${d.id}', true)" style="background:#09090b; color:#fafafa; border:1px solid #27272a; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">🤖 Face Mode</button>
-                </div>
+                <div class="kv-key">Samba Target</div><div class="kv-val">${d.target || "-"}</div>
+                <div class="kv-key">Latest File</div><div class="kv-val">${d.latest || "-"}</div>
+                <div class="kv-key">ADB Push</div>
+                <div class="kv-val" style="color: #fb923c; font-weight: 700;">⚡ ${mb(devAdb)} MB/s</div>
+                <div class="kv-key">Upload Speed</div>
+                <div class="kv-val" style="color: #58a6ff; font-weight: 700;">⬆ ${mb(devTx)} MB/s</div>
+              </div>
+              <!-- Taby Quick Actions Row -->
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                <button class="btn-pill" onclick="triggerDeskExpression('${d.id}', 'drink_water', 'STAY HYDRATED!', 'Drink a cup of water', 7000)">💧 Water</button>
+                <button class="btn-pill" onclick="triggerDeskExpression('${d.id}', 'stretching', 'POSTURE & STRETCH', 'Roll your shoulders', 7000)">🧘 Stretch</button>
+                <button class="btn-pill" onclick="triggerDeskExpression('${d.id}', 'break_start', 'LUNCH BREAK!', 'Enjoy your lunch', 10000)">🍱 Lunch</button>
+                <button class="btn-pill" onclick="triggerDeskExpression('${d.id}', 'trophy', 'CLOCK OUT TIME!', 'Great work today!', 10000)">🏠 Clock Out</button>
+                <button class="btn-pill" onclick="toggleAndroidDeskMode('${d.id}', true)">🤖 Face Mode</button>
               </div>
             </div>
           `;
         }).join("");
       }
 
-      // Update Stat Bar Counters
+      // Update Header Stats
       if ($("statTauriCount")) $("statTauriCount").textContent = activeTauriCount;
       if ($("statAndroidCount")) $("statAndroidCount").textContent = activeAndroidCount;
       if ($("statFilesCount")) $("statFilesCount").textContent = totalFilesCount;
-      if ($("statAdbSpeed")) $("statAdbSpeed").innerHTML = `${mb(totalAdb)} <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span>`;
-      if ($("statSpeed")) $("statSpeed").innerHTML = `${mb(totalUp)} <span style="font-size:14px; font-weight:600; color:#a1a1aa;">MB/s</span>`;
+      if ($("statAdbSpeed")) $("statAdbSpeed").textContent = `${mb(totalAdb)} MB/s`;
+      if ($("statSpeed")) $("statSpeed").textContent = `${mb(totalUp)} MB/s`;
 
-      // Restore scroll positions IMMEDIATELY and SYNCHRONOUSLY
       restoreScrolls(scrollSnapshot);
-
       draw();
     }
 
@@ -947,12 +1086,12 @@
       if (!_ws || _ws.readyState !== 1) return alert("WebSocket not connected");
       _ws.send(JSON.stringify({
         type: "command",
-        target: devId || "all",
+        target: devId,
         command: "taby_trigger",
         anim: anim,
-        title: title,
+        title: title || "DESK ASSISTANT",
         subtext: subtext || "",
-        duration_ms: durationMs || 6000
+        duration_ms: durationMs || 5000
       }));
     }
 
@@ -960,82 +1099,64 @@
       if (!_ws || _ws.readyState !== 1) return alert("WebSocket not connected");
       _ws.send(JSON.stringify({
         type: "command",
-        target: devId || "all",
+        target: devId,
         command: "set_taby_mode",
         enabled: enabled !== false
       }));
     }
 
     function connect() {
-      const scheme = location.protocol === "https:" ? "wss" : "ws";
-      const ws = new WebSocket(`${scheme}://${location.host}/`);
+      const loc = window.location;
+      const proto = loc.protocol === "https:" ? "wss:" : "ws:";
+      const port = loc.port ? `:${loc.port}` : "";
+      const ws = new WebSocket(`${proto}//${loc.hostname}${port}/ws`);
+      _ws = ws;
+
       ws.onopen = () => {
-        _ws = ws;
-        $("socket").innerHTML = '<span class="badge-dot"></span>Web Online';
-        $("socket").className = "badge ok";
+        $("socket").className = "online-pill is-online";
+        $("socketText").textContent = "Hub Online";
       };
+
       ws.onclose = () => {
-        _ws = null;
-        $("socket").innerHTML = '<span class="badge-dot"></span>Web Offline';
-        $("socket").className = "badge bad";
-        setTimeout(connect, 1000);
+        $("socket").className = "online-pill";
+        $("socketText").textContent = "Hub Offline";
+        setTimeout(connect, 2000);
       };
-      ws.onmessage = (event) => {
+
+      ws.onmessage = (e) => {
         try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === "snapshot" || msg.type === "state") {
+          const msg = JSON.parse(e.data);
+          if (msg.type === "state") {
             state = msg.devices || [];
-            const list = msg.tauri || [];
-            tauri = list.map(h => {
-              const prev = tauri.find(p => (p.id || p.host) === (h.id || h.host));
-              const prevSamples = prev?.samples || [];
-              const sample = { t: Date.now(), adb_push_bps: h.adb_push_bps || 0, tx_bps: 0 };
-              const samples = [...prevSamples.slice(-59), sample];
-              return { ...h, samples };
-            });
+            tauri = msg.tauri || [];
             render();
-          } else if (msg.type === "telemetry") {
-            const dev = msg.device || {};
-            const sample = msg.sample;
-            const devId = dev.id || dev.model;
-            const index = state.findIndex(d => (d.id || d.model) === devId);
-            const current = index >= 0 ? state[index] : dev;
-            const currentSamples = current.samples || [];
-            const samples = sample ? [...currentSamples.slice(-59), sample] : currentSamples;
-            const updated = { ...current, ...dev, samples, last_seen: Date.now() };
-            if (index >= 0) {
-              state[index] = updated;
-            } else {
-              state.push(updated);
+          } else if (msg.type === "update_available") {
+            const btn = $("updateBtn");
+            const btnText = $("updateBtnText");
+            if (btn && btnText) {
+              btnText.textContent = `Update available (${msg.version})`;
+              btn.style.borderColor = "var(--status-warning-border)";
+              btn.style.color = "var(--status-warning-text)";
             }
-            render();
-          } else if (msg.type === "tauri") {
-            const list = msg.tauri || [];
-            tauri = list.map(h => {
-              const prev = tauri.find(p => (p.id || p.host) === (h.id || h.host));
-              const prevSamples = prev?.samples || [];
-              const sample = { t: Date.now(), adb_push_bps: h.adb_push_bps || 0, tx_bps: 0 };
-              const samples = [...prevSamples.slice(-59), sample];
-              return { ...h, samples };
-            });
-            render();
           }
-        } catch (e) {
-          console.error("[web-monitor] WS message parse error:", e);
+        } catch (err) {
+          console.error("WS Parse error:", err);
         }
       };
     }
+
     connect();
-    setInterval(render, 1000);
+
+    // Auto resize canvas
+    window.addEventListener("resize", draw);
 
     // ==========================================
-    // Software Updates Modal & Checker Logic
+    // Update Modal Logic
     // ==========================================
-    const CURRENT_MONITOR_VERSION = "0.1.193";
-    let latestReleaseInfo = null;
+    let updateData = null;
 
     function openUpdateModal() {
-      const modal = $("webUpdateModal");
+      const modal = $("updateModal");
       if (modal) {
         modal.style.display = "flex";
         checkWebUpdates();
@@ -1043,136 +1164,291 @@
     }
 
     function closeUpdateModal() {
-      const modal = $("webUpdateModal");
+      const modal = $("updateModal");
       if (modal) modal.style.display = "none";
     }
 
     async function checkWebUpdates() {
-      const statusEl = $("updateStatusText");
-      const latestVerEl = $("updateLatestVer");
-      const bodyEl = $("updateChangelog");
-      const notesContainer = $("updateNotesContainer");
+      const statusText = $("updateStatusText");
+      const releaseNotes = $("updateReleaseNotes");
       const actionBtn = $("updateActionBtn");
 
-      if (statusEl) statusEl.innerHTML = '<span style="color: #f97316;">Checking GitHub repository...</span>';
-      if (latestVerEl) latestVerEl.textContent = 'Checking...';
+      if (statusText) statusText.textContent = "Checking GitHub repository for latest release...";
+      if (releaseNotes) releaseNotes.textContent = "Fetching release notes...";
+      if (actionBtn) actionBtn.style.display = "none";
 
       try {
-        let tag = '';
-        let body = 'Performance improvements and bug fixes.';
-        let res = await fetch('https://api.github.com/repos/endrisusanto/Files/releases/latest', {
-          headers: { Accept: 'application/vnd.github.v3+json' }
-        });
+        const res = await fetch("https://api.github.com/repos/endrisusanto/Files/releases/latest");
+        if (!res.ok) throw new Error("Failed to fetch GitHub release");
+        const data = await res.json();
+        updateData = data;
 
-        if (res.ok) {
-          const data = await res.json();
-          tag = (data.tag_name || data.name || '').replace(/^v/, '');
-          if (data.body) body = data.body;
-        }
+        const latestVer = data.tag_name || data.name || "";
+        const currentVer = "v0.1.193";
 
-        if (!tag) {
-          const raw = await fetch('https://raw.githubusercontent.com/endrisusanto/Files/main/package.json', { cache: 'no-store' });
-          if (raw.ok) {
-            const pkg = await raw.json();
-            if (pkg.version) tag = pkg.version.replace(/^v/, '');
+        if (statusText) {
+          if (latestVer === currentVer) {
+            statusText.textContent = `You are on the latest version (${currentVer})`;
+            statusText.style.color = "var(--status-ready-text)";
+          } else {
+            statusText.textContent = `New update available: ${latestVer} (Current: ${currentVer})`;
+            statusText.style.color = "var(--status-warning-text)";
+            if (actionBtn) {
+              actionBtn.style.display = "inline-flex";
+              actionBtn.textContent = `Update to ${latestVer}`;
+            }
           }
         }
 
-        if (!tag) {
-          if (statusEl) statusEl.textContent = 'Unable to fetch update info.';
-          if (latestVerEl) latestVerEl.textContent = '-';
-          return;
+        if (releaseNotes) {
+          releaseNotes.textContent = data.body || "No release notes provided.";
         }
-
-        latestReleaseInfo = { tag, body };
-        if (latestVerEl) latestVerEl.textContent = 'v' + tag;
-
-        const v1 = CURRENT_MONITOR_VERSION.split('.').map(Number);
-        const v2 = tag.split('.').map(Number);
-        let hasUpdate = false;
-        for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
-          const n1 = v1[i] || 0;
-          const n2 = v2[i] || 0;
-          if (n2 > n1) { hasUpdate = true; break; }
-          if (n1 > n2) break;
+      } catch (e) {
+        if (statusText) {
+          statusText.textContent = "Failed to check for updates: " + e.message;
+          statusText.style.color = "var(--status-fail-text)";
         }
-
-        if (hasUpdate) {
-          if (statusEl) statusEl.innerHTML = '<span style="color: #34d399; font-weight: 700;">✨ New update available (v' + tag + ')!</span>';
-          const updateBtnText = $("updateBtnText");
-          const updateBtn = $("updateBtn");
-          if (updateBtnText) updateBtnText.textContent = '⚡ v' + tag + ' Ready';
-          if (updateBtn) updateBtn.style.border = '1px solid rgba(249, 115, 22, 0.7)';
-          if (notesContainer) notesContainer.style.display = 'block';
-          if (bodyEl) bodyEl.textContent = body;
-          if (actionBtn) {
-            actionBtn.textContent = 'Download Update';
-            actionBtn.onclick = () => window.open('https://github.com/endrisusanto/Files/releases', '_blank');
-          }
-        } else {
-          if (statusEl) statusEl.innerHTML = '<span style="color: #a1a1aa;">✅ You are running the latest version.</span>';
-          if (notesContainer) notesContainer.style.display = 'none';
-          if (actionBtn) {
-            actionBtn.textContent = 'View Releases';
-            actionBtn.onclick = () => window.open('https://github.com/endrisusanto/Files/releases', '_blank');
-          }
-        }
-      } catch (err) {
-        if (statusEl) statusEl.textContent = 'Check failed: ' + (err.message || err);
       }
     }
 
-    // Run background check on launch
-    setTimeout(checkWebUpdates, 2000);
+    // ==========================================
+    // Taby Expression Settings Logic
+    // ==========================================
+    const TABY_84_OPTIONS = [
+      { file: "5e63dbe6.gif", label: "IDLE_01_LOOP · Default Standby" },
+      { file: "6d1a57d8.gif", label: "IDLE_VARIATION · Blinking" },
+      { file: "ae5cd9c4.gif", label: "WORKING_NORMAL · Standard Focus" },
+      { file: "8d8c83cf.gif", label: "WORKING_EXCITED · High Speed Sprint" },
+      { file: "9ba1094c.gif", label: "COPY_PASTE · Clipboard Action" },
+      { file: "120a9943.gif", label: "BUSY_WAITING · System High Load" },
+      { file: "ff09215b.gif", label: "UPLOADING_LOOP · File Ingest" },
+      { file: "2a3d7c56.gif", label: "TASK_COMPLETED · 100% Success" },
+      { file: "9da16b65.gif", label: "DRINK_WATER · Hydration Alarm" },
+      { file: "51374816.gif", label: "STRETCH_BODY · Posture Break" },
+      { file: "453f80ff.gif", label: "LUNCH_TIME · Break Reminder" },
+      { file: "3bbde2ff.gif", label: "CLOCK_OUT · Great Work Today" },
+      { file: "7f1c7a6d.gif", label: "GREETING · Hello Master" }
+    ];
+
+    const DEFAULT_TABY_MAP = {
+      idle: "5e63dbe6.gif",
+      work_normal: "ae5cd9c4.gif",
+      work_fast: "8d8c83cf.gif",
+      copy_paste: "9ba1094c.gif",
+      high_load: "120a9943.gif",
+      transfer_active: "ff09215b.gif",
+      transfer_done: "2a3d7c56.gif",
+      drink_water: "9da16b65.gif",
+      stretching: "51374816.gif",
+      lunch_break: "453f80ff.gif",
+      clock_out: "3bbde2ff.gif",
+      greeting: "7f1c7a6d.gif"
+    };
+
+    function getSavedTabyMap() {
+      try {
+        const saved = localStorage.getItem("taby_expression_map");
+        return saved ? { ...DEFAULT_TABY_MAP, ...JSON.parse(saved) } : { ...DEFAULT_TABY_MAP };
+      } catch {
+        return { ...DEFAULT_TABY_MAP };
+      }
+    }
+
+    function openTabySettingsModal() {
+      const modal = $("tabySettingsModal");
+      if (modal) {
+        populateTabySettingsForm();
+        modal.style.display = "flex";
+      }
+    }
+
+    function closeTabySettingsModal() {
+      const modal = $("tabySettingsModal");
+      if (modal) modal.style.display = "none";
+    }
+
+    function populateTabySettingsForm() {
+      const map = getSavedTabyMap();
+      const rot = localStorage.getItem("taby_rotation") || "90";
+      const hud = localStorage.getItem("taby_hud_visible") !== "false";
+
+      if ($("tabyRotSelect")) $("tabyRotSelect").value = rot;
+      if ($("tabyHudCheck")) $("tabyHudCheck").checked = hud;
+
+      const events = [
+        { key: "idle", label: "💤 Standby / Idle Mode", defaultTitle: "STANDBY · IDLE" },
+        { key: "work_normal", label: "💻 Typing / Work Normal", defaultTitle: "WORKING · TYPING" },
+        { key: "work_fast", label: "⚡ High Intensity / Fast Work", defaultTitle: "CODING · MAXIMUM FOCUS" },
+        { key: "copy_paste", label: "📋 Copy & Paste Action", defaultTitle: "ACTION · COPIED TO CLIPBOARD" },
+        { key: "high_load", label: "⏳ System Busy / High Load", defaultTitle: "SYSTEM BUSY · COMPILING" },
+        { key: "transfer_active", label: "📁 File Ingest / Push Transfer", defaultTitle: "TRANSFERRING FILE" },
+        { key: "transfer_done", label: "🎉 File Transfer Complete 100%", defaultTitle: "TRANSFER COMPLETE!" },
+        { key: "drink_water", label: "💧 Minum Air / Hydration Alarm", defaultTitle: "TIME TO DRINK WATER!" },
+        { key: "stretching", label: "🧘 Gerak / Posture Stretch Alarm", defaultTitle: "POSTURE & STRETCH BREAK!" },
+        { key: "lunch_break", label: "🍱 Istirahat Makan Siang Alarm", defaultTitle: "LUNCH BREAK TIME!" },
+        { key: "clock_out", label: "🏠 Jam Pulang / Clock Out Alarm", defaultTitle: "CLOCK OUT · GREAT WORK TODAY!" },
+        { key: "greeting", label: "💖 Greeting Masuk Kerja", defaultTitle: "GOOD MORNING · READY TO CODE!" }
+      ];
+
+      const tbody = $("tabyEventTableBody");
+      if (!tbody) return;
+
+      tbody.innerHTML = events.map(ev => {
+        const curFile = map[ev.key] || DEFAULT_TABY_MAP[ev.key];
+        const optionsHtml = TABY_84_OPTIONS.map(opt => 
+          `<option value="${opt.file}" ${opt.file === curFile ? 'selected' : ''}>${opt.label}</option>`
+        ).join("");
+
+        return `
+          <tr style="border-bottom: 1px solid var(--border-subtle);">
+            <td style="padding: 8px 10px; font-weight: 600; font-size: 12px; color: var(--text-primary); white-space: nowrap;">
+              ${ev.label}
+            </td>
+            <td style="padding: 8px 10px;">
+              <select id="map_${ev.key}" style="width: 100%; background: #0d1117; color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 5px 8px; font-size: 11px;">
+                ${optionsHtml}
+              </select>
+            </td>
+            <td style="padding: 8px 10px; text-align: right; white-space: nowrap;">
+              <button onclick="testTabyEvent('${ev.key}', '${ev.defaultTitle}')" class="btn-pill" style="color: var(--accent-text);">
+                ▶ Test
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function testTabyEvent(eventKey, titleText) {
+      const selectEl = $("map_" + eventKey);
+      const chosenFile = selectEl ? selectEl.value : (DEFAULT_TABY_MAP[eventKey] || "5e63dbe6.gif");
+      triggerDeskExpression("all", chosenFile, titleText || "TEST EXPRESSION", "Event: " + eventKey, 6000);
+    }
+
+    function saveTabySettings() {
+      const map = {};
+      const keys = ["idle", "work_normal", "work_fast", "copy_paste", "high_load", "transfer_active", "transfer_done", "drink_water", "stretching", "lunch_break", "clock_out", "greeting"];
+      keys.forEach(k => {
+        const el = $("map_" + k);
+        if (el) map[k] = el.value;
+      });
+
+      const rot = $("tabyRotSelect")?.value || "270";
+      const hud = $("tabyHudCheck")?.checked !== false;
+
+      localStorage.setItem("taby_expression_map", JSON.stringify(map));
+      localStorage.setItem("taby_rotation", rot);
+      localStorage.setItem("taby_hud_visible", hud ? "true" : "false");
+
+      if (_ws && _ws.readyState === 1) {
+        _ws.send(JSON.stringify({
+          type: "command",
+          target: "all",
+          command: "set_taby_config",
+          map: map,
+          rotation: Number(rot),
+          hud_visible: hud
+        }));
+      }
+
+      alert("Settings saved & broadcasted to all connected Android devices!");
+      closeTabySettingsModal();
+    }
+
+    function resetTabySettings() {
+      if (!confirm("Reset all expression mappings to defaults?")) return;
+      localStorage.removeItem("taby_expression_map");
+      localStorage.removeItem("taby_rotation");
+      localStorage.removeItem("taby_hud_visible");
+      populateTabySettingsForm();
+    }
   </script>
 
-  <!-- Software Update Modal Dialog -->
-  <div id="webUpdateModal" style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 16px;">
-    <div style="background: #141417; border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; width: 100%; max-width: 440px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
-      <div style="padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02);">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3); display: flex; align-items: center; justify-content: center; color: #f97316;">
-            📦
-          </div>
-          <div>
-            <div style="font-size: 14px; font-weight: 700; color: #fafafa;">Software Updates</div>
-            <div style="font-size: 11px; color: #a1a1aa;">FireFiles Monitor & Staging Nodes</div>
-          </div>
+  <!-- Octopus-Styled Taby Settings Modal -->
+  <div id="tabySettingsModal" class="octopus-modal-backdrop">
+    <div class="octopus-modal-card">
+      <div class="octopus-modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">🤖</span>
+          <span style="font-weight: 700; font-size: 14px; color: var(--text-primary);">Taby Desk Assistant Expression Settings</span>
         </div>
-        <button onclick="closeUpdateModal()" style="background: transparent; border: none; color: #71717a; font-size: 18px; cursor: pointer; padding: 4px;">✕</button>
+        <button onclick="closeTabySettingsModal()" class="btn-pill" style="border: none; font-size: 14px; padding: 2px 6px;">✕</button>
       </div>
-      
-      <div style="padding: 20px; display: flex; flex-col; gap: 14px;">
-        <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;">
-          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;">
-            <span style="color: #a1a1aa;">Current Installed:</span>
-            <span style="font-family: monospace; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; color: #fafafa;">v0.1.182</span>
+
+      <div class="octopus-modal-body">
+        <div style="display: flex; gap: 16px; align-items: center; background: #0d1117; padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 12px; font-weight: 700; color: var(--text-secondary);">Screen Orientation:</span>
+            <select id="tabyRotSelect" style="background: var(--bg-surface); color: var(--text-primary); font-weight: 700; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 12px;">
+              <option value="90" selected>90° (Upright Stand - Default)</option>
+              <option value="270">270° (Reverse Upright Stand)</option>
+              <option value="0">0° (Horizontal Normal)</option>
+              <option value="180">180° (Inverted Horizontal)</option>
+            </select>
           </div>
-          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;">
-            <span style="color: #a1a1aa;">Latest Release:</span>
-            <span id="updateLatestVer" style="font-family: monospace; background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); padding: 2px 6px; border-radius: 4px;">-</span>
-          </div>
-          <div id="updateStatusText" style="padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px;">
-            Checking...
-          </div>
+
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer;">
+            <input type="checkbox" id="tabyHudCheck" checked style="accent-color: var(--accent-primary);" />
+            Show HUD Status Text
+          </label>
         </div>
 
-        <div id="updateNotesContainer" style="display: none; margin-top: 10px;">
-          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #71717a; margin-bottom: 6px;">What's New:</div>
-          <pre id="updateChangelog" style="background: #09090b; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; font-size: 11px; font-family: monospace; color: #d4d4d8; max-height: 120px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5;"></pre>
+        <div class="files-table-container">
+          <table class="files-table">
+            <thead>
+              <tr>
+                <th>Event Activity</th>
+                <th>Assigned Animation</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="tabyEventTableBody">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
         </div>
+      </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
-          <button onclick="checkWebUpdates()" style="background: transparent; border: 1px solid rgba(255,255,255,0.12); color: #a1a1aa; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;">
-            🔄 Refresh
-          </button>
-          <button id="updateActionBtn" style="background: linear-gradient(135deg, #f97316, #ea580c); color: white; border: none; font-weight: 600; border-radius: 8px; padding: 7px 16px; font-size: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(249,115,22,0.3);">
-            View Releases
-          </button>
+      <div class="octopus-modal-footer">
+        <button onclick="resetTabySettings()" class="btn-pill">🔄 Reset Defaults</button>
+        <div style="display: flex; gap: 6px;">
+          <button onclick="closeTabySettingsModal()" class="btn-pill">Cancel</button>
+          <button onclick="saveTabySettings()" class="btn-pill" style="background: var(--accent-primary); border-color: var(--accent-border); color: #fff; font-weight: 700;">💾 Save & Broadcast</button>
         </div>
       </div>
     </div>
   </div>
-</body>
 
+  <!-- Octopus-Styled Update Modal -->
+  <div id="updateModal" class="octopus-modal-backdrop">
+    <div class="octopus-modal-card">
+      <div class="octopus-modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">📦</span>
+          <span style="font-weight: 700; font-size: 14px; color: var(--text-primary);">FireFiles System Update Center</span>
+        </div>
+        <button onclick="closeUpdateModal()" class="btn-pill" style="border: none; font-size: 14px; padding: 2px 6px;">✕</button>
+      </div>
+
+      <div class="octopus-modal-body">
+        <div id="updateStatusText" style="font-weight: 600; font-size: 12px; color: var(--text-secondary);">
+          Checking for updates...
+        </div>
+        <div>
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 4px;">Release Changelog:</div>
+          <div id="updateReleaseNotes" class="kv-grid" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-family: var(--font-sans); color: var(--text-secondary); line-height: 1.6;">
+            Loading release notes...
+          </div>
+        </div>
+      </div>
+
+      <div class="octopus-modal-footer">
+        <button onclick="closeUpdateModal()" class="btn-pill">Close</button>
+        <button id="updateActionBtn" class="btn-pill" style="display: none; background: var(--status-ready-bg); border-color: var(--status-ready-border); color: var(--status-ready-text); font-weight: 700;">
+          Update Now
+        </button>
+      </div>
+    </div>
+  </div>
+</body>
 </html>

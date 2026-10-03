@@ -93,4 +93,11 @@ class TabyAssistantView @JvmOverloads constructor(
             webView.evaluateJavascript("setRotation($deg);", null)
         }
     }
+
+    fun updateConfig(configJson: String) {
+        handler.post {
+            val safeJson = configJson.replace("'", "\\'")
+            webView.evaluateJavascript("updateConfig('$safeJson');", null)
+        }
+    }
 }

@@ -106,6 +106,14 @@ class MainActivity : Activity() {
                         setTabyMode(enabled)
                     }
                 }
+                "com.example.bridge.SET_TABY_CONFIG" -> {
+                    val config = intent.getStringExtra("config") ?: "{}"
+                    runOnUiThread {
+                        if (::tabyView.isInitialized) {
+                            tabyView.updateConfig(config)
+                        }
+                    }
+                }
             }
         }
     }
@@ -585,6 +593,7 @@ class MainActivity : Activity() {
         val tabyFilter = IntentFilter().apply {
             addAction("com.example.bridge.TABY_TRIGGER")
             addAction("com.example.bridge.SET_TABY_MODE")
+            addAction("com.example.bridge.SET_TABY_CONFIG")
         }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(tabyReceiver, tabyFilter, Context.RECEIVER_EXPORTED)
@@ -1202,6 +1211,11 @@ class MainActivity : Activity() {
                                 "set_taby_mode" -> {
                                     val enabled = json.optBoolean("enabled", true)
                                     setTabyMode(enabled)
+                                }
+                                "set_taby_config" -> {
+                                    if (::tabyView.isInitialized) {
+                                        tabyView.updateConfig(json.toString())
+                                    }
                                 }
                                 "refresh" -> {
                                     appendLog("Remote command: refresh")
