@@ -1421,9 +1421,23 @@
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
-          if (msg.type === "state") {
+          if (msg.type === "snapshot" || msg.type === "state") {
             state = msg.devices || [];
             tauri = msg.tauri || [];
+            render();
+          } else if (msg.type === "tauri") {
+            tauri = msg.tauri || [];
+            render();
+          } else if (msg.type === "telemetry") {
+            if (msg.device) {
+              const dev = msg.device;
+              const idx = state.findIndex(d => d.id === dev.id);
+              if (idx >= 0) {
+                state[idx] = { ...state[idx], ...dev };
+              } else {
+                state.push(dev);
+              }
+            }
             render();
           } else if (msg.type === "update_available") {
             const btn = $("updateBtn");
@@ -1441,6 +1455,9 @@
     }
 
     connect();
+
+    // Periodic heartbeat render to keep timer & stats active
+    setInterval(render, 1000);
 
     // Auto resize canvas
     window.addEventListener("resize", draw);
