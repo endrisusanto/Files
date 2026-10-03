@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taby Desk Assistant - Complete 84 Chip Showcase</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background-color: #08080b;
+      color: #f4f4f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 14px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1120px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .header {
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 24px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #38bdf8, #818cf8, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 4px;
+    }
+    .header p {
+      font-size: 12px;
+      color: #a1a1aa;
+    }
+
+    /* Screen Stage */
+    .stage-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .phone-frame {
+      width: 480px;
+      height: 310px;
+      background-color: #000000;
+      border: 4px solid #27272a;
+      border-radius: 32px;
+      box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.9), 0 0 45px rgba(56, 189, 248, 0.16);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    @media (max-width: 540px) {
+      .phone-frame {
+        width: 100%;
+        height: 240px;
+      }
+    }
+
+    .gif-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* GIF Display Image */
+    .taby-gif {
+      width: auto;
+      height: 100%;
+      max-width: 100%;
+      object-fit: contain;
+      background-color: #000000;
+      transition: transform 0.2s ease;
+    }
+
+    /* Rotation Classes */
+    .rot-0 { transform: rotate(0deg); }
+    .rot-90 { transform: rotate(90deg) scale(1.35); }
+    .rot-180 { transform: rotate(180deg); }
+    .rot-270 { transform: rotate(270deg) scale(1.35); }
+
+    /* Top HUD / Status */
+    .top-badge {
+      position: absolute;
+      top: 12px;
+      left: 16px;
+      background: rgba(24, 24, 27, 0.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #38bdf8;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: ui-monospace, monospace;
+    }
+
+    /* Bottom Progress Timer HUD */
+    .hud-overlay {
+      position: absolute;
+      bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      pointer-events: none;
+      width: 90%;
+    }
+    .hud-main {
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffffff;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(14, 165, 233, 0.2);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      backdrop-filter: blur(8px);
+      padding: 4px 12px;
+      border-radius: 12px;
+    }
+    .playlist-progress-bar {
+      width: 100%;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .playlist-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      transition: width 0.1s linear;
+    }
+
+    /* Screen Toolbars */
+    .screen-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 480px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: #141418;
+      border: 1px solid #27272a;
+      padding: 4px 8px;
+      border-radius: 12px;
+    }
+    .toolbar-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #71717a;
+      text-transform: uppercase;
+      padding: 0 4px;
+    }
+    .toolbar-btn {
+      background: #1c1c22;
+      border: 1px solid #2d2d36;
+      color: #d4d4d8;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .toolbar-btn:hover {
+      background: #2a2a34;
+      color: #fff;
+    }
+    .toolbar-btn.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    /* Chip Explorer Card */
+    .explorer-card {
+      width: 100%;
+      max-width: 1120px;
+      background-color: #111115;
+      border: 1px solid #24242c;
+      border-radius: 20px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Category Chips Filter Bar */
+    .category-chips-bar {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      width: 100%;
+    }
+    .cat-chip {
+      background: #18181e;
+      border: 1px solid #2a2a34;
+      color: #a1a1aa;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+    .cat-chip:hover {
+      background: #22222a;
+      color: #fff;
+    }
+    .cat-chip.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+    }
+
+    .search-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .search-input {
+      flex: 1;
+      background: #16161c;
+      border: 1px solid #2a2a34;
+      color: #f4f4f5;
+      font-size: 12px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus {
+      border-color: #38bdf8;
+    }
+
+    /* Complete Full Chip Grid */
+    .chip-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 480px;
+      overflow-y: auto;
+      padding: 4px 2px;
+    }
+    .chip-cloud::-webkit-scrollbar {
+      width: 6px;
+    }
+    .chip-cloud::-webkit-scrollbar-thumb {
+      background: #2a2a34;
+      border-radius: 6px;
+    }
+
+    .anim-chip {
+      background: #18181f;
+      border: 1px solid #2a2a36;
+      color: #e4e4e7;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .anim-chip:hover {
+      background: #262632;
+      border-color: #404052;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+    .anim-chip.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+      font-weight: 800;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
+    }
+    .chip-badge {
+      font-size: 9px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: #a1a1aa;
+      font-family: ui-monospace, monospace;
+    }
+    .anim-chip.active .chip-badge {
+      background: rgba(0, 0, 0, 0.25);
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1>🤖 Taby 84-GIF Desk Assistant Showcase</h1>
+      <p>All 84 official animations in Full Interactive Chips · Rotate & Continuous Auto-Playlist</p>
+    </div>
+
+    <!-- Phone Screen Simulator -->
+    <div class="stage-wrapper">
+      <div class="phone-frame" id="phoneScreen">
+        <div class="top-badge" id="topBadge">
+          <span id="badgeIcon">🟢</span> <span id="badgeIndex">1/84</span>
+        </div>
+
+        <div class="gif-container">
+          <img id="tabyImage" class="taby-gif rot-90" src="./taby_assets/342748ab.gif" alt="Taby Face" />
+        </div>
+
+        <div class="hud-overlay" id="hudOverlay">
+          <div class="hud-main" id="hudMain">
+            <span id="hudIcon">👀</span> <span id="hudText">ANGRY_01_LOOP</span>
+          </div>
+          <div class="playlist-progress-bar">
+            <div class="playlist-progress-fill" id="progressFill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls below screen -->
+      <div class="screen-toolbar">
+        <div class="toolbar-group">
+          <span class="toolbar-label">🔄 Rotate:</span>
+          <button class="toolbar-btn" onclick="setRotation(0)">0°</button>
+          <button class="toolbar-btn active" id="btnRot90" onclick="setRotation(90)">90° (Upright)</button>
+          <button class="toolbar-btn" onclick="setRotation(180)">180°</button>
+          <button class="toolbar-btn" id="btnRot270" onclick="setRotation(270)">270°</button>
+        </div>
+
+        <div class="toolbar-group">
+          <button class="toolbar-btn active" id="btnAutoPlay" onclick="toggleAutoPlay()" style="display: flex; align-items: center; gap: 5px; color: #38bdf8;">
+            <span id="playIcon">⏸️</span> Auto Playlist (<span id="speedSec">3.5s</span>)
+          </button>
+          <button class="toolbar-btn" onclick="prevAnimation()">⏮️ Prev</button>
+          <button class="toolbar-btn" onclick="nextAnimation()">⏭️ Next</button>
+          <button class="toolbar-btn" onclick="playRandom()">🔀 Random</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full Chip Explorer Section -->
+    <div class="explorer-card">
+      <!-- Category Filter Chips -->
+      <div class="category-chips-bar">
+        <button class="cat-chip active" onclick="filterCategory('ALL')">🌟 All (84)</button>
+        <button class="cat-chip" onclick="filterCategory('IDLE')">👀 Idle & Moods (18)</button>
+        <button class="cat-chip" onclick="filterCategory('WORK')">💻 Work & Code (14)</button>
+        <button class="cat-chip" onclick="filterCategory('SUCCESS')">🎉 Success & Joy (15)</button>
+        <button class="cat-chip" onclick="filterCategory('DAILY')">🧘 Daily & Relax (16)</button>
+        <button class="cat-chip" onclick="filterCategory('SPORTS')">🏀 Sports & Action (10)</button>
+        <button class="cat-chip" onclick="filterCategory('CALM')">😌 Calm Series (11)</button>
+      </div>
+
+      <div class="search-row">
+        <input 
+          type="text" 
+          id="searchInput" 
+          class="search-input" 
+          placeholder="🔍 Filter chips (e.g. love, dunk, work, sleep, f1, claude, boxing...)" 
+          oninput="onSearch(this.value)"
+        />
+        <span id="countBadge" style="font-size: 11px; font-weight: 700; color: #38bdf8; background: #16161c; border: 1px solid #2a2a34; padding: 7px 12px; border-radius: 10px; white-space: nowrap;">
+          Showing: 84 / 84
+        </span>
+      </div>
+
+      <!-- All 84 Chips Cloud -->
+      <div class="chip-cloud" id="chipCloud">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ALL_ITEMS = [
+  {
+    "id": "angry_01_loop",
+    "file": "342748ab.gif",
+    "label": "ANGRY",
+    "category": "IDLE",
+    "duration": 2542,
+    "sizeKb": "60"
+  },
+  {
+    "id": "angry_02_loop",
+    "file": "ab6244d8.gif",
+    "label": "ANGRY",
+    "category": "IDLE",
+    "duration": 2500,
+    "sizeKb": "52"
+  },
+  {
+    "id": "basketball_dunk",
+    "file": "4aaf4aeb.gif",
+    "label": "DUNK",
+    "category": "SPORTS",
+    "duration": 4208,
+    "sizeKb": "234"
+  },
+  {
+    "id": "basketball_throw",
+    "file": "330ed2ad.gif",
+    "label": "BASKETBALL",
+    "category": "SPORTS",
+    "duration": 4167,
+    "sizeKb": "257"
+  },
+  {
+    "id": "blush",
+    "file": "d36d9279.gif",
+    "label": "BLUSH",
+    "category": "IDLE",
+    "duration": 4875,
+    "sizeKb": "189"
+  },
+  {
+    "id": "boxing",
+    "file": "55156e6e.gif",
+    "label": "BOXING",
+    "category": "SPORTS",
+    "duration": 5042,
+    "sizeKb": "193"
+  },
+  {
+    "id": "break_start",
+    "file": "453f80ff.gif",
+    "label": "BREAK",
+    "category": "DAILY",
+    "duration": 6708,
+    "sizeKb": "255"
+  },
+  {
+    "id": "busy_loop",
+    "file": "120a9943.gif",
+    "label": "BUSY",
+    "category": "IDLE",
+    "duration": 3500,
+    "sizeKb": "185"
+  },
+  {
+    "id": "calendar_in",
+    "file": "c55a2fff.gif",
+    "label": "CALENDAR",
+    "category": "WORK",
+    "duration": 2083,
+    "sizeKb": "82"
+  },
+  {
+    "id": "calendar_loop",
+    "file": "142c3c3e.gif",
+    "label": "CALENDAR",
+    "category": "WORK",
+    "duration": 2042,
+    "sizeKb": "6"
+  },
+  {
+    "id": "circle",
+    "file": "28217089.gif",
+    "label": "HOME",
+    "category": "IDLE",
+    "duration": 2875,
+    "sizeKb": "40"
+  },
+  {
+    "id": "confirmation",
+    "file": "72811854.gif",
+    "label": "DONE",
+    "category": "SUCCESS",
+    "duration": 1958,
+    "sizeKb": "60"
+  },
+  {
+    "id": "copy_paste",
+    "file": "9ba1094c.gif",
+    "label": "SETTINGS",
+    "category": "WORK",
+    "duration": 3125,
+    "sizeKb": "57"
+  },
+  {
+    "id": "creating_task_loop",
+    "file": "820fb8d5.gif",
+    "label": "CREATING",
+    "category": "WORK",
+    "duration": 1708,
+    "sizeKb": "60"
+  },
+  {
+    "id": "delete_01",
+    "file": "8bd97a14.gif",
+    "label": "DELETE",
+    "category": "IDLE",
+    "duration": 3542,
+    "sizeKb": "93"
+  },
+  {
+    "id": "disappointed",
+    "file": "fdf9d899.gif",
+    "label": "FOCUS",
+    "category": "IDLE",
+    "duration": 2792,
+    "sizeKb": "58"
+  },
+  {
+    "id": "drink_water",
+    "file": "9da16b65.gif",
+    "label": "WATER",
+    "category": "DAILY",
+    "duration": 6875,
+    "sizeKb": "299"
+  },
+  {
+    "id": "f1_car",
+    "file": "01516801.gif",
+    "label": "SPRINT",
+    "category": "SPORTS",
+    "duration": 8417,
+    "sizeKb": "485"
+  },
+  {
+    "id": "fishing_long",
+    "file": "76916c58.gif",
+    "label": "FISHING LONG",
+    "category": "SPORTS",
+    "duration": 7875,
+    "sizeKb": "149"
+  },
+  {
+    "id": "fishing_short",
+    "file": "d83e6b18.gif",
+    "label": "FISHING SHORT",
+    "category": "SPORTS",
+    "duration": 5750,
+    "sizeKb": "116"
+  },
+  {
+    "id": "flower_grow",
+    "file": "c24cfa30.gif",
+    "label": "GROW",
+    "category": "SPORTS",
+    "duration": 8583,
+    "sizeKb": "156"
+  },
+  {
+    "id": "hello_annoyed",
+    "file": "112e0d2a.gif",
+    "label": "FOCUS",
+    "category": "IDLE",
+    "duration": 8833,
+    "sizeKb": "319"
+  },
+  {
+    "id": "idle_01_loop",
+    "file": "5e63dbe6.gif",
+    "label": "IDLE",
+    "category": "IDLE",
+    "duration": 9042,
+    "sizeKb": "106"
+  },
+  {
+    "id": "calm_idle_01_f000",
+    "file": "684df770.gif",
+    "label": "IDLE",
+    "category": "CALM",
+    "duration": 1000,
+    "sizeKb": "2"
+  },
+  {
+    "id": "calm_idle_01_to_f137",
+    "file": "6e98b1e7.gif",
+    "label": "IDLE",
+    "category": "CALM",
+    "duration": 5708,
+    "sizeKb": "60"
+  },
+  {
+    "id": "calm_idle_01_f137",
+    "file": "5bddc705.gif",
+    "label": "IDLE",
+    "category": "CALM",
+    "duration": 1000,
+    "sizeKb": "2"
+  },
+  {
+    "id": "calm_idle_01_f137_to_f177",
+    "file": "78606a43.gif",
+    "label": "IDLE",
+    "category": "CALM",
+    "duration": 1667,
+    "sizeKb": "15"
+  },
+  {
+    "id": "calm_idle_01_f177",
+    "file": "ebe7a411.gif",
+    "label": "IDLE",
+    "category": "CALM",
+    "duration": 1000,
+    "sizeKb": "2"
+  },
+  {
+    "id": "calm_idle_01_f177_to_f216",
+    "file": "a68aca9f.gif",
+    "label": "IDLE",
+    "category": "CALM",
+    "duration": 1625,
+    "sizeKb": "18"
+  },
+  {
+    "id": "calm_idle_01_f216",
+    "file": "c97f9fc9.gif",
+    "label": "IDLE",
+    "category": "CALM",
+    "duration": 1000,
+    "sizeKb": "3"
+  },
+  {
+    "id": "calm_work_low_f000",
+    "file": "5b0de03a.gif",
+    "label": "WORKING",
+    "category": "CALM",
+    "duration": 1000,
+    "sizeKb": "15"
+  },
+  {
+    "id": "calm_work_medium_f000",
+    "file": "d18417a7.gif",
+    "label": "WORKING",
+    "category": "CALM",
+    "duration": 1000,
+    "sizeKb": "15"
+  },
+  {
+    "id": "calm_work_high_f000",
+    "file": "ddde01ce.gif",
+    "label": "WORKING",
+    "category": "CALM",
+    "duration": 1000,
+    "sizeKb": "16"
+  },
+  {
+    "id": "idle_02_loop",
+    "file": "523e19a5.gif",
+    "label": "IDLE",
+    "category": "IDLE",
+    "duration": 7875,
+    "sizeKb": "50"
+  },
+  {
+    "id": "idle_variation_loop",
+    "file": "6d1a57d8.gif",
+    "label": "IDLE",
+    "category": "IDLE",
+    "duration": 1667,
+    "sizeKb": "75"
+  },
+  {
+    "id": "listening_in",
+    "file": "344f0094.gif",
+    "label": "LISTENING",
+    "category": "IDLE",
+    "duration": 2000,
+    "sizeKb": "59"
+  },
+  {
+    "id": "listening_loop",
+    "file": "56203d05.gif",
+    "label": "LISTENING",
+    "category": "IDLE",
+    "duration": 2667,
+    "sizeKb": "112"
+  },
+  {
+    "id": "listening_music_loop",
+    "file": "5ea6c03d.gif",
+    "label": "MUSIC",
+    "category": "IDLE",
+    "duration": 5333,
+    "sizeKb": "447"
+  },
+  {
+    "id": "lockin",
+    "file": "f821100d.gif",
+    "label": "LOCK IN",
+    "category": "IDLE",
+    "duration": 3958,
+    "sizeKb": "85"
+  },
+  {
+    "id": "love_01",
+    "file": "7f1c7a6d.gif",
+    "label": "LOVE",
+    "category": "IDLE",
+    "duration": 6333,
+    "sizeKb": "134"
+  },
+  {
+    "id": "perfect_day_01",
+    "file": "ad8326e3.gif",
+    "label": "PERFECT DAY",
+    "category": "SUCCESS",
+    "duration": 7125,
+    "sizeKb": "248"
+  },
+  {
+    "id": "perfect_day_01_simple",
+    "file": "1fdab856.gif",
+    "label": "PERFECT DAY",
+    "category": "SUCCESS",
+    "duration": 7167,
+    "sizeKb": "234"
+  },
+  {
+    "id": "perfect_day_02",
+    "file": "ae832876.gif",
+    "label": "PERFECT DAY",
+    "category": "SUCCESS",
+    "duration": 5500,
+    "sizeKb": "192"
+  },
+  {
+    "id": "perfect_day_03",
+    "file": "af832a09.gif",
+    "label": "PERFECT DAY",
+    "category": "SUCCESS",
+    "duration": 6375,
+    "sizeKb": "321"
+  },
+  {
+    "id": "posture_check",
+    "file": "cab8bb54.gif",
+    "label": "POSTURE",
+    "category": "DAILY",
+    "duration": 6125,
+    "sizeKb": "219"
+  },
+  {
+    "id": "relaxing_01_loop",
+    "file": "055ed02e.gif",
+    "label": "BREAK",
+    "category": "DAILY",
+    "duration": 3458,
+    "sizeKb": "32"
+  },
+  {
+    "id": "relaxing_couch_in",
+    "file": "93338d4c.gif",
+    "label": "RELAX",
+    "category": "DAILY",
+    "duration": 1333,
+    "sizeKb": "67"
+  },
+  {
+    "id": "relaxing_couch_loop",
+    "file": "f30dc7ed.gif",
+    "label": "RELAX",
+    "category": "DAILY",
+    "duration": 2000,
+    "sizeKb": "81"
+  },
+  {
+    "id": "sleeping_loop",
+    "file": "c2433a43.gif",
+    "label": "AWAY",
+    "category": "DAILY",
+    "duration": 3250,
+    "sizeKb": "23"
+  },
+  {
+    "id": "square",
+    "file": "b4b61246.gif",
+    "label": "HABITS",
+    "category": "IDLE",
+    "duration": 3458,
+    "sizeKb": "76"
+  },
+  {
+    "id": "startup",
+    "file": "94326baa.gif",
+    "label": "STARTUP",
+    "category": "IDLE",
+    "duration": 7667,
+    "sizeKb": "60"
+  },
+  {
+    "id": "stretching",
+    "file": "51374816.gif",
+    "label": "STRETCHING",
+    "category": "DAILY",
+    "duration": 6250,
+    "sizeKb": "251"
+  },
+  {
+    "id": "talking_default_loop",
+    "file": "9725f4ae.gif",
+    "label": "TALKING",
+    "category": "IDLE",
+    "duration": 5333,
+    "sizeKb": "127"
+  },
+  {
+    "id": "task_completed",
+    "file": "2a3d7c56.gif",
+    "label": "DONE",
+    "category": "SUCCESS",
+    "duration": 3125,
+    "sizeKb": "80"
+  },
+  {
+    "id": "task_created",
+    "file": "545a9747.gif",
+    "label": "CREATED",
+    "category": "WORK",
+    "duration": 5208,
+    "sizeKb": "108"
+  },
+  {
+    "id": "task_page",
+    "file": "3cb8ff8a.gif",
+    "label": "TASKS",
+    "category": "IDLE",
+    "duration": 3583,
+    "sizeKb": "18"
+  },
+  {
+    "id": "thumbs_up",
+    "file": "2620c9f8.gif",
+    "label": "YES",
+    "category": "SUCCESS",
+    "duration": 3167,
+    "sizeKb": "71"
+  },
+  {
+    "id": "trophy",
+    "file": "3bbde2ff.gif",
+    "label": "TROPHY",
+    "category": "SUCCESS",
+    "duration": 7208,
+    "sizeKb": "166"
+  },
+  {
+    "id": "turn_off_reddit",
+    "file": "aa90b429.gif",
+    "label": "FOCUS",
+    "category": "DAILY",
+    "duration": 6583,
+    "sizeKb": "243"
+  },
+  {
+    "id": "turn_off_scroll",
+    "file": "0de3a548.gif",
+    "label": "FOCUS",
+    "category": "DAILY",
+    "duration": 6500,
+    "sizeKb": "250"
+  },
+  {
+    "id": "turn_off_tv",
+    "file": "64680343.gif",
+    "label": "FOCUS",
+    "category": "DAILY",
+    "duration": 6583,
+    "sizeKb": "279"
+  },
+  {
+    "id": "waiting_01",
+    "file": "afd018ca.gif",
+    "label": "WAITING",
+    "category": "IDLE",
+    "duration": 12917,
+    "sizeKb": "409"
+  },
+  {
+    "id": "working_in",
+    "file": "967e5b2e.gif",
+    "label": "WORKING",
+    "category": "WORK",
+    "duration": 2000,
+    "sizeKb": "156"
+  },
+  {
+    "id": "working_loop",
+    "file": "ff09215b.gif",
+    "label": "WORKING",
+    "category": "WORK",
+    "duration": 1333,
+    "sizeKb": "126"
+  },
+  {
+    "id": "working_laptop_in",
+    "file": "abbf00c9.gif",
+    "label": "WORKING",
+    "category": "WORK",
+    "duration": 1625,
+    "sizeKb": "72"
+  },
+  {
+    "id": "working_laptop_loop",
+    "file": "cdd1dbdc.gif",
+    "label": "WORKING",
+    "category": "WORK",
+    "duration": 2667,
+    "sizeKb": "26"
+  },
+  {
+    "id": "working_laptop_bored_loop",
+    "file": "89a7efbb.gif",
+    "label": "WORKING",
+    "category": "WORK",
+    "duration": 1667,
+    "sizeKb": "36"
+  },
+  {
+    "id": "working_laptop_excited_loop",
+    "file": "8d8c83cf.gif",
+    "label": "WORKING",
+    "category": "WORK",
+    "duration": 1667,
+    "sizeKb": "42"
+  },
+  {
+    "id": "working_laptop_normal_loop",
+    "file": "ae5cd9c4.gif",
+    "label": "WORKING",
+    "category": "IDLE",
+    "duration": 1667,
+    "sizeKb": "36"
+  },
+  {
+    "id": "workspaces_in",
+    "file": "2b60f7ff.gif",
+    "label": "FOLDER",
+    "category": "WORK",
+    "duration": 2250,
+    "sizeKb": "40"
+  },
+  {
+    "id": "workspaces_loop",
+    "file": "b844443e.gif",
+    "label": "FOLDER",
+    "category": "WORK",
+    "duration": 4375,
+    "sizeKb": "36"
+  },
+  {
+    "id": "wow",
+    "file": "22e8e504.gif",
+    "label": "WOW",
+    "category": "IDLE",
+    "duration": 2583,
+    "sizeKb": "58"
+  },
+  {
+    "id": "codex_in",
+    "file": "323ff7c2.gif",
+    "label": "CODEX",
+    "category": "WORK",
+    "duration": 2042,
+    "sizeKb": "77"
+  },
+  {
+    "id": "codex_loop",
+    "file": "be0baa0f.gif",
+    "label": "CODEX",
+    "category": "WORK",
+    "duration": 1667,
+    "sizeKb": "46"
+  },
+  {
+    "id": "day_planned",
+    "file": "ac6f32d0.gif",
+    "label": "PLANNED",
+    "category": "IDLE",
+    "duration": 6250,
+    "sizeKb": "357"
+  },
+  {
+    "id": "hello_disappointed",
+    "file": "867ad27c.gif",
+    "label": "HELLO",
+    "category": "IDLE",
+    "duration": 4250,
+    "sizeKb": "89"
+  },
+  {
+    "id": "claude_in",
+    "file": "547c0037.gif",
+    "label": "CLAUDE",
+    "category": "WORK",
+    "duration": 3708,
+    "sizeKb": "95"
+  },
+  {
+    "id": "claude_loop",
+    "file": "12c5e086.gif",
+    "label": "CLAUDE",
+    "category": "WORK",
+    "duration": 1667,
+    "sizeKb": "26"
+  },
+  {
+    "id": "taby_response_ready_in",
+    "file": "9d165367.gif",
+    "label": "TABY",
+    "category": "IDLE",
+    "duration": 1083,
+    "sizeKb": "52"
+  },
+  {
+    "id": "taby_response_ready_loop",
+    "file": "d3087456.gif",
+    "label": "TABY",
+    "category": "IDLE",
+    "duration": 1250,
+    "sizeKb": "73"
+  },
+  {
+    "id": "yeah",
+    "file": "a87f43aa.gif",
+    "label": "YEAH",
+    "category": "SUCCESS",
+    "duration": 2333,
+    "sizeKb": "97"
+  },
+  {
+    "id": "no",
+    "file": "62366ffa.gif",
+    "label": "NO",
+    "category": "IDLE",
+    "duration": 4333,
+    "sizeKb": "247"
+  },
+  {
+    "id": "review",
+    "file": "225772e1.gif",
+    "label": "REVIEW",
+    "category": "IDLE",
+    "duration": 2000,
+    "sizeKb": "114"
+  },
+  {
+    "id": "searching_loop",
+    "file": "4bbe8926.gif",
+    "label": "SEARCHING",
+    "category": "IDLE",
+    "duration": 1000,
+    "sizeKb": "91"
+  }
+];
+
+    const tabyImg = document.getElementById("tabyImage");
+    const hudMain = document.getElementById("hudMain");
+    const hudIcon = document.getElementById("hudIcon");
+    const hudText = document.getElementById("hudText");
+    const chipCloud = document.getElementById("chipCloud");
+    const searchInput = document.getElementById("searchInput");
+    const countBadge = document.getElementById("countBadge");
+    const btnAutoPlay = document.getElementById("btnAutoPlay");
+    const playIcon = document.getElementById("playIcon");
+    const progressFill = document.getElementById("progressFill");
+    const badgeIndex = document.getElementById("badgeIndex");
+
+    let currentCategory = "ALL";
+    let searchQuery = "";
+    let currentIndex = 0;
+    let isAutoPlay = true;
+    let autoPlayInterval = null;
+    let progressInterval = null;
+    let slideDuration = 3500;
+    let progressStartTime = Date.now();
+
+    function renderChips() {
+      chipCloud.innerHTML = "";
+      const filtered = ALL_ITEMS.filter(item => {
+        const matchCat = (currentCategory === "ALL" || item.category === currentCategory);
+        const matchSearch = (!searchQuery || item.id.toLowerCase().includes(searchQuery.toLowerCase()) || item.label.toLowerCase().includes(searchQuery.toLowerCase()));
+        return matchCat && matchSearch;
+      });
+
+      countBadge.textContent = "Showing: " + filtered.length + " / " + ALL_ITEMS.length;
+
+      filtered.forEach(item => {
+        const chip = document.createElement("button");
+        const isActive = tabyImg.src.includes(item.file);
+        chip.className = "anim-chip" + (isActive ? " active" : "");
+        chip.id = "chip-" + item.id;
+        chip.onclick = () => {
+          currentIndex = ALL_ITEMS.findIndex(a => a.id === item.id);
+          playAnimation(item);
+          resetProgress();
+        };
+
+        const icon = item.category === "WORK" ? "💻" : item.category === "SUCCESS" ? "🎉" : item.category === "DAILY" ? "🧘" : item.category === "SPORTS" ? "🏀" : "✨";
+        chip.innerHTML = icon + " " + item.id + ' <span class="chip-badge">' + item.label + '</span>';
+        chipCloud.appendChild(chip);
+      });
+    }
+
+    function playAnimation(item) {
+      if (!item) return;
+      tabyImg.src = "./taby_assets/" + item.file;
+
+      const idx = ALL_ITEMS.findIndex(a => a.id === item.id);
+      badgeIndex.textContent = (idx + 1) + " / " + ALL_ITEMS.length;
+
+      const icon = item.category === "WORK" ? "⚡" : item.category === "SUCCESS" ? "🎉" : item.category === "DAILY" ? "🧘" : item.category === "SPORTS" ? "🏆" : "👀";
+      hudIcon.textContent = icon;
+      hudText.textContent = item.id.toUpperCase() + " · " + item.label;
+
+      document.querySelectorAll(".anim-chip").forEach(c => c.classList.remove("active"));
+      const currentChip = document.getElementById("chip-" + item.id);
+      if (currentChip) {
+        currentChip.classList.add("active");
+        currentChip.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+
+    function setRotation(deg) {
+      tabyImg.className = "taby-gif rot-" + deg;
+      document.querySelectorAll(".screen-toolbar .toolbar-btn").forEach(btn => {
+        if (btn.textContent.includes("°")) {
+          btn.classList.toggle("active", btn.textContent.startsWith(deg + "°"));
+        }
+      });
+    }
+
+    function filterCategory(cat) {
+      currentCategory = cat;
+      document.querySelectorAll(".cat-chip").forEach(chip => {
+        chip.classList.toggle("active", chip.getAttribute("onclick").includes("'" + cat + "'"));
+      });
+      renderChips();
+    }
+
+    function onSearch(val) {
+      searchQuery = val.trim();
+      renderChips();
+    }
+
+    function nextAnimation() {
+      currentIndex = (currentIndex + 1) % ALL_ITEMS.length;
+      playAnimation(ALL_ITEMS[currentIndex]);
+      resetProgress();
+    }
+
+    function prevAnimation() {
+      currentIndex = (currentIndex - 1 + ALL_ITEMS.length) % ALL_ITEMS.length;
+      playAnimation(ALL_ITEMS[currentIndex]);
+      resetProgress();
+    }
+
+    function playRandom() {
+      currentIndex = Math.floor(Math.random() * ALL_ITEMS.length);
+      playAnimation(ALL_ITEMS[currentIndex]);
+      resetProgress();
+    }
+
+    function resetProgress() {
+      progressStartTime = Date.now();
+      progressFill.style.width = "0%";
+    }
+
+    function toggleAutoPlay() {
+      isAutoPlay = !isAutoPlay;
+      if (isAutoPlay) {
+        btnAutoPlay.classList.add("active");
+        playIcon.textContent = "⏸️";
+        resetProgress();
+        startAutoPlayLoop();
+      } else {
+        btnAutoPlay.classList.remove("active");
+        playIcon.textContent = "▶️";
+        clearInterval(autoPlayInterval);
+        clearInterval(progressInterval);
+        progressFill.style.width = "0%";
+      }
+    }
+
+    function startAutoPlayLoop() {
+      clearInterval(autoPlayInterval);
+      clearInterval(progressInterval);
+
+      progressStartTime = Date.now();
+      progressInterval = setInterval(() => {
+        if (!isAutoPlay) return;
+        const elapsed = Date.now() - progressStartTime;
+        const pct = Math.min(100, (elapsed / slideDuration) * 100);
+        progressFill.style.width = pct + "%";
+        if (elapsed >= slideDuration) {
+          nextAnimation();
+        }
+      }, 50);
+    }
+
+    // Init
+    renderChips();
+    playAnimation(ALL_ITEMS[0]);
+    startAutoPlayLoop();
+  </script>
+</body>
+</html>

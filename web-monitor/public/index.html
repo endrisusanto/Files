@@ -388,6 +388,10 @@
       </div>
       <div class="header-actions">
         <div id="socket" class="badge bad"><span class="badge-dot"></span>Web Offline</div>
+        <button id="tabyBtn" class="btn-primary" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);" onclick="window.open('taby_preview.html', '_blank')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          Taby Preview
+        </button>
         <button id="updateBtn" class="btn-primary" style="background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3);" onclick="openUpdateModal()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
           <span id="updateBtnText">v0.1.192</span>
@@ -897,6 +901,14 @@
                 <div class="value">
                   <span style="color: #60a5fa; font-weight: 700;">⬆ ${mb(devTx)} MB/s</span>
                 </div>
+                <div style="color:#a1a1aa; font-weight:500;">Taby Assistant</div>
+                <div class="value" style="display:flex; flex-wrap:wrap; gap:4px; padding-top:2px;">
+                  <button onclick="triggerDeskExpression('${d.id}', 'drink_water', 'STAY HYDRATED!', 'Time for a fresh drink', 7000)" style="background:#1e293b; color:#38bdf8; border:1px solid #0284c7; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">💧 Water</button>
+                  <button onclick="triggerDeskExpression('${d.id}', 'stretching', 'POSTURE & STRETCH', 'Roll shoulders', 7000)" style="background:#1e293b; color:#4ade80; border:1px solid #16a34a; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">🧘 Stretch</button>
+                  <button onclick="triggerDeskExpression('${d.id}', 'break_start', 'LUNCH BREAK!', 'Enjoy lunch', 10000)" style="background:#1e293b; color:#facc15; border:1px solid #ca8a04; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">🍱 Lunch</button>
+                  <button onclick="triggerDeskExpression('${d.id}', 'trophy', 'CLOCK OUT TIME!', 'Time to go home', 10000)" style="background:#1e293b; color:#c084fc; border:1px solid #9333ea; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">🏠 Clock Out</button>
+                  <button onclick="toggleAndroidDeskMode('${d.id}', true)" style="background:#09090b; color:#fafafa; border:1px solid #27272a; border-radius:6px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;">🤖 Face Mode</button>
+                </div>
               </div>
             </div>
           `;
@@ -929,6 +941,29 @@
       tauri.forEach(t => {
         _ws.send(JSON.stringify({ type: "command", target: t.id || "all", command: "upload_all" }));
       });
+    }
+
+    function triggerDeskExpression(devId, anim, title, subtext, durationMs) {
+      if (!_ws || _ws.readyState !== 1) return alert("WebSocket not connected");
+      _ws.send(JSON.stringify({
+        type: "command",
+        target: devId || "all",
+        command: "taby_trigger",
+        anim: anim,
+        title: title,
+        subtext: subtext || "",
+        duration_ms: durationMs || 6000
+      }));
+    }
+
+    function toggleAndroidDeskMode(devId, enabled) {
+      if (!_ws || _ws.readyState !== 1) return alert("WebSocket not connected");
+      _ws.send(JSON.stringify({
+        type: "command",
+        target: devId || "all",
+        command: "set_taby_mode",
+        enabled: enabled !== false
+      }));
     }
 
     function connect() {

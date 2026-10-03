@@ -49,6 +49,18 @@ struct PersistedSettings {
     priority_files: Option<Vec<String>>,
     #[serde(default)]
     user_unchecked_priority: Option<Vec<String>>,
+    #[serde(default)]
+    desk_assistant_enabled: Option<bool>,
+    #[serde(default)]
+    remind_drink_water_min: Option<u32>,
+    #[serde(default)]
+    remind_stretch_min: Option<u32>,
+    #[serde(default)]
+    lunch_time: Option<String>,
+    #[serde(default)]
+    work_end_time: Option<String>,
+    #[serde(default)]
+    work_start_time: Option<String>,
 }
 
 fn get_config_path() -> PathBuf {
@@ -140,6 +152,12 @@ struct AppInfo {
     theme: String,
     priority_files: Vec<String>,
     user_unchecked_priority: Vec<String>,
+    desk_assistant_enabled: bool,
+    remind_drink_water_min: u32,
+    remind_stretch_min: u32,
+    lunch_time: String,
+    work_end_time: String,
+    work_start_time: String,
 }
 
 fn get_adb_path() -> String {
@@ -243,6 +261,12 @@ fn get_app_info_internal(config: &Config) -> AppInfo {
         theme: settings.theme.unwrap_or_else(|| "dark".into()),
         priority_files: settings.priority_files.unwrap_or_default(),
         user_unchecked_priority: settings.user_unchecked_priority.unwrap_or_default(),
+        desk_assistant_enabled: settings.desk_assistant_enabled.unwrap_or(true),
+        remind_drink_water_min: settings.remind_drink_water_min.unwrap_or(45),
+        remind_stretch_min: settings.remind_stretch_min.unwrap_or(60),
+        lunch_time: settings.lunch_time.unwrap_or_else(|| "12:00".into()),
+        work_end_time: settings.work_end_time.unwrap_or_else(|| "17:30".into()),
+        work_start_time: settings.work_start_time.unwrap_or_else(|| "08:30".into()),
     }
 }
 
@@ -897,6 +921,12 @@ async fn app_info(app: AppHandle) -> AppInfo {
         theme: "dark".into(),
         priority_files: vec![],
         user_unchecked_priority: vec![],
+        desk_assistant_enabled: true,
+        remind_drink_water_min: 45,
+        remind_stretch_min: 60,
+        lunch_time: "12:00".into(),
+        work_end_time: "17:30".into(),
+        work_start_time: "08:30".into(),
     })
 }
 
@@ -956,6 +986,12 @@ async fn save_settings(app: AppHandle, settings: PersistedSettings) -> Result<Ap
         if settings.theme.is_some() { current.theme = settings.theme.clone(); }
         if settings.priority_files.is_some() { current.priority_files = settings.priority_files.clone(); }
         if settings.user_unchecked_priority.is_some() { current.user_unchecked_priority = settings.user_unchecked_priority.clone(); }
+        if settings.desk_assistant_enabled.is_some() { current.desk_assistant_enabled = settings.desk_assistant_enabled; }
+        if settings.remind_drink_water_min.is_some() { current.remind_drink_water_min = settings.remind_drink_water_min; }
+        if settings.remind_stretch_min.is_some() { current.remind_stretch_min = settings.remind_stretch_min; }
+        if settings.lunch_time.is_some() { current.lunch_time = settings.lunch_time.clone(); }
+        if settings.work_end_time.is_some() { current.work_end_time = settings.work_end_time.clone(); }
+        if settings.work_start_time.is_some() { current.work_start_time = settings.work_start_time.clone(); }
         save_persisted_settings(&current);
     }
 
@@ -1074,6 +1110,181 @@ async fn open_url(url: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
+fn send_taby_trigger(config: &Config, anim: &str, title: &str, subtext: &str, duration_ms: u64) {
+    let devices = if let Ok(cache) = config.devices_cache.lock() {
+        cache.clone()
+    } else {
+        vec![]
+    };
+    let selected_fp = config.selected_fingerprint.lock().ok().and_then(|fp| fp.clone());
+    let targets: Vec<DeviceInfo> = if let Some(ref fp) = selected_fp {
+        let filtered: Vec<DeviceInfo> = devices.iter().filter(|d| &d.fingerprint == fp).cloned().collect();
+        if filtered.is_empty() { devices } else { filtered }
+    } else {
+        devices
+    };
+
+    let dur_str = duration_ms.to_string();
+    for dev in targets {
+        let _ = adb(&[
+            "-s",
+            &dev.id,
+            "shell",
+            "am",
+            "broadcast",
+            "-a",
+            "com.example.bridge.TABY_TRIGGER",
+            "--es",
+            "anim",
+            anim,
+            "--es",
+            "title",
+            title,
+            "--es",
+            "subtext",
+            subtext,
+            "--el",
+            "duration",
+            &dur_str,
+        ]);
+    }
+}
+
+fn set_taby_mode_remote(config: &Config, enabled: bool) {
+    let devices = if let Ok(cache) = config.devices_cache.lock() {
+        cache.clone()
+    } else {
+        vec![]
+    };
+    let selected_fp = config.selected_fingerprint.lock().ok().and_then(|fp| fp.clone());
+    let targets: Vec<DeviceInfo> = if let Some(ref fp) = selected_fp {
+        let filtered: Vec<DeviceInfo> = devices.iter().filter(|d| &d.fingerprint == fp).cloned().collect();
+        if filtered.is_empty() { devices } else { filtered }
+    } else {
+        devices
+    };
+
+    for dev in targets {
+        let _ = adb(&[
+            "-s",
+            &dev.id,
+            "shell",
+            "am",
+            "broadcast",
+            "-a",
+            "com.example.bridge.SET_TABY_MODE",
+            "--ez",
+            "enabled",
+            if enabled { "true" } else { "false" },
+        ]);
+    }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+async fn trigger_taby_expression(
+    app: AppHandle,
+    anim: String,
+    title: String,
+    subtext: Option<String>,
+    duration_ms: Option<u64>,
+) -> Result<(), String> {
+    let config = app.state::<Config>().inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        send_taby_trigger(
+            &config,
+            &anim,
+            &title,
+            subtext.as_deref().unwrap_or(""),
+            duration_ms.unwrap_or(5000),
+        );
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+async fn set_taby_mode(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let config = app.state::<Config>().inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        set_taby_mode_remote(&config, enabled);
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+fn watch_taby_assistant(app: AppHandle) {
+    let config = app.state::<Config>().inner().clone();
+    thread::spawn(move || {
+        use std::time::Instant;
+        let mut last_water_instant = Instant::now();
+        let mut last_stretch_instant = Instant::now();
+        let mut last_greeting_day = String::new();
+        let mut last_lunch_day = String::new();
+        let mut last_clockout_day = String::new();
+
+        loop {
+            thread::sleep(Duration::from_secs(30));
+            let (enabled, water_min, stretch_min, lunch, clockout, greeting) = {
+                if let Ok(settings) = config.settings.lock() {
+                    (
+                        settings.desk_assistant_enabled.unwrap_or(true),
+                        settings.remind_drink_water_min.unwrap_or(45),
+                        settings.remind_stretch_min.unwrap_or(60),
+                        settings.lunch_time.clone().unwrap_or_else(|| "12:00".into()),
+                        settings.work_end_time.clone().unwrap_or_else(|| "17:30".into()),
+                        settings.work_start_time.clone().unwrap_or_else(|| "08:30".into()),
+                    )
+                } else {
+                    (true, 45, 60, "12:00".into(), "17:30".into(), "08:30".into())
+                }
+            };
+
+            if !enabled {
+                continue;
+            }
+
+            let now = chrono::Local::now();
+            let today = now.format("%Y-%m-%d").to_string();
+            let time_hm = now.format("%H:%M").to_string();
+            let now_instant = Instant::now();
+
+            // 1. Morning Greeting Alarm
+            if time_hm == greeting && last_greeting_day != today {
+                last_greeting_day = today.clone();
+                send_taby_trigger(&config, "love_01", "GOOD MORNING!", "Ready for a productive day!", 12000);
+            }
+
+            // 2. Lunch Break Alarm
+            if time_hm == lunch && last_lunch_day != today {
+                last_lunch_day = today.clone();
+                send_taby_trigger(&config, "break_start", "LUNCH BREAK!", "Take a nutritious meal & rest", 15000);
+            }
+
+            // 3. Clock Out Alarm
+            if time_hm == clockout && last_clockout_day != today {
+                last_clockout_day = today.clone();
+                send_taby_trigger(&config, "trophy", "CLOCK OUT TIME!", "Great work today! Time to head home.", 15000);
+            }
+
+            // 4. Hydration Reminder Interval
+            if water_min > 0 && now_instant.duration_since(last_water_instant) >= Duration::from_secs(water_min as u64 * 60) {
+                last_water_instant = now_instant;
+                send_taby_trigger(&config, "drink_water", "STAY HYDRATED!", "Drink a fresh glass of water", 8000);
+            }
+
+            // 5. Stretch / Posture Reminder Interval
+            if stretch_min > 0 && now_instant.duration_since(last_stretch_instant) >= Duration::from_secs(stretch_interval_min_calc(stretch_min)) {
+                last_stretch_instant = now_instant;
+                send_taby_trigger(&config, "stretching", "POSTURE & STRETCH", "Roll shoulders & stretch your body", 8000);
+            }
+        }
+    });
+}
+
+fn stretch_interval_min_calc(min: u32) -> u64 {
+    min as u64 * 60
+}
+
 fn start_usb_relay(app: AppHandle) {
     thread::spawn(move || {
         let listener = match std::net::TcpListener::bind("0.0.0.0:1421") {
@@ -1160,7 +1371,9 @@ fn main() {
             debug_adb,
             get_devices,
             open_url,
-            save_settings
+            save_settings,
+            trigger_taby_expression,
+            set_taby_mode
         ])
         .setup(|app| {
             setup_tray(app)?;
@@ -1178,6 +1391,7 @@ fn main() {
             watch_source(app.handle().clone());
             watch_samba(app.handle().clone());
             watch_adb_devices(app.handle().clone());
+            watch_taby_assistant(app.handle().clone());
             Ok(())
         })
         .build(tauri::generate_context!())

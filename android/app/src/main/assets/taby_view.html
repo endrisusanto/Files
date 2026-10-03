@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Taby Desk Assistant</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #000000;
+      color: #f4f4f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .desk-stage {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #000000;
+    }
+
+    .gif-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .taby-gif {
+      width: auto;
+      height: 100%;
+      max-width: 100%;
+      object-fit: contain;
+      background-color: #000000;
+      transform: rotate(90deg) scale(1.35);
+      transition: transform 0.2s ease;
+    }
+
+    .rot-0 { transform: rotate(0deg); }
+    .rot-90 { transform: rotate(90deg) scale(1.35); }
+    .rot-180 { transform: rotate(180deg); }
+    .rot-270 { transform: rotate(270deg) scale(1.35); }
+
+    /* Top Left Status Badge */
+    .top-badge {
+      position: absolute;
+      top: 14px;
+      left: 18px;
+      background: rgba(24, 24, 27, 0.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #38bdf8;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: ui-monospace, monospace;
+      z-index: 10;
+    }
+
+    /* Top Right Exit Button */
+    .exit-btn {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      background: rgba(24, 24, 27, 0.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #d4d4d8;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      z-index: 10;
+    }
+    .exit-btn:active {
+      background: rgba(63, 63, 70, 0.9);
+      color: #ffffff;
+    }
+
+    /* Bottom HUD status overlay */
+    .hud-overlay {
+      position: absolute;
+      bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      pointer-events: none;
+      z-index: 10;
+      max-width: 90%;
+    }
+    .hud-main {
+      font-size: 12px;
+      font-weight: 700;
+      color: #ffffff;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(14, 165, 233, 0.22);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      backdrop-filter: blur(8px);
+      padding: 6px 14px;
+      border-radius: 14px;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .hud-sub {
+      font-size: 10px;
+      color: #a1a1aa;
+      font-family: ui-monospace, monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 320px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="desk-stage" id="stage">
+    <div class="top-badge" id="topBadge">
+      <span id="badgeDot" style="color: #4ade80;">●</span>
+      <span id="badgeText">FIREFILES TABY</span>
+    </div>
+
+    <div class="exit-btn" id="exitBtn" onclick="onExit()">
+      <span>✕</span> Dashboard
+    </div>
+
+    <div class="gif-container">
+      <img id="tabyImage" class="taby-gif rot-90" src="taby/5e63dbe6.gif" alt="Taby Face" />
+    </div>
+
+    <div class="hud-overlay" id="hudOverlay">
+      <div class="hud-main" id="hudMain">
+        <span id="hudIcon">👀</span> <span id="hudText">STANDBY · IDLE</span>
+      </div>
+      <div class="hud-sub" id="hudSub"></div>
+    </div>
+  </div>
+
+  <script>
+    const tabyImg = document.getElementById("tabyImage");
+    const hudMain = document.getElementById("hudMain");
+    const hudIcon = document.getElementById("hudIcon");
+    const hudText = document.getElementById("hudText");
+    const hudSub = document.getElementById("hudSub");
+    const badgeText = document.getElementById("badgeText");
+
+    const ANIM_MAP = {
+      "idle": "5e63dbe6.gif",
+      "idle_01_loop": "5e63dbe6.gif",
+      "idle_variation_loop": "6d1a57d8.gif",
+      "working_loop": "ff09215b.gif",
+      "working_laptop_normal_loop": "ae5cd9c4.gif",
+      "working_laptop_excited_loop": "8d8c83cf.gif",
+      "task_completed": "2a3d7c56.gif",
+      "yeah": "a87f43aa.gif",
+      "copy_paste": "9ba1094c.gif",
+      "drink_water": "9da16b65.gif",
+      "stretching": "51374816.gif",
+      "posture_check": "cab8bb54.gif",
+      "break_start": "453f80ff.gif",
+      "relaxing_couch_loop": "f30dc7ed.gif",
+      "sleeping_loop": "c2433a43.gif",
+      "busy_loop": "120a9943.gif",
+      "waiting_01": "afd018ca.gif",
+      "disappointed": "fdf9d899.gif",
+      "love_01": "7f1c7a6d.gif",
+      "wow": "22e8e504.gif",
+      "blush": "d36d9279.gif",
+      "trophy": "3bbde2ff.gif",
+      "perfect_day_01": "ad8326e3.gif",
+      "thumbs_up": "2620c9f8.gif"
+    };
+
+    let resetTimer = null;
+
+    function playExpression(animKey, title, subtext, durationMs) {
+      if (resetTimer) {
+        clearTimeout(resetTimer);
+        resetTimer = null;
+      }
+
+      const file = ANIM_MAP[animKey] || (animKey.endsWith(".gif") ? animKey : ANIM_MAP["idle"]);
+      tabyImg.src = "taby/" + file;
+
+      if (title) {
+        hudText.textContent = title;
+      }
+      if (subtext) {
+        hudSub.textContent = subtext;
+        hudSub.style.display = "block";
+      } else {
+        hudSub.style.display = "none";
+      }
+
+      if (animKey.includes("work") || animKey.includes("push") || animKey.includes("samba")) {
+        hudIcon.textContent = "⚡";
+      } else if (animKey.includes("completed") || animKey.includes("yeah") || animKey.includes("trophy")) {
+        hudIcon.textContent = "🎉";
+      } else if (animKey.includes("drink")) {
+        hudIcon.textContent = "💧";
+      } else if (animKey.includes("stretch") || animKey.includes("posture")) {
+        hudIcon.textContent = "🧘";
+      } else if (animKey.includes("break") || animKey.includes("couch")) {
+        hudIcon.textContent = "🍱";
+      } else if (animKey.includes("copy")) {
+        hudIcon.textContent = "📋";
+      } else if (animKey.includes("busy") || animKey.includes("waiting")) {
+        hudIcon.textContent = "⏳";
+      } else {
+        hudIcon.textContent = "👀";
+      }
+
+      if (durationMs && durationMs > 0) {
+        resetTimer = setTimeout(() => {
+          playExpression("idle_01_loop", "STANDBY · IDLE", "", 0);
+        }, durationMs);
+      }
+    }
+
+    function setTransferProgress(speedText, percent, fileName) {
+      if (percent >= 100) {
+        playExpression("task_completed", "TRANSFER COMPLETE (100%)", fileName, 4000);
+      } else {
+        playExpression("working_loop", "UPLOADING · " + (speedText || "") + " (" + percent + "%)", fileName, 0);
+      }
+    }
+
+    function setAdbPushProgress(speedText, percent, fileName) {
+      if (percent >= 100) {
+        playExpression("task_completed", "PUSH COMPLETE (100%)", fileName, 4000);
+      } else {
+        playExpression("working_laptop_excited_loop", "ADB PUSH · " + (speedText || "") + " (" + percent + "%)", fileName, 0);
+      }
+    }
+
+    function setRotation(deg) {
+      tabyImg.className = "taby-gif rot-" + deg;
+    }
+
+    function onExit() {
+      if (window.AndroidBridge && window.AndroidBridge.closeFaceMode) {
+        window.AndroidBridge.closeFaceMode();
+      }
+    }
+
+    // Double tap anywhere on screen to exit
+    let lastTap = 0;
+    document.addEventListener("touchend", function(e) {
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        onExit();
+      }
+      lastTap = now;
+    });
+  </script>
+</body>
+</html>

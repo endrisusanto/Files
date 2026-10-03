@@ -67,6 +67,8 @@ class MainActivity : Activity() {
     private var wasTransferring = false
     private lateinit var confettiView: ConfettiView
     private var lastTauriFiles: org.json.JSONArray? = null
+    private lateinit var tabyView: TabyAssistantView
+    private var isTabyMode = false
     private val debugLines = ArrayDeque<String>()
     private val transferProgressMap = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val fileExpectedSizeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
@@ -82,6 +84,31 @@ class MainActivity : Activity() {
     @Volatile private var usbRelayConnected = false
     @Volatile private var lastUsbRelaySuccessTime = 0L
     private var lastWsAttempt = 0L
+
+    private val tabyReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent == null) return
+            when (intent.action) {
+                "com.example.bridge.TABY_TRIGGER" -> {
+                    val anim = intent.getStringExtra("anim") ?: "idle_01_loop"
+                    val title = intent.getStringExtra("title") ?: "FIREFILES TABY"
+                    val subtext = intent.getStringExtra("subtext") ?: ""
+                    val duration = intent.getLongExtra("duration", 0L)
+                    runOnUiThread {
+                        if (::tabyView.isInitialized) {
+                            tabyView.playExpression(anim, title, subtext, duration)
+                        }
+                    }
+                }
+                "com.example.bridge.SET_TABY_MODE" -> {
+                    val enabled = intent.getBooleanExtra("enabled", true)
+                    runOnUiThread {
+                        setTabyMode(enabled)
+                    }
+                }
+            }
+        }
+    }
 
     private fun styleButton(button: Button, isPrimary: Boolean) {
         val gd = GradientDrawable().apply {
@@ -180,6 +207,10 @@ class MainActivity : Activity() {
                     transferSpeedMap.isNotEmpty() ||
                     adbPushSpeedMap.values.sum() > 0L
             updatePowerSavingBrightness(isTransferActive)
+
+            if (isTabyMode && ::tabyView.isInitialized && BridgeService.currentFile.isNotEmpty()) {
+                tabyView.setTransferProgress("${BridgeService.currentProgress}%", BridgeService.currentProgress, BridgeService.currentFile)
+            }
             
             if (activeTab == 1) {
                 val files = md5Files()
@@ -354,6 +385,23 @@ class MainActivity : Activity() {
                     }
                 }
                 
+                val tabyBtn = TextView(this@MainActivity).apply {
+                    text = "🤖 Desk Mode"
+                    textSize = 12f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    setTextColor(0xff38bdf8.toInt())
+                    val bg = GradientDrawable().apply {
+                        setColor(0xff1e293b.toInt())
+                        cornerRadius = 14f
+                        setStroke(2, 0xff0284c7.toInt())
+                    }
+                    background = bg
+                    setPadding(18, 8, 18, 8)
+                    setOnClickListener {
+                        setTabyMode(!isTabyMode)
+                    }
+                }
+                
                 collapseBtn = TextView(this@MainActivity).apply {
                     text = "Minimize"
                     textSize = 12f
@@ -367,6 +415,7 @@ class MainActivity : Activity() {
                 }
                 
                 addView(titleTv, LinearLayout.LayoutParams(0, -2, 1.0f))
+                addView(tabyBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = 8 })
                 addView(collapseBtn, LinearLayout.LayoutParams(-2, -2))
             }
             
@@ -520,12 +569,33 @@ class MainActivity : Activity() {
             visibility = View.GONE
         }
 
+        tabyView = TabyAssistantView(this).apply {
+            visibility = View.GONE
+            onExitListener = { setTabyMode(false) }
+        }
+
         val mainContainer = FrameLayout(this).apply {
             addView(rootLayout, FrameLayout.LayoutParams(-1, -1))
             addView(confettiView, FrameLayout.LayoutParams(-1, -1))
+            addView(tabyView, FrameLayout.LayoutParams(-1, -1))
         }
 
         setContentView(mainContainer)
+
+        val tabyFilter = IntentFilter().apply {
+            addAction("com.example.bridge.TABY_TRIGGER")
+            addAction("com.example.bridge.SET_TABY_MODE")
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(tabyReceiver, tabyFilter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(tabyReceiver, tabyFilter)
+        }
+
+        val savedTabyMode = getSharedPreferences("bridge", Context.MODE_PRIVATE).getBoolean("taby_mode", false)
+        if (savedTabyMode) {
+            setTabyMode(true)
+        }
 
         // ponytail: hide status bar and navigation bar for immersive fullscreen (must be set after contentView)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -556,7 +626,24 @@ class MainActivity : Activity() {
         refreshStatus()
     }
 
+    private fun setTabyMode(enabled: Boolean) {
+        isTabyMode = enabled
+        if (::tabyView.isInitialized) {
+            tabyView.visibility = if (enabled) View.VISIBLE else View.GONE
+            if (enabled) {
+                tabyView.playExpression("idle_01_loop", "STANDBY · IDLE", "", 0)
+                updatePowerSavingBrightness(true)
+            }
+        }
+        getSharedPreferences("bridge", Context.MODE_PRIVATE).edit()
+            .putBoolean("taby_mode", enabled)
+            .apply()
+    }
+
     override fun onDestroy() {
+        try {
+            unregisterReceiver(tabyReceiver)
+        } catch (_: Exception) {}
         handler.removeCallbacks(sampleNetwork)
         closeWebSocket()
         super.onDestroy()
@@ -1096,8 +1183,25 @@ class MainActivity : Activity() {
                                         } else {
                                             adbPushSpeedMap[file] = 0L
                                         }
+                                        if (isTabyMode && ::tabyView.isInitialized) {
+                                            val speedText = if (speedMbps > 0.0) "%.2f MB/s".format(speedMbps) else ""
+                                            tabyView.setAdbPushProgress(speedText, percent, file)
+                                        }
                                         updateProgressList()
                                     }
+                                }
+                                "taby_trigger" -> {
+                                    val anim = json.optString("anim", "idle_01_loop")
+                                    val title = json.optString("title", "FIREFILES TABY")
+                                    val subtext = json.optString("subtext", "")
+                                    val duration = json.optLong("duration_ms", json.optLong("duration", 0L))
+                                    if (::tabyView.isInitialized) {
+                                        tabyView.playExpression(anim, title, subtext, duration)
+                                    }
+                                }
+                                "set_taby_mode" -> {
+                                    val enabled = json.optBoolean("enabled", true)
+                                    setTabyMode(enabled)
                                 }
                                 "refresh" -> {
                                     appendLog("Remote command: refresh")

@@ -37,6 +37,12 @@ type AppInfo = {
   theme?: 'light' | 'dark';
   priority_files?: string[];
   user_unchecked_priority?: string[];
+  desk_assistant_enabled?: boolean;
+  remind_drink_water_min?: number;
+  remind_stretch_min?: number;
+  lunch_time?: string;
+  work_end_time?: string;
+  work_start_time?: string;
 };
 
 const fileGb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
@@ -260,6 +266,33 @@ export default function App() {
   const [hasNewUpdate, setHasNewUpdate] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
 
+  // Desk Assistant State
+  const [deskAssistantEnabled, setDeskAssistantEnabled] = useState<boolean>(true);
+  const [waterInterval, setWaterInterval] = useState<number>(45);
+  const [stretchInterval, setStretchInterval] = useState<number>(60);
+  const [lunchTime, setLunchTime] = useState<string>("12:00");
+  const [clockoutTime, setClockoutTime] = useState<string>("17:30");
+  const [workStartTime, setWorkStartTime] = useState<string>("08:30");
+  const [triggerSending, setTriggerSending] = useState<string>("");
+
+  const triggerExpression = (anim: string, title: string, subtext: string = "", durationMs: number = 6000) => {
+    setTriggerSending(anim);
+    invoke("trigger_taby_expression", {
+      anim,
+      title,
+      subtext,
+      duration_ms: durationMs,
+    })
+      .catch((err) => console.error("Failed to trigger expression:", err))
+      .finally(() => setTimeout(() => setTriggerSending(""), 1500));
+  };
+
+  const toggleDeskMode = (enabled: boolean) => {
+    setDeskAssistantEnabled(enabled);
+    persistSetting({ desk_assistant_enabled: enabled });
+    invoke("set_taby_mode", { enabled }).catch((err) => console.error("Failed to set desk mode:", err));
+  };
+
   const persistSetting = (patch: Record<string, any>) => {
     invoke("save_settings", { settings: patch }).catch((err) => {
       console.error("[bridge-ui] Failed to persist settings to disk:", err);
@@ -409,6 +442,18 @@ export default function App() {
           setUserUncheckedPriority(new Set(value.user_unchecked_priority));
           localStorage.setItem("user_unchecked_priority", JSON.stringify(value.user_unchecked_priority));
         }
+        if (typeof value.desk_assistant_enabled === "boolean") {
+          setDeskAssistantEnabled(value.desk_assistant_enabled);
+        }
+        if (typeof value.remind_drink_water_min === "number") {
+          setWaterInterval(value.remind_drink_water_min);
+        }
+        if (typeof value.remind_stretch_min === "number") {
+          setStretchInterval(value.remind_stretch_min);
+        }
+        if (value.lunch_time) setLunchTime(value.lunch_time);
+        if (value.work_end_time) setClockoutTime(value.work_end_time);
+        if (value.work_start_time) setWorkStartTime(value.work_start_time);
         appendLog(`app_info source=${value.source_dir} samba=${value.samba_dir}`);
       })
       .catch((e) => {
@@ -1110,6 +1155,82 @@ export default function App() {
           const liveAdbBps = adbPushBpsRef.current || (transfer?.percent && transfer.percent < 100 ? (transfer.speed_bps || 0) : 0);
           return <NetworkChart samples={network} sambaBps={liveSambaBps} adbBps={liveAdbBps} />;
         })()}
+
+        {/* Taby Desk Assistant Interactive Quick Bar */}
+        <section className="rounded-xl border border-gray-250/90 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/90 p-3.5 shadow-xs backdrop-blur-md transition-colors">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🤖</span>
+              <div>
+                <h3 className="text-xs font-bold text-gray-800 dark:text-zinc-100 flex items-center gap-2">
+                  Taby Desk Assistant Companion
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-sky-500/30 bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-300">
+                    Live Phone Bridge
+                  </span>
+                </h3>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => toggleDeskMode(!deskAssistantEnabled)}
+                className={`px-3 py-1 text-xs font-bold rounded-lg border flex items-center gap-1.5 transition-all cursor-pointer ${
+                  deskAssistantEnabled
+                    ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
+                    : "border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                }`}
+              >
+                <span>{deskAssistantEnabled ? "● Assistant Active" : "○ Assistant Standby"}</span>
+              </button>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-gray-200 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-zinc-300 transition cursor-pointer"
+                title="Configure Wellness & Schedule Reminders"
+              >
+                ⚙️ Timers
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Expression Triggers */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            <button
+              onClick={() => triggerExpression("drink_water", "STAY HYDRATED!", "Time for a fresh glass of water", 7000)}
+              className="px-2 py-1.5 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <span>💧</span> <span>Hydrate</span>
+            </button>
+            <button
+              onClick={() => triggerExpression("stretching", "POSTURE & STRETCH", "Roll shoulders & sit upright", 7000)}
+              className="px-2 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <span>🧘</span> <span>Stretch</span>
+            </button>
+            <button
+              onClick={() => triggerExpression("break_start", "LUNCH BREAK!", "Enjoy your meal & rest", 10000)}
+              className="px-2 py-1.5 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <span>🍱</span> <span>Lunch</span>
+            </button>
+            <button
+              onClick={() => triggerExpression("trophy", "CLOCK OUT TIME!", "Great work today! Time to go home.", 10000)}
+              className="px-2 py-1.5 rounded-lg border border-purple-200 dark:border-purple-900/50 bg-purple-50/50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <span>🏠</span> <span>Clock Out</span>
+            </button>
+            <button
+              onClick={() => triggerExpression("thumbs_up", "GREAT JOB!", "Keep up the momentum", 6000)}
+              className="px-2 py-1.5 rounded-lg border border-orange-200 dark:border-orange-900/50 bg-orange-50/50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <span>👏</span> <span>Good Job</span>
+            </button>
+            <button
+              onClick={() => triggerExpression("love_01", "GOOD MORNING!", "Ready for a productive day!", 6000)}
+              className="px-2 py-1.5 rounded-lg border border-pink-200 dark:border-pink-900/50 bg-pink-50/50 dark:bg-pink-950/30 hover:bg-pink-100 dark:hover:bg-pink-900/50 text-pink-700 dark:text-pink-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <span>💖</span> <span>Greeting</span>
+            </button>
+          </div>
+        </section>
 
         {/* Unified 3-Tab Local Staging & Pipeline Card */}
         <section className="ff-card overflow-hidden">
@@ -1820,6 +1941,98 @@ export default function App() {
                     ? "Transferred files are safely moved into the local BACKUP subfolder after successful push."
                     : "Transferred files are permanently removed from the source folder on your PC after successful push."}
                 </p>
+              </div>
+
+              {/* Taby Desk Assistant Configuration Section in Settings */}
+              <div className="rounded-xl border border-gray-250/90 dark:border-zinc-800 p-3.5 bg-gray-50 dark:bg-zinc-900/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">🤖</span>
+                    <span className="text-xs font-bold text-gray-900 dark:text-zinc-100">Taby Desk Assistant Timers</span>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs font-bold text-gray-700 dark:text-zinc-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={deskAssistantEnabled}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setDeskAssistantEnabled(checked);
+                        persistSetting({ desk_assistant_enabled: checked });
+                        invoke("set_taby_mode", { enabled: checked }).catch(() => {});
+                      }}
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    Enabled
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1">
+                      💧 Water Interval (min)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="240"
+                      value={waterInterval}
+                      onChange={(e) => {
+                        const v = Number(e.target.value) || 0;
+                        setWaterInterval(v);
+                        persistSetting({ remind_drink_water_min: v });
+                      }}
+                      className="w-full rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs text-gray-900 dark:text-zinc-100 outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1">
+                      🧘 Stretch Interval (min)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="240"
+                      value={stretchInterval}
+                      onChange={(e) => {
+                        const v = Number(e.target.value) || 0;
+                        setStretchInterval(v);
+                        persistSetting({ remind_stretch_min: v });
+                      }}
+                      className="w-full rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs text-gray-900 dark:text-zinc-100 outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1">
+                      🍱 Lunch Time (HH:MM)
+                    </label>
+                    <input
+                      type="time"
+                      value={lunchTime}
+                      onChange={(e) => {
+                        setLunchTime(e.target.value);
+                        persistSetting({ lunch_time: e.target.value });
+                      }}
+                      className="w-full rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs text-gray-900 dark:text-zinc-100 outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-zinc-400 mb-1">
+                      🏠 Clock Out (HH:MM)
+                    </label>
+                    <input
+                      type="time"
+                      value={clockoutTime}
+                      onChange={(e) => {
+                        setClockoutTime(e.target.value);
+                        persistSetting({ work_end_time: e.target.value });
+                      }}
+                      className="w-full rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs text-gray-900 dark:text-zinc-100 outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Software Updates Section in Settings */}
