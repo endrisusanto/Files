@@ -1696,18 +1696,28 @@
     ];
 
     const DEFAULT_TABY_MAP = {
-      idle: "5e63dbe6.gif",
-      work_normal: "ae5cd9c4.gif",
-      work_fast: "8d8c83cf.gif",
-      copy_paste: "9ba1094c.gif",
-      high_load: "120a9943.gif",
-      transfer_active: "ff09215b.gif",
-      transfer_done: "2a3d7c56.gif",
-      drink_water: "9da16b65.gif",
-      stretching: "51374816.gif",
-      lunch_break: "453f80ff.gif",
-      clock_out: "3bbde2ff.gif",
-      greeting: "7f1c7a6d.gif"
+      idle: "5e63dbe6.gif",               // idle_01_loop
+      idle_music: "5ea6c03d.gif",         // listening_music_loop
+      idle_away: "c2433a43.gif",          // sleeping_loop
+      work_normal: "ae5cd9c4.gif",        // working_laptop_normal_loop
+      work_fast: "01516801.gif",          // f1_car
+      work_excited: "8d8c83cf.gif",       // working_laptop_excited_loop
+      copy_paste: "9ba1094c.gif",         // copy_paste
+      creating_task: "820fb8d5.gif",      // creating_task_loop
+      high_load: "120a9943.gif",          // busy_loop
+      searching: "4bbe8926.gif",          // searching_loop
+      transfer_active: "ff09215b.gif",    // working_loop
+      transfer_done: "2a3d7c56.gif",      // task_completed
+      thumbs_up: "2620c9f8.gif",          // thumbs_up
+      trophy: "3bbde2ff.gif",             // trophy
+      drink_water: "9da16b65.gif",        // drink_water
+      stretching: "51374816.gif",         // stretching
+      posture_check: "cab8bb54.gif",      // posture_check
+      break_start: "453f80ff.gif",        // break_start
+      lunch_break: "453f80ff.gif",        // break_start
+      clock_out: "ad8326e3.gif",          // perfect_day_01
+      greeting: "7f1c7a6d.gif",           // love_01
+      focus_mode: "f821100d.gif"          // lockin
     };
 
     let studioCurrentCategory = "ALL";
@@ -1988,25 +1998,35 @@
       if ($("tabyHudCheck")) $("tabyHudCheck").checked = hud;
 
       const events = [
-        { key: "idle", label: "💤 Standby / Idle Mode", defaultTitle: "STANDBY · IDLE" },
-        { key: "work_normal", label: "💻 Typing / Work Normal", defaultTitle: "WORKING · TYPING" },
-        { key: "work_fast", label: "⚡ High Intensity / Fast Work", defaultTitle: "CODING · MAXIMUM FOCUS" },
-        { key: "copy_paste", label: "📋 Copy & Paste Action", defaultTitle: "ACTION · COPIED TO CLIPBOARD" },
-        { key: "high_load", label: "⏳ System Busy / High Load", defaultTitle: "SYSTEM BUSY · COMPILING" },
-        { key: "transfer_active", label: "📁 File Ingest / Push Transfer", defaultTitle: "TRANSFERRING FILE" },
-        { key: "transfer_done", label: "🎉 File Transfer Complete 100%", defaultTitle: "TRANSFER COMPLETE!" },
-        { key: "drink_water", label: "💧 Minum Air / Hydration Alarm", defaultTitle: "TIME TO DRINK WATER!" },
-        { key: "stretching", label: "🧘 Gerak / Posture Stretch Alarm", defaultTitle: "POSTURE & STRETCH BREAK!" },
-        { key: "lunch_break", label: "🍱 Istirahat Makan Siang Alarm", defaultTitle: "LUNCH BREAK TIME!" },
-        { key: "clock_out", label: "🏠 Jam Pulang / Clock Out Alarm", defaultTitle: "CLOCK OUT · GREAT WORK TODAY!" },
-        { key: "greeting", label: "💖 Greeting Masuk Kerja", defaultTitle: "GOOD MORNING · READY TO CODE!" }
+        { key: "idle", label: "💤 Standby / Idle Normal", defaultTitle: "STANDBY · IDLE" },
+        { key: "idle_music", label: "🎵 Dengarkan Musik / Relaxing", defaultTitle: "ENJOYING MUSIC" },
+        { key: "idle_away", label: "😴 Away / Layar Istirahat", defaultTitle: "TAKING A BREAK" },
+        { key: "work_normal", label: "💻 Coding / Typing Normal", defaultTitle: "WORKING · TYPING" },
+        { key: "work_fast", label: "⚡ High Intensity / Fast Sprint", defaultTitle: "TURBO SPEED · SPRINT" },
+        { key: "work_excited", label: "🔥 Excited / Deep Focus", defaultTitle: "DEEP WORK · EXCITED" },
+        { key: "copy_paste", label: "📋 Clipboard / Copy & Paste", defaultTitle: "COPIED TO CLIPBOARD" },
+        { key: "creating_task", label: "📝 Membuat Task / Workflow Baru", defaultTitle: "CREATING TASK" },
+        { key: "high_load", label: "⏳ System Busy / Compiling High Load", defaultTitle: "SYSTEM BUSY · COMPILING" },
+        { key: "searching", label: "🔍 Searching / Query Files", defaultTitle: "SEARCHING FILES" },
+        { key: "transfer_active", label: "📁 Upload / Ingest File Aktif", defaultTitle: "TRANSFERRING FILE" },
+        { key: "transfer_done", label: "🎉 Transfer Sukses 100%", defaultTitle: "TRANSFER COMPLETE!" },
+        { key: "thumbs_up", label: "👍 Konfirmasi / Review Disetujui", defaultTitle: "APPROVED · YES!" },
+        { key: "trophy", label: "🏆 Milestone / Target Tercapai", defaultTitle: "TARGET ACHIEVED!" },
+        { key: "drink_water", label: "💧 Pengingat Minum Air (Hydrate)", defaultTitle: "TIME TO DRINK WATER!" },
+        { key: "stretching", label: "🧘 Pengingat Peregangan (Stretch)", defaultTitle: "POSTURE & STRETCH BREAK!" },
+        { key: "posture_check", label: "👁️ Pengingat Postur & Istirahat Mata", defaultTitle: "POSTURE CHECK!" },
+        { key: "break_start", label: "☕ Waktu Rehat Kopi / Santai", defaultTitle: "COFFEE BREAK TIME!" },
+        { key: "lunch_break", label: "🍱 Istirahat Makan Siang", defaultTitle: "LUNCH BREAK TIME!" },
+        { key: "clock_out", label: "🏠 Jam Pulang / Great Job Hari Ini", defaultTitle: "CLOCK OUT · GREAT WORK!" },
+        { key: "greeting", label: "💖 Semangat Masuk Kerja (Greeting)", defaultTitle: "GOOD MORNING · READY!" },
+        { key: "focus_mode", label: "🎯 Lock-In / Mode Fokus Penuh", defaultTitle: "LOCK IN · NO DISTRACTIONS" }
       ];
 
       const tbody = $("tabyEventTableBody");
       if (!tbody) return;
 
       tbody.innerHTML = events.map(ev => {
-        const curFile = map[ev.key] || DEFAULT_TABY_MAP[ev.key];
+        const curFile = map[ev.key] || DEFAULT_TABY_MAP[ev.key] || "5e63dbe6.gif";
         const optionsHtml = TABY_STUDIO_ITEMS.map(opt => 
           `<option value="${opt.file}" ${opt.file === curFile ? 'selected' : ''}>[${opt.category}] ${opt.id} · ${opt.label}</option>`
         ).join("");
@@ -2044,7 +2064,12 @@
 
     function saveStudioMapping() {
       const map = {};
-      const keys = ["idle", "work_normal", "work_fast", "copy_paste", "high_load", "transfer_active", "transfer_done", "drink_water", "stretching", "lunch_break", "clock_out", "greeting"];
+      const keys = [
+        "idle", "idle_music", "idle_away", "work_normal", "work_fast", "work_excited",
+        "copy_paste", "creating_task", "high_load", "searching", "transfer_active",
+        "transfer_done", "thumbs_up", "trophy", "drink_water", "stretching",
+        "posture_check", "break_start", "lunch_break", "clock_out", "greeting", "focus_mode"
+      ];
       keys.forEach(k => {
         const el = $("map_" + k);
         if (el) map[k] = el.value;
@@ -2082,13 +2107,16 @@
 
     const DEFAULT_TABY_ALARMS_CONFIG = {
       reminders: [
-        { id: "rem_1", enabled: true, intervalMin: 45, text: "Minum Air & Hidrasi", subtext: "💧 Desk Health Reminder", anim: "daily_05_drink" },
-        { id: "rem_2", enabled: true, intervalMin: 60, text: "Peregangan Badan & Postur", subtext: "🧘 Desk Health Reminder", anim: "sports_01_stretching" }
+        { id: "rem_1", enabled: true, intervalMin: 45, text: "Minum Air & Hidrasi", subtext: "💧 Desk Health Reminder", anim: "drink_water" },
+        { id: "rem_2", enabled: true, intervalMin: 60, text: "Peregangan Bahu & Postur", subtext: "🧘 Desk Health Reminder", anim: "stretching" },
+        { id: "rem_3", enabled: true, intervalMin: 90, text: "Cek Postur & Istirahat Mata", subtext: "👁️ Desk Health Reminder", anim: "posture_check" },
+        { id: "rem_4", enabled: true, intervalMin: 120, text: "Jalan Santai & Refresh Pikiran", subtext: "🚶 Walk Around", anim: "flower_grow" }
       ],
       alarms: [
-        { id: "alm_1", enabled: true, time: "08:30", text: "Selamat Pagi!", subtext: "💖 Morning Greeting", anim: "daily_01_wakeup" },
-        { id: "alm_2", enabled: true, time: "12:00", text: "Istirahat Makan Siang", subtext: "🍱 Lunch Break", anim: "daily_04_eating" },
-        { id: "alm_3", enabled: true, time: "17:30", text: "Jam Pulang Kerja", subtext: "🏠 Clock Out", anim: "work_04_finished" }
+        { id: "alm_1", enabled: true, time: "08:30", text: "Semangat Pagi & Siap Ngoding!", subtext: "💖 Morning Greeting", anim: "love_01" },
+        { id: "alm_2", enabled: true, time: "12:00", text: "Istirahat & Makan Siang", subtext: "🍱 Lunch Break", anim: "break_start" },
+        { id: "alm_3", enabled: true, time: "15:30", text: "Coffee Break & Rehat Sejenak", subtext: "☕ Afternoon Coffee", anim: "listening_music_loop" },
+        { id: "alm_4", enabled: true, time: "17:30", text: "Jam Pulang Kerja, Kerja Bagus Hari Ini!", subtext: "🏠 Clock Out", anim: "perfect_day_01" }
       ],
       durationSec: 10
     };
