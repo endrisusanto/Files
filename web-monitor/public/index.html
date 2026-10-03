@@ -1653,7 +1653,7 @@
       const modal = $("tabyStudioModal");
       if (modal) {
         modal.style.display = "flex";
-        studioRotation = localStorage.getItem("taby_rotation") || "90";
+        studioRotation = localStorage.getItem("taby_rotation") || "270";
         studioHudVisible = localStorage.getItem("taby_hud_visible") !== "false";
         setStudioRotation(studioRotation, false);
         toggleStudioHud(studioHudVisible, false);
@@ -1893,7 +1893,7 @@
 
     function populateStudioMappingForm() {
       const map = getSavedTabyMap();
-      const rot = localStorage.getItem("taby_rotation") || "90";
+      const rot = localStorage.getItem("taby_rotation") || "270";
       const hud = localStorage.getItem("taby_hud_visible") !== "false";
 
       if ($("tabyRotSelect")) $("tabyRotSelect").value = rot;
@@ -2088,8 +2088,8 @@
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 11px; font-weight: 700; color: var(--text-secondary);">Device Startup Orientation:</span>
               <select id="tabyRotSelect" style="background: var(--bg-surface); color: var(--text-primary); font-weight: 700; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 11px;">
-                <option value="90" selected>90° (Upright Stand - Default)</option>
-                <option value="270">270° (Reverse Upright Stand)</option>
+                <option value="270" selected>270° (Upright Stand - Default)</option>
+                <option value="90">90° (Reverse Upright Stand)</option>
                 <option value="0">0° (Horizontal Normal)</option>
                 <option value="180">180° (Inverted Horizontal)</option>
               </select>

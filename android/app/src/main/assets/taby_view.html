@@ -33,6 +33,7 @@
       align-items: center;
       justify-content: center;
       background-color: #000000;
+      touch-action: manipulation;
     }
 
     .gif-container {
@@ -41,6 +42,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      pointer-events: none;
     }
 
     .taby-gif {
@@ -49,7 +51,7 @@
       max-width: 100%;
       object-fit: contain;
       background-color: #000000;
-      transform: rotate(90deg) scale(1.35);
+      transform: rotate(270deg) scale(1.35);
       transition: transform 0.2s ease;
     }
 
@@ -58,125 +60,150 @@
     .rot-180 { transform: rotate(180deg); }
     .rot-270 { transform: rotate(270deg) scale(1.35); }
 
-    /* Top Left Status Badge */
-    .top-badge {
+    /* Minimal Distraction-Free UI Layer with Auto Fade */
+    .ui-layer {
       position: absolute;
-      top: 14px;
-      left: 18px;
-      background: rgba(24, 24, 27, 0.75);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #38bdf8;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 5px 12px;
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-family: ui-monospace, monospace;
-      z-index: 10;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 20;
     }
 
-    /* Top Right Exit Button */
-    .exit-btn {
+    .ui-layer.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Top Left Status Dot Only */
+    .top-dot-badge {
       position: absolute;
-      top: 14px;
-      right: 18px;
-      background: rgba(24, 24, 27, 0.75);
+      top: 16px;
+      left: 18px;
+      width: 28px;
+      height: 28px;
+      background: rgba(22, 27, 34, 0.7);
       backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #d4d4d8;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 5px 12px;
-      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
       display: flex;
       align-items: center;
-      gap: 5px;
-      cursor: pointer;
-      z-index: 10;
+      justify-content: center;
     }
-    .exit-btn:active {
-      background: rgba(63, 63, 70, 0.9);
-      color: #ffffff;
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3fb950;
+      box-shadow: 0 0 8px #3fb950;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Top Right Minimal Exit X Button */
+    .exit-btn-minimal {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      width: 28px;
+      height: 28px;
+      background: rgba(22, 27, 34, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #8b949e;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .exit-btn-minimal:active {
+      background: rgba(248, 81, 73, 0.3);
+      color: #f85149;
+      border-color: #f85149;
     }
 
     /* Bottom HUD status overlay */
     .hud-overlay {
       position: absolute;
       bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 4px;
       pointer-events: none;
-      z-index: 10;
       max-width: 90%;
     }
     .hud-main {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
-      color: #ffffff;
+      color: #f0f6fc;
       font-family: ui-monospace, SFMono-Regular, monospace;
       display: flex;
       align-items: center;
       gap: 6px;
-      background: rgba(14, 165, 233, 0.22);
-      border: 1px solid rgba(56, 189, 248, 0.45);
+      background: rgba(22, 27, 34, 0.85);
+      border: 1px solid rgba(56, 139, 253, 0.4);
       backdrop-filter: blur(8px);
-      padding: 6px 14px;
-      border-radius: 14px;
+      padding: 5px 14px;
+      border-radius: 12px;
       text-align: center;
       letter-spacing: 0.5px;
     }
     .hud-sub {
-      font-size: 10px;
-      color: #a1a1aa;
+      font-size: 9px;
+      color: #8b949e;
       font-family: ui-monospace, monospace;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 320px;
+      max-width: 280px;
     }
   </style>
 </head>
 <body>
 
-  <div class="desk-stage" id="stage">
-    <div class="top-badge" id="topBadge">
-      <span id="badgeDot" style="color: #4ade80;">●</span>
-      <span id="badgeText">FIREFILES TABY</span>
-    </div>
-
-    <!-- Quick Flip Button -->
-    <div class="top-badge" id="flipBtn" onclick="cycleRotation()" style="left: 140px; cursor: pointer; color: #58a6ff; border-color: rgba(88,166,255,0.3);">
-      <span>🔄</span> <span>Flip</span>
-    </div>
-
-    <div class="exit-btn" id="exitBtn" onclick="onExit()">
-      <span>✕</span> Dashboard
-    </div>
-
+  <div class="desk-stage" id="stage" onclick="onStageTap()">
     <div class="gif-container">
-      <img id="tabyImage" class="taby-gif rot-90" src="taby/5e63dbe6.gif" alt="Taby Face" />
+      <img id="tabyImage" class="taby-gif rot-270" src="taby/5e63dbe6.gif" alt="Taby Face" />
     </div>
 
-    <div class="hud-overlay" id="hudOverlay">
-      <div class="hud-main" id="hudMain">
-        <span id="hudIcon">👀</span> <span id="hudText">STANDBY · IDLE</span>
+    <!-- Minimal Overlay Layer (auto fades) -->
+    <div class="ui-layer" id="uiLayer">
+      <div class="top-dot-badge" id="topBadge" title="Hub Online">
+        <span class="pulse-dot"></span>
       </div>
-      <div class="hud-sub" id="hudSub"></div>
+
+      <div class="exit-btn-minimal" id="exitBtn" onclick="onExit(event)" title="Exit to Dashboard">
+        ✕
+      </div>
+
+      <div class="hud-overlay" id="hudOverlay">
+        <div class="hud-main" id="hudMain">
+          <span id="hudIcon">👀</span> <span id="hudText">STANDBY · IDLE</span>
+        </div>
+        <div class="hud-sub" id="hudSub" style="display: none;"></div>
+      </div>
     </div>
   </div>
 
   <script>
     const tabyImg = document.getElementById("tabyImage");
+    const uiLayer = document.getElementById("uiLayer");
     const hudMain = document.getElementById("hudMain");
     const hudIcon = document.getElementById("hudIcon");
     const hudText = document.getElementById("hudText");
     const hudSub = document.getElementById("hudSub");
-    const badgeText = document.getElementById("badgeText");
 
     const ANIM_MAP = {
       "idle": "5e63dbe6.gif",
@@ -206,6 +233,22 @@
     };
 
     let resetTimer = null;
+    let fadeTimer = null;
+    let isTransferring = false;
+
+    function showUiBriefly(durationMs = 3500) {
+      uiLayer.classList.add("visible");
+      if (fadeTimer) clearTimeout(fadeTimer);
+      if (!isTransferring) {
+        fadeTimer = setTimeout(() => {
+          uiLayer.classList.remove("visible");
+        }, durationMs);
+      }
+    }
+
+    function onStageTap() {
+      showUiBriefly(3500);
+    }
 
     function playExpression(animKey, title, subtext, durationMs) {
       if (resetTimer) {
@@ -216,9 +259,7 @@
       const file = ANIM_MAP[animKey] || (animKey.endsWith(".gif") ? animKey : ANIM_MAP["idle"]);
       tabyImg.src = "taby/" + file;
 
-      if (title) {
-        hudText.textContent = title;
-      }
+      if (title) hudText.textContent = title;
       if (subtext) {
         hudSub.textContent = subtext;
         hudSub.style.display = "block";
@@ -244,6 +285,10 @@
         hudIcon.textContent = "👀";
       }
 
+      if (animKey !== "idle" && animKey !== "idle_01_loop") {
+        showUiBriefly(durationMs && durationMs > 0 ? durationMs : 3500);
+      }
+
       if (durationMs && durationMs > 0) {
         resetTimer = setTimeout(() => {
           playExpression("idle_01_loop", "STANDBY · IDLE", "", 0);
@@ -253,34 +298,33 @@
 
     function setTransferProgress(speedText, percent, fileName) {
       if (percent >= 100) {
+        isTransferring = false;
         playExpression("task_completed", "TRANSFER COMPLETE (100%)", fileName, 4000);
+        showUiBriefly(4000);
       } else {
+        isTransferring = true;
+        uiLayer.classList.add("visible");
         playExpression("working_loop", "UPLOADING · " + (speedText || "") + " (" + percent + "%)", fileName, 0);
       }
     }
 
     function setAdbPushProgress(speedText, percent, fileName) {
       if (percent >= 100) {
+        isTransferring = false;
         playExpression("task_completed", "PUSH COMPLETE (100%)", fileName, 4000);
+        showUiBriefly(4000);
       } else {
+        isTransferring = true;
+        uiLayer.classList.add("visible");
         playExpression("working_laptop_excited_loop", "ADB PUSH · " + (speedText || "") + " (" + percent + "%)", fileName, 0);
       }
     }
 
-    let currentRot = Number(localStorage.getItem("taby_rotation")) || 90;
+    let currentRot = Number(localStorage.getItem("taby_rotation")) || 270;
 
     function setRotation(deg) {
       currentRot = deg;
       tabyImg.className = "taby-gif rot-" + deg;
-    }
-
-    function cycleRotation() {
-      if (currentRot === 90) currentRot = 270;
-      else if (currentRot === 270) currentRot = 0;
-      else if (currentRot === 0) currentRot = 180;
-      else currentRot = 90;
-      setRotation(currentRot);
-      localStorage.setItem("taby_rotation", currentRot);
     }
 
     function updateConfig(configJson) {
@@ -300,21 +344,15 @@
       }
     }
 
-    function onExit() {
+    function onExit(e) {
+      if (e) e.stopPropagation();
       if (window.AndroidBridge && window.AndroidBridge.closeFaceMode) {
         window.AndroidBridge.closeFaceMode();
       }
     }
 
-    // Double tap anywhere on screen to exit
-    let lastTap = 0;
-    document.addEventListener("touchend", function(e) {
-      const now = Date.now();
-      if (now - lastTap < 300) {
-        onExit();
-      }
-      lastTap = now;
-    });
+    // Initialize with default 270 rotation
+    setRotation(currentRot);
   </script>
 </body>
 </html>
