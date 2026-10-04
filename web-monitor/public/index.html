@@ -1844,6 +1844,85 @@
       renderStudioChips();
     }
 
+    let studioConfettiParticles = [];
+    let studioConfettiAnimId = null;
+    let studioConfettiEndTime = 0;
+
+    function triggerStudioConfetti(durationMs = 4000) {
+      const canvas = $("studioConfettiCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+
+      const colors = ["#22c55e", "#38bdf8", "#ec4899", "#eab308", "#a855f7", "#f97316", "#ffffff"];
+      studioConfettiParticles = [];
+      const count = 75;
+      for (let i = 0; i < count; i++) {
+        studioConfettiParticles.push({
+          x: canvas.width * 0.5 + (Math.random() * 100 - 50),
+          y: Math.random() * 40 - 20,
+          w: Math.random() * 8 + 4,
+          h: Math.random() * 6 + 3,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          vx: (Math.random() - 0.5) * 8,
+          vy: Math.random() * 3 + 2,
+          rot: Math.random() * 360,
+          vrot: (Math.random() - 0.5) * 10,
+          opacity: 1
+        });
+      }
+
+      studioConfettiEndTime = Date.now() + durationMs;
+      if (studioConfettiAnimId) cancelAnimationFrame(studioConfettiAnimId);
+
+      function render() {
+        if (!canvas) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const now = Date.now();
+        const remaining = studioConfettiEndTime - now;
+
+        if (remaining <= 0 && studioConfettiParticles.length === 0) {
+          return;
+        }
+
+        for (let i = studioConfettiParticles.length - 1; i >= 0; i--) {
+          const p = studioConfettiParticles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.12; // gravity
+          p.rot += p.vrot;
+
+          if (remaining < 1000) {
+            p.opacity = Math.max(0, remaining / 1000);
+          }
+
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rot * Math.PI) / 180);
+          ctx.globalAlpha = p.opacity;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+          ctx.restore();
+
+          if (p.y > canvas.height + 20 || p.opacity <= 0) {
+            if (remaining > 1000) {
+              p.x = Math.random() * canvas.width;
+              p.y = -10;
+              p.vy = Math.random() * 3 + 2;
+              p.vx = (Math.random() - 0.5) * 6;
+            } else {
+              studioConfettiParticles.splice(i, 1);
+            }
+          }
+        }
+
+        studioConfettiAnimId = requestAnimationFrame(render);
+      }
+
+      render();
+    }
+
     function playStudioAnimation(item) {
       if (!item) return;
       const tabyImg = $("studioTabyImg");
@@ -1871,6 +1950,12 @@
       document.querySelectorAll(".studio-anim-chip").forEach(chip => chip.classList.remove("active"));
       const currentChip = $("studio-chip-" + item.id);
       if (currentChip) currentChip.classList.add("active");
+
+      // Trigger confetti celebration on milestone / success expressions
+      const isSuccess = item.category === "SUCCESS" || ["task_completed", "trophy", "perfect_day_01", "perfect_day_02", "perfect_day_03", "yeah", "thumbs_up", "confirmation"].includes(item.id);
+      if (isSuccess) {
+        triggerStudioConfetti(item.duration || 3500);
+      }
 
       slideDuration = Math.max(item.duration, 2500);
     }
@@ -2421,6 +2506,8 @@
               <span>🟢</span> <span id="studioBadgeIndex">1/84 · idle_01_loop</span>
             </div>
 
+            <canvas id="studioConfettiCanvas" style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15;"></canvas>
+
             <div class="studio-gif-container">
               <img id="studioTabyImg" class="studio-taby-gif rot-90" src="./taby_assets/5e63dbe6.gif" alt="Taby Face" />
             </div>
@@ -2448,6 +2535,7 @@
             <div class="studio-toolbar-group">
               <button id="studioBtnAutoPlay" class="studio-toolbar-btn active" onclick="toggleStudioAutoPlay()">⏸ Pause</button>
               <button id="studioBtnHud" class="studio-toolbar-btn active" onclick="toggleStudioHud()">👀 HUD: On</button>
+              <button class="studio-toolbar-btn" title="Trigger celebration confetti in simulator" onclick="triggerStudioConfetti(3500)">🎉 Confetti</button>
             </div>
 
             <button class="studio-toolbar-btn" style="background: var(--accent-primary); border-color: var(--accent-border); color: #fff; font-weight: 700;" onclick="sendStudioLiveToAndroid()">

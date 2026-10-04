@@ -94,9 +94,14 @@ class MainActivity : Activity() {
                     val title = intent.getStringExtra("title") ?: "FIREFILES TABY"
                     val subtext = intent.getStringExtra("subtext") ?: ""
                     val duration = intent.getLongExtra("duration", 0L)
+                    val withConfetti = intent.getBooleanExtra("confetti", false) ||
+                        anim in listOf("task_completed", "trophy", "perfect_day_01", "perfect_day_02", "perfect_day_03", "yeah", "thumbs_up", "confirmation", "2a3d7c56.gif", "3bbde2ff.gif", "ad8326e3.gif")
                     runOnUiThread {
                         if (::tabyView.isInitialized) {
                             tabyView.playExpression(anim, title, subtext, duration)
+                        }
+                        if (withConfetti) {
+                            triggerCelebrationConfetti(if (duration > 0) duration else 4000L)
                         }
                     }
                 }
@@ -584,8 +589,8 @@ class MainActivity : Activity() {
 
         val mainContainer = FrameLayout(this).apply {
             addView(rootLayout, FrameLayout.LayoutParams(-1, -1))
-            addView(confettiView, FrameLayout.LayoutParams(-1, -1))
             addView(tabyView, FrameLayout.LayoutParams(-1, -1))
+            addView(confettiView, FrameLayout.LayoutParams(-1, -1))
         }
 
         setContentView(mainContainer)
@@ -647,6 +652,20 @@ class MainActivity : Activity() {
         getSharedPreferences("bridge", Context.MODE_PRIVATE).edit()
             .putBoolean("taby_mode", enabled)
             .apply()
+    }
+
+    fun triggerCelebrationConfetti(durationMs: Long = 4000L) {
+        runOnUiThread {
+            if (::confettiView.isInitialized) {
+                confettiView.startConfetti()
+                val targetDuration = if (durationMs > 0) durationMs else 4000L
+                handler.postDelayed({
+                    if (::confettiView.isInitialized && confettiView.isRunning()) {
+                        confettiView.stopConfetti()
+                    }
+                }, targetDuration)
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -1204,8 +1223,13 @@ class MainActivity : Activity() {
                                     val title = json.optString("title", "FIREFILES TABY")
                                     val subtext = json.optString("subtext", "")
                                     val duration = json.optLong("duration_ms", json.optLong("duration", 0L))
+                                    val withConfetti = json.optBoolean("confetti", false) ||
+                                        anim in listOf("task_completed", "trophy", "perfect_day_01", "perfect_day_02", "perfect_day_03", "yeah", "thumbs_up", "confirmation", "2a3d7c56.gif", "3bbde2ff.gif", "ad8326e3.gif")
                                     if (::tabyView.isInitialized) {
                                         tabyView.playExpression(anim, title, subtext, duration)
+                                    }
+                                    if (withConfetti) {
+                                        triggerCelebrationConfetti(if (duration > 0) duration else 4000L)
                                     }
                                 }
                                 "set_taby_mode" -> {
