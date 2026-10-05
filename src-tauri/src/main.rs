@@ -1119,6 +1119,99 @@ async fn open_url(url: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command(rename_all = "snake_case")]
+async fn save_and_launch_installer(
+    file_name: String,
+    data: Vec<u8>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let temp_dir = std::env::temp_dir();
+        let target_path = temp_dir.join(&file_name);
+        fs::write(&target_path, data)
+            .map_err(|e| format!("Failed to write update file: {e}"))?;
+
+        let target_str = target_path.to_string_lossy().to_string();
+        println!("[bridge-tauri] Update file written to: {}", target_str);
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            if target_str.ends_with(".msi") {
+                let mut cmd = std::process::Command::new("msiexec");
+                cmd.creation_flags(0x08000000);
+                cmd.args(["/i", &target_str, "/passive"])
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
+            } else {
+                let mut cmd = std::process::Command::new("cmd");
+                cmd.creation_flags(0x08000000);
+                cmd.args(["/C", "start", "", &target_str])
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            if target_str.ends_with(".AppImage") {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    if let Ok(meta) = fs::metadata(&target_path) {
+                        let mut perms = meta.permissions();
+                        perms.set_mode(0o755);
+                        let _ = fs::set_permissions(&target_path, perms);
+                    }
+                }
+                std::process::Command::new(&target_path)
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
+            } else if target_str.ends_with(".deb") {
+                let _ = std::process::Command::new("xdg-open").arg(&target_path).spawn();
+            } else {
+                let _ = std::process::Command::new("xdg-open").arg(&target_path).spawn();
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("open").arg(&target_path).spawn();
+        }
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command(rename_all = "snake_case")]
+async fn install_android_apk_usb(
+    app: AppHandle,
+    file_name: String,
+    data: Vec<u8>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let config = app.state::<Config>().inner().clone();
+        let devices = list_devices(&config);
+        if devices.is_empty() {
+            return Err("No Android device connected via USB ADB".into());
+        }
+        let dev = devices.first().unwrap();
+        let name = if file_name.is_empty() { "app-release.apk".to_string() } else { file_name };
+        let temp_apk = std::env::temp_dir().join(name);
+        fs::write(&temp_apk, data)
+            .map_err(|e| format!("Failed to write temp APK: {e}"))?;
+
+        let apk_path_str = temp_apk.to_string_lossy().to_string();
+        let out = adb(&["-s", &dev.id, "install", "-r", "-d", &apk_path_str])?;
+        let _ = adb(&["-s", &dev.id, "shell", "am", "start", "-n", "com.example.bridge/.MainActivity"]);
+        send_taby_trigger(&config, "task_completed", "BRIDGE UPDATED", "Bridge APK Berhasil Diperbarui!", 5000);
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn send_taby_trigger(config: &Config, anim: &str, title: &str, subtext: &str, duration_ms: u64) {
     let devices = if let Ok(cache) = config.devices_cache.lock() {
         cache.clone()
@@ -1382,7 +1475,9 @@ fn main() {
             open_url,
             save_settings,
             trigger_taby_expression,
-            set_taby_mode
+            set_taby_mode,
+            save_and_launch_installer,
+            install_android_apk_usb
         ])
         .setup(|app| {
             setup_tray(app)?;

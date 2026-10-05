@@ -26,6 +26,7 @@ interface ReleaseInfo {
   htmlUrl: string;
   hasUpdate: boolean;
   assetUrl?: string;
+  assetName?: string;
 }
 
 type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'verifying' | 'installing' | 'relaunching' | 'browser_opened' | 'completed';
@@ -100,6 +101,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
       let publishedDate = new Date().toLocaleDateString();
       let htmlUrl = 'https://github.com/endrisusanto/Files/releases';
       let assetUrl = '';
+      let assetName = '';
 
       try {
         const res = await fetch('https://api.github.com/repos/endrisusanto/Files/releases/latest', {
@@ -113,18 +115,27 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           if (data.published_at) publishedDate = new Date(data.published_at).toLocaleDateString();
           if (data.html_url) htmlUrl = data.html_url;
 
-          // Find suitable asset for platform
+          // Platform-aware asset detection
+          const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+          const isWindows = ua.includes('win');
+          const isMac = ua.includes('mac');
+          const isLinux = !isWindows && !isMac;
+
+          let matchedAsset: any = null;
           if (Array.isArray(data.assets) && data.assets.length > 0) {
-            const asset = data.assets.find((a: any) => 
-              a.name.endsWith('.AppImage') || 
-              a.name.endsWith('.deb') || 
-              a.name.endsWith('.exe') || 
-              a.name.endsWith('.msi') || 
-              a.name.endsWith('.dmg') ||
-              a.name.endsWith('.zip')
-            );
-            if (asset && asset.browser_download_url) {
-              assetUrl = asset.browser_download_url;
+            if (isWindows) {
+              matchedAsset = data.assets.find((a: any) => a.name.endsWith('.exe') || a.name.endsWith('.msi'));
+            } else if (isLinux) {
+              matchedAsset = data.assets.find((a: any) => a.name.endsWith('.deb') || a.name.endsWith('.AppImage') || a.name.endsWith('.rpm'));
+            } else if (isMac) {
+              matchedAsset = data.assets.find((a: any) => a.name.endsWith('.dmg') || a.name.endsWith('.zip'));
+            }
+            if (!matchedAsset) {
+              matchedAsset = data.assets.find((a: any) => !a.name.endsWith('.apk'));
+            }
+            if (matchedAsset && matchedAsset.browser_download_url) {
+              assetUrl = matchedAsset.browser_download_url;
+              assetName = matchedAsset.name;
             }
           }
         } else if (res.status === 404) {
@@ -178,6 +189,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
         publishedAt: publishedDate,
         htmlUrl,
         assetUrl: assetUrl || htmlUrl,
+        assetName: assetName || `FireFiles-v${latestTag}-installer`,
         hasUpdate,
       });
     } catch (err: any) {
@@ -191,63 +203,72 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
   const handleInstallUpdate = async () => {
     setIsInstalling(true);
     setError(null);
-    setDownloadProgress(15);
+    setDownloadProgress(5);
     setUpdatePhase('downloading');
 
     const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
-    const targetUrl = releaseInfo?.assetUrl || releaseInfo?.htmlUrl || 'https://github.com/endrisusanto/Files/releases';
+    const assetUrl = releaseInfo?.assetUrl;
+    const fileName = releaseInfo?.assetName || `FireFiles-v${releaseInfo?.version || 'latest'}`;
 
-    // 1. Try Tauri native updater plugin if binary manifest exists
-    if (isTauri) {
-      try {
-        const { check } = await import('@tauri-apps/plugin-updater');
-        const update = await check();
-
-        if (update) {
-          setDownloadProgress(25);
-          setUpdatePhase('downloading');
-
-          let currentDownloaded = 0;
-          let totalContentLength = 0;
-
-          await update.downloadAndInstall((event: any) => {
-            switch (event.event) {
-              case 'Started':
-                totalContentLength = event.data.contentLength || 20 * 1024 * 1024;
-                setTotalBytes(totalContentLength);
-                setUpdatePhase('downloading');
-                break;
-              case 'Progress':
-                currentDownloaded += event.data.chunkLength;
-                setDownloadBytes(currentDownloaded);
-                if (totalContentLength > 0) {
-                  const pct = Math.min(92, Math.round((currentDownloaded / totalContentLength) * 90));
-                  setDownloadProgress(pct);
-                }
-                break;
-              case 'Finished':
-                setDownloadProgress(95);
-                setUpdatePhase('installing');
-                break;
-            }
-          });
-
-          setDownloadProgress(100);
-          setUpdatePhase('relaunching');
-          await new Promise(r => setTimeout(r, 600));
-          const { relaunch } = await import('@tauri-apps/plugin-process');
-          await relaunch();
-          return;
-        }
-      } catch (tErr: any) {
-        console.warn('[bridge-tauri] Native updater notice:', tErr);
-      }
+    if (!assetUrl || !isTauri) {
+      setDownloadProgress(100);
+      setUpdatePhase('browser_opened');
+      await openExternalUrl(releaseInfo?.htmlUrl || 'https://github.com/endrisusanto/Files/releases');
+      return;
     }
 
-    // 2. Seamlessly open release download in system default browser
-    setDownloadProgress(100);
-    setUpdatePhase('browser_opened');
-    await openExternalUrl(targetUrl);
+    try {
+      // In-App Direct Stream Download with Real Byte Progress
+      const response = await fetch(assetUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+      const contentLength = Number(response.headers.get('content-length')) || 25 * 1024 * 1024;
+      setTotalBytes(contentLength);
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Response body stream unavailable');
+
+      let receivedBytes = 0;
+      const chunks: Uint8Array[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          receivedBytes += value.length;
+          setDownloadBytes(receivedBytes);
+          const pct = Math.min(95, Math.round((receivedBytes / contentLength) * 90) + 5);
+          setDownloadProgress(pct);
+        }
+      }
+
+      const allBytes = new Uint8Array(receivedBytes);
+      let position = 0;
+      for (const chunk of chunks) {
+        allBytes.set(chunk, position);
+        position += chunk.length;
+      }
+
+      setDownloadProgress(96);
+      setUpdatePhase('installing');
+
+      // Invoke Tauri native installer launcher
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('save_and_launch_installer', {
+        file_name: fileName,
+        data: Array.from(allBytes),
+      });
+
+      setDownloadProgress(100);
+      setUpdatePhase('relaunching');
+    } catch (err: any) {
+      console.warn('[bridge-tauri] In-app download notice, opening browser fallback:', err);
+      setError(`Auto-install notice: ${err.message || err}. Opening download in browser...`);
+      setDownloadProgress(100);
+      setUpdatePhase('browser_opened');
+      await openExternalUrl(assetUrl || releaseInfo?.htmlUrl || 'https://github.com/endrisusanto/Files/releases');
+    }
   };
 
   if (!isOpen) return null;
