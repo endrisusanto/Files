@@ -627,7 +627,7 @@ dependencies = [
 
 [[package]]
 name = "cross-network-android-file-bridge"
-version = "0.1.206"
+version = "0.1.207"
 dependencies = [
  "chrono",
  "notify",
