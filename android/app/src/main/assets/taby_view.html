@@ -285,20 +285,69 @@
       "searching_loop": "4bbe8926.gif"
     };
 
-    const IDLE_VARIATIONS = [
-      "5e63dbe6.gif", // idle_01_loop
-      "523e19a5.gif", // idle_02_loop
-      "6d1a57d8.gif", // idle_variation_loop
-      "28217089.gif", // circle
-      "d36d9279.gif", // blush
-      "5ea6c03d.gif", // listening_music_loop
-      "9725f4ae.gif", // talking_default_loop
-      "f30dc7ed.gif"  // relaxing_couch_loop
-    ];
+    const WORK_KEYS = new Set([
+      "busy_loop", "calm_work_low_f000", "calm_work_medium_f000", "calm_work_high_f000",
+      "working_in", "working_loop", "working_laptop_in", "working_laptop_loop",
+      "working_laptop_bored_loop", "working_laptop_excited_loop", "working_laptop_normal_loop",
+      "workspaces_in", "workspaces_loop", "codex_in", "codex_loop", "claude_in", "claude_loop",
+      "searching_loop", "copy_paste", "creating_task_loop"
+    ]);
 
+    const SUCCESS_KEYS = new Set([
+      "task_completed", "trophy", "perfect_day_01", "perfect_day_01_simple",
+      "perfect_day_02", "perfect_day_03", "yeah", "thumbs_up", "confirmation",
+      "day_planned", "wow"
+    ]);
+
+    // Build IDLE_PLAYLIST dynamically from ANIM_MAP excluding WORK and SUCCESS
+    const IDLE_PLAYLIST = Object.keys(ANIM_MAP).filter(key => !WORK_KEYS.has(key) && !SUCCESS_KEYS.has(key));
+
+    let idleTimer = null;
+    let idleIndex = 0;
     let resetTimer = null;
     let fadeTimer = null;
     let isTransferring = false;
+    let isTemporaryTriggerActive = false;
+
+    function shuffle(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    let shuffledIdleList = shuffle(IDLE_PLAYLIST);
+
+    function playNextIdle() {
+      if (isTransferring || isTemporaryTriggerActive) return;
+      if (idleIndex >= shuffledIdleList.length) {
+        shuffledIdleList = shuffle(IDLE_PLAYLIST);
+        idleIndex = 0;
+      }
+      const animKey = shuffledIdleList[idleIndex++] || "idle_01_loop";
+      const file = ANIM_MAP[animKey] || "5e63dbe6.gif";
+      tabyImg.src = "taby/" + file;
+      hudText.textContent = "STANDBY";
+      
+      const nextDuration = 5000 + Math.floor(Math.random() * 3000);
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(playNextIdle, nextDuration);
+    }
+
+    function startIdleLoop() {
+      if (isTransferring || isTemporaryTriggerActive) return;
+      if (idleTimer) clearTimeout(idleTimer);
+      playNextIdle();
+    }
+
+    function stopIdleLoop() {
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+        idleTimer = null;
+      }
+    }
 
     function showUiBriefly(durationMs = 3500) {
       uiLayer.classList.add("visible");
@@ -320,7 +369,7 @@
         resetTimer = null;
       }
 
-      const file = ANIM_MAP[animKey] || (animKey.endsWith(".gif") ? animKey : ANIM_MAP["idle"]);
+      const file = ANIM_MAP[animKey] || (animKey.endsWith(".gif") ? animKey : (ANIM_MAP["idle"] || "5e63dbe6.gif"));
       tabyImg.src = "taby/" + file;
 
       if (title) {
@@ -329,24 +378,42 @@
         hudText.textContent = "STANDBY";
       }
 
-      if (animKey !== "idle" && animKey !== "idle_01_loop") {
+      const isIdleKey = IDLE_PLAYLIST.includes(animKey);
+      if (!isIdleKey || (title && title !== "STANDBY")) {
         showUiBriefly(durationMs && durationMs > 0 ? durationMs : 3500);
       }
 
       if (durationMs && durationMs > 0) {
+        isTemporaryTriggerActive = true;
+        stopIdleLoop();
         resetTimer = setTimeout(() => {
-          playExpression("idle_01_loop", "STANDBY", "", 0);
+          isTemporaryTriggerActive = false;
+          uiLayer.classList.remove("visible");
+          hudText.textContent = "STANDBY";
+          startIdleLoop();
         }, durationMs);
+      } else if (isIdleKey) {
+        isTemporaryTriggerActive = false;
+        startIdleLoop();
       }
     }
 
     function setTransferProgress(speedText, percent, fileName) {
       if (percent >= 100) {
         isTransferring = false;
+        isTemporaryTriggerActive = true;
+        stopIdleLoop();
         playExpression("task_completed", "TRANSFER COMPLETE (100%)", "", 4000);
         showUiBriefly(4000);
+        setTimeout(() => {
+          isTemporaryTriggerActive = false;
+          uiLayer.classList.remove("visible");
+          hudText.textContent = "STANDBY";
+          startIdleLoop();
+        }, 4000);
       } else {
         isTransferring = true;
+        stopIdleLoop();
         uiLayer.classList.add("visible");
         playExpression("working_loop", "UPLOADING · " + (speedText || "") + " (" + percent + "%)", "", 0);
       }
@@ -355,10 +422,19 @@
     function setAdbPushProgress(speedText, percent, fileName) {
       if (percent >= 100) {
         isTransferring = false;
+        isTemporaryTriggerActive = true;
+        stopIdleLoop();
         playExpression("task_completed", "PUSH COMPLETE (100%)", "", 4000);
         showUiBriefly(4000);
+        setTimeout(() => {
+          isTemporaryTriggerActive = false;
+          uiLayer.classList.remove("visible");
+          hudText.textContent = "STANDBY";
+          startIdleLoop();
+        }, 4000);
       } else {
         isTransferring = true;
+        stopIdleLoop();
         uiLayer.classList.add("visible");
         playExpression("working_laptop_excited_loop", "ADB PUSH · " + (speedText || "") + " (" + percent + "%)", "", 0);
       }
@@ -396,8 +472,9 @@
       }
     }
 
-    // Initialize with default 270 rotation
+    // Initialize with default 270 rotation and start idle loop
     setRotation(currentRot);
+    startIdleLoop();
   </script>
 </body>
 </html>

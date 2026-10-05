@@ -84,6 +84,7 @@ class MainActivity : Activity() {
     @Volatile private var usbRelayConnected = false
     @Volatile private var lastUsbRelaySuccessTime = 0L
     private var lastWsAttempt = 0L
+    private var lastTabyBridgeFile = ""
 
     companion object {
         @Volatile var instance: MainActivity? = null
@@ -253,8 +254,14 @@ class MainActivity : Activity() {
                     adbPushSpeedMap.values.sum() > 0L
             updatePowerSavingBrightness(isTransferActive)
 
-            if (isTabyMode && ::tabyView.isInitialized && BridgeService.currentFile.isNotEmpty()) {
-                tabyView.setTransferProgress("${BridgeService.currentProgress}%", BridgeService.currentProgress, BridgeService.currentFile)
+            if (isTabyMode && ::tabyView.isInitialized) {
+                if (BridgeService.currentFile.isNotEmpty()) {
+                    lastTabyBridgeFile = BridgeService.currentFile
+                    tabyView.setTransferProgress("${BridgeService.currentProgress}%", BridgeService.currentProgress, BridgeService.currentFile)
+                } else if (lastTabyBridgeFile.isNotEmpty()) {
+                    tabyView.setTransferProgress("100%", 100, lastTabyBridgeFile)
+                    lastTabyBridgeFile = ""
+                }
             }
             
             if (activeTab == 1) {
