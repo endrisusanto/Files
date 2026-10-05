@@ -66,6 +66,30 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+    if (isTauri && isOpen) {
+      import('@tauri-apps/api/event').then(({ listen }) => {
+        listen<any>('update_progress', (e) => {
+          const payload = e.payload;
+          if (!payload) return;
+          if (payload.percent !== undefined) setDownloadProgress(payload.percent);
+          if (payload.downloaded_bytes !== undefined) setDownloadBytes(payload.downloaded_bytes);
+          if (payload.total_bytes !== undefined) setTotalBytes(payload.total_bytes);
+          if (payload.phase) setUpdatePhase(payload.phase as UpdatePhase);
+          if (payload.phase === 'error') {
+            setError(payload.message || 'Update installation failed');
+            setIsInstalling(false);
+          }
+        }).then((un) => { unlisten = un; });
+      }).catch((err) => console.warn('listen update_progress err:', err));
+    }
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [isOpen]);
+
   const compareVersions = (v1: string, v2: string): number => {
     const clean1 = v1.replace(/^v/, '').split('.').map(Number);
     const clean2 = v2.replace(/^v/, '').split('.').map(Number);
@@ -203,7 +227,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
   const handleInstallUpdate = async () => {
     setIsInstalling(true);
     setError(null);
-    setDownloadProgress(5);
+    setDownloadProgress(10);
     setUpdatePhase('downloading');
 
     const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
@@ -218,52 +242,20 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
     }
 
     try {
-      // In-App Direct Stream Download with Real Byte Progress
-      const response = await fetch(assetUrl);
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-      const contentLength = Number(response.headers.get('content-length')) || 25 * 1024 * 1024;
-      setTotalBytes(contentLength);
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('Response body stream unavailable');
-
-      let receivedBytes = 0;
-      const chunks: Uint8Array[] = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          chunks.push(value);
-          receivedBytes += value.length;
-          setDownloadBytes(receivedBytes);
-          const pct = Math.min(95, Math.round((receivedBytes / contentLength) * 90) + 5);
-          setDownloadProgress(pct);
-        }
-      }
-
-      const allBytes = new Uint8Array(receivedBytes);
-      let position = 0;
-      for (const chunk of chunks) {
-        allBytes.set(chunk, position);
-        position += chunk.length;
-      }
-
-      setDownloadProgress(96);
-      setUpdatePhase('installing');
-
-      // Invoke Tauri native installer launcher
       const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('save_and_launch_installer', {
-        file_name: fileName,
-        data: Array.from(allBytes),
-      });
-
-      setDownloadProgress(100);
-      setUpdatePhase('relaunching');
+      if (fileName.endsWith('.apk')) {
+        await invoke('native_install_android_apk_usb', {
+          url: assetUrl,
+          file_name: fileName,
+        });
+      } else {
+        await invoke('native_download_and_install', {
+          url: assetUrl,
+          file_name: fileName,
+        });
+      }
     } catch (err: any) {
-      console.warn('[bridge-tauri] In-app download notice, opening browser fallback:', err);
+      console.warn('[bridge-tauri] Native updater notice, opening browser fallback:', err);
       setError(`Auto-install notice: ${err.message || err}. Opening download in browser...`);
       setDownloadProgress(100);
       setUpdatePhase('browser_opened');

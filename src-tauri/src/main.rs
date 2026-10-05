@@ -1122,36 +1122,106 @@ async fn open_url(url: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct UpdateProgressPayload {
+    phase: String,
+    percent: u8,
+    downloaded_bytes: u64,
+    total_bytes: u64,
+    message: String,
+}
+
 #[tauri::command(rename_all = "snake_case")]
-async fn save_and_launch_installer(
+async fn native_download_and_install(
+    app: AppHandle,
+    url: String,
     file_name: String,
-    data: Vec<u8>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let temp_dir = std::env::temp_dir();
         let target_path = temp_dir.join(&file_name);
-        fs::write(&target_path, data)
-            .map_err(|e| format!("Failed to write update file: {e}"))?;
-
         let target_str = target_path.to_string_lossy().to_string();
-        println!("[bridge-tauri] Update file written to: {}", target_str);
 
-        #[cfg(target_os = "windows")]
+        let _ = app.emit("update_progress", UpdateProgressPayload {
+            phase: "downloading".into(),
+            percent: 15,
+            downloaded_bytes: 0,
+            total_bytes: 0,
+            message: format!("Downloading {}...", file_name),
+        });
+
+        // 1. Download via curl with follow redirects (-L) and fail on 4xx/5xx (-f)
+        #[cfg(windows)]
+        let mut cmd = {
+            let mut c = std::process::Command::new("curl.exe");
+            c.creation_flags(0x08000000);
+            c.args(["-L", "-f", "-s", "-S", "-o", &target_str, &url]);
+            c
+        };
+        #[cfg(not(windows))]
+        let mut cmd = {
+            let mut c = std::process::Command::new("curl");
+            c.args(["-L", "-f", "-s", "-S", "-o", &target_str, &url]);
+            c
+        };
+
+        let output = cmd.output().map_err(|e| format!("Failed to spawn curl: {e}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let _ = app.emit("update_progress", UpdateProgressPayload {
+                phase: "error".into(),
+                percent: 0,
+                downloaded_bytes: 0,
+                total_bytes: 0,
+                message: format!("Download failed: {stderr}"),
+            });
+            return Err(format!("Download failed: {stderr}"));
+        }
+
+        if !target_path.exists() {
+            return Err("Downloaded update file not found on disk".into());
+        }
+
+        let file_size = fs::metadata(&target_path).map(|m| m.len()).unwrap_or(0);
+        if file_size < 1000 {
+            return Err("Downloaded file is invalid or too small".into());
+        }
+
+        let _ = app.emit("update_progress", UpdateProgressPayload {
+            phase: "installing".into(),
+            percent: 85,
+            downloaded_bytes: file_size,
+            total_bytes: file_size,
+            message: "Applying update in background...".into(),
+        });
+
+        // 2. Execute Silent / In-place installer
+        #[cfg(windows)]
         {
-            use std::os::windows::process::CommandExt;
-            if target_str.ends_with(".msi") {
-                let mut cmd = std::process::Command::new("msiexec");
-                cmd.creation_flags(0x08000000);
-                cmd.args(["/i", &target_str, "/passive"])
-                    .spawn()
-                    .map_err(|e| e.to_string())?;
+            let mut install_cmd = if target_str.ends_with(".msi") {
+                let mut c = std::process::Command::new("msiexec");
+                c.creation_flags(0x08000000);
+                c.args(["/i", &target_str, "/passive", "/norestart"]);
+                c
             } else {
-                let mut cmd = std::process::Command::new("cmd");
-                cmd.creation_flags(0x08000000);
-                cmd.args(["/C", "start", "", &target_str])
-                    .spawn()
-                    .map_err(|e| e.to_string())?;
-            }
+                // NSIS installer: /S for silent install
+                let mut c = std::process::Command::new(&target_path);
+                c.creation_flags(0x08000000);
+                c.arg("/S");
+                c
+            };
+            install_cmd.spawn().map_err(|e| format!("Failed to launch installer: {e}"))?;
+            
+            let _ = app.emit("update_progress", UpdateProgressPayload {
+                phase: "relaunching".into(),
+                percent: 100,
+                downloaded_bytes: file_size,
+                total_bytes: file_size,
+                message: "Update applied. Restarting application...".into(),
+            });
+
+            thread::sleep(Duration::from_millis(800));
+            std::process::exit(0);
         }
 
         #[cfg(target_os = "linux")]
@@ -1168,7 +1238,9 @@ async fn save_and_launch_installer(
                 }
                 std::process::Command::new(&target_path)
                     .spawn()
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| format!("Failed to launch AppImage: {e}"))?;
+                thread::sleep(Duration::from_millis(800));
+                std::process::exit(0);
             } else if target_str.ends_with(".deb") {
                 let _ = std::process::Command::new("xdg-open").arg(&target_path).spawn();
             } else {
@@ -1181,6 +1253,14 @@ async fn save_and_launch_installer(
             let _ = std::process::Command::new("open").arg(&target_path).spawn();
         }
 
+        let _ = app.emit("update_progress", UpdateProgressPayload {
+            phase: "completed".into(),
+            percent: 100,
+            downloaded_bytes: file_size,
+            total_bytes: file_size,
+            message: "Installer launched successfully.".into(),
+        });
+
         Ok(())
     })
     .await
@@ -1188,10 +1268,10 @@ async fn save_and_launch_installer(
 }
 
 #[tauri::command(rename_all = "snake_case")]
-async fn install_android_apk_usb(
+async fn native_install_android_apk_usb(
     app: AppHandle,
+    url: String,
     file_name: String,
-    data: Vec<u8>,
 ) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let config = app.state::<Config>().inner().clone();
@@ -1201,14 +1281,58 @@ async fn install_android_apk_usb(
         }
         let dev = devices.first().unwrap();
         let name = if file_name.is_empty() { "app-release.apk".to_string() } else { file_name };
-        let temp_apk = std::env::temp_dir().join(name);
-        fs::write(&temp_apk, data)
-            .map_err(|e| format!("Failed to write temp APK: {e}"))?;
+        let temp_apk = std::env::temp_dir().join(&name);
+        let temp_apk_str = temp_apk.to_string_lossy().to_string();
 
-        let apk_path_str = temp_apk.to_string_lossy().to_string();
-        let out = adb(&["-s", &dev.id, "install", "-r", "-d", &apk_path_str])?;
+        let _ = app.emit("update_progress", UpdateProgressPayload {
+            phase: "downloading".into(),
+            percent: 20,
+            downloaded_bytes: 0,
+            total_bytes: 0,
+            message: "Downloading Bridge APK...".into(),
+        });
+
+        // Download APK via curl
+        #[cfg(windows)]
+        let mut cmd = {
+            let mut c = std::process::Command::new("curl.exe");
+            c.creation_flags(0x08000000);
+            c.args(["-L", "-f", "-s", "-S", "-o", &temp_apk_str, &url]);
+            c
+        };
+        #[cfg(not(windows))]
+        let mut cmd = {
+            let mut c = std::process::Command::new("curl");
+            c.args(["-L", "-f", "-s", "-S", "-o", &temp_apk_str, &url]);
+            c
+        };
+
+        let output = cmd.output().map_err(|e| format!("Failed to download APK: {e}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Download APK failed: {stderr}"));
+        }
+
+        let _ = app.emit("update_progress", UpdateProgressPayload {
+            phase: "installing".into(),
+            percent: 75,
+            downloaded_bytes: 0,
+            total_bytes: 0,
+            message: "Installing APK on Android via USB ADB...".into(),
+        });
+
+        let out = adb(&["-s", &dev.id, "install", "-r", "-d", &temp_apk_str])?;
         let _ = adb(&["-s", &dev.id, "shell", "am", "start", "-n", "com.example.bridge/.MainActivity"]);
         send_taby_trigger(&config, "task_completed", "BRIDGE UPDATED", "Bridge APK Berhasil Diperbarui!", 5000);
+
+        let _ = app.emit("update_progress", UpdateProgressPayload {
+            phase: "completed".into(),
+            percent: 100,
+            downloaded_bytes: 0,
+            total_bytes: 0,
+            message: "Bridge APK updated & launched on Android successfully!".into(),
+        });
+
         Ok(out)
     })
     .await
@@ -1479,8 +1603,8 @@ fn main() {
             save_settings,
             trigger_taby_expression,
             set_taby_mode,
-            save_and_launch_installer,
-            install_android_apk_usb
+            native_download_and_install,
+            native_install_android_apk_usb
         ])
         .setup(|app| {
             setup_tray(app)?;
