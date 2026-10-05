@@ -272,22 +272,25 @@ fn get_app_info_internal(config: &Config) -> AppInfo {
 
 fn get_device_details(id: &str) -> (String, u64, String, bool) {
     let cmd = format!(
-        "getprop ro.build.fingerprint; echo '==='; df -k /sdcard; echo '==='; ip -f inet addr show wlan0; echo '==='; pm path {}",
+        "getprop ro.build.fingerprint; echo '==='; df -k /sdcard; echo '==='; ip -f inet addr show wlan0; echo '==='; pm list packages {}",
         ANDROID_PACKAGE
     );
     let Ok(output) = command("adb")
         .args(["-s", id, "shell", &cmd])
         .output() else {
-            return ("unknown".to_string(), 0, "-".to_string(), false);
+            return (id.to_string(), 0, "-".to_string(), false);
         };
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parts: Vec<&str> = stdout.split("===").collect();
     if parts.len() < 4 {
-        return ("unknown".to_string(), 0, "-".to_string(), false);
+        let fp = stdout.lines().next().unwrap_or(id).trim().to_string();
+        let fallback_fp = if fp.is_empty() { id.to_string() } else { fp };
+        return (fallback_fp, 0, "-".to_string(), false);
     }
 
-    let fingerprint = parts[0].trim().to_string();
+    let raw_fp = parts[0].trim();
+    let fingerprint = if raw_fp.is_empty() { id.to_string() } else { raw_fp.to_string() };
 
     // Parse storage
     let df_out = parts[1];
@@ -311,9 +314,9 @@ fn get_device_details(id: &str) -> (String, u64, String, bool) {
         })
         .unwrap_or_else(|| "-".into());
 
-    // Parse PM path
+    // Parse PM list packages
     let pm_out = parts[3];
-    let apk_installed = pm_out.contains("package:");
+    let apk_installed = pm_out.contains("com.example.bridge");
 
     (fingerprint, available_storage, ip_address, apk_installed)
 }
@@ -336,7 +339,7 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
             let model = line
                 .split_whitespace()
                 .find_map(|part| part.strip_prefix("model:"))
-                .unwrap_or("unknown")
+                .unwrap_or("Android Device")
                 .to_string();
             Some((id, model))
         })
@@ -354,10 +357,8 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
     let mut devices = vec![];
     for handle in handles {
         if let Ok((id, model, fingerprint, available_storage, ip_address, apk_installed)) = handle.join() {
-            if apk_installed {
-                // Auto reverse port 1421 through USB ADB so offline phone can talk to Tauri
-                let _ = adb(&["-s", &id, "reverse", "tcp:1421", "tcp:1421"]);
-            }
+            // Auto reverse port 1421 through USB ADB for all connected devices
+            let _ = adb(&["-s", &id, "reverse", "tcp:1421", "tcp:1421"]);
             devices.push((id, model, fingerprint, available_storage, ip_address, apk_installed));
         }
     }
@@ -368,13 +369,15 @@ fn list_devices(config: &Config) -> Vec<DeviceInfo> {
     } else if let Some(dev_with_apk) = devices.iter().find(|d| d.5) {
         println!("[bridge-tauri] Auto-pairing with connected device having bridge APK: {}", dev_with_apk.0);
         Some(dev_with_apk.2.clone())
+    } else if let Some(first_dev) = devices.first() {
+        Some(first_dev.2.clone())
     } else {
         None
     };
 
     let result_devices: Vec<DeviceInfo> = devices.into_iter().map(|(id, model, fingerprint, available_storage, ip_address, apk_installed)| {
         let is_selected = if let Some(ref target) = selected_target {
-            fingerprint == *target
+            fingerprint == *target || id == *target
         } else {
             fingerprint == target_fingerprint
         };

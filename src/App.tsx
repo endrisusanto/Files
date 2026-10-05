@@ -684,13 +684,12 @@ export default function App() {
     const alreadySelected = devices.some((d) => d.is_selected_bridge);
     if (alreadySelected) return;
 
-    for (const d of devices) {
-      const isRemoteConnected = remoteDevices.some((rd) => rd.id === d.fingerprint || rd.id === d.id || rd.model === d.model);
-      if (isRemoteConnected) {
-        console.info("[bridge-ui] Auto-pairing matching WebSocket & USB device:", d.model, d.fingerprint);
-        appendLog(`Auto-pairing matching device: ${d.model} (${d.fingerprint})`);
-        selectBridge(d.fingerprint);
-        break;
+    if (devices.length > 0) {
+      const bestMatch = devices.find((d) => d.apk_installed) || devices[0];
+      if (bestMatch && (bestMatch.fingerprint || bestMatch.id)) {
+        const targetId = bestMatch.fingerprint || bestMatch.id;
+        console.info("[bridge-ui] Auto-selecting active USB device:", bestMatch.model, targetId);
+        selectBridge(targetId);
       }
     }
   }, [devices, remoteDevices]);
@@ -1045,11 +1044,11 @@ export default function App() {
     }
   }
 
-  const active = devices.some((d) => d.is_selected_bridge);
-  const selected = devices.some((d) => d.is_selected_bridge);
-  const selectedDevice = devices.find((d) => d.is_selected_bridge);
+  const selectedDevice = devices.find((d) => d.is_selected_bridge) || (devices.length > 0 ? devices[0] : undefined);
+  const active = Boolean(selectedDevice);
+  const selected = Boolean(selectedDevice);
   const activeRemote = remoteDevices.find((rd) => rd.id === selectedDevice?.fingerprint || rd.id === selectedDevice?.id || rd.model === selectedDevice?.model);
-  const isBridgeLive = activeRemote && (Date.now() - (activeRemote.last_seen || 0) < 30000);
+  const isBridgeLive = Boolean(activeRemote && (Date.now() - (activeRemote.last_seen || 0) < 30000));
   const deviceActionReady = Boolean(selectedDevice);
 
   return (
