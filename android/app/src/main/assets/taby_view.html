@@ -368,6 +368,7 @@
 
     function setRotation(deg) {
       currentRot = deg;
+      localStorage.setItem("taby_rotation", String(deg));
       tabyImg.className = "taby-gif rot-" + deg;
     }
 

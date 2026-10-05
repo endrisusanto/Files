@@ -725,6 +725,8 @@ fn push_file_blocking(
         speed_bps: 0,
     });
 
+    send_taby_trigger(&config, "running_01", "MENSTRANSFER FILE", &format!("{file_name}"), 4000);
+
     let mut child = command("adb")
         .args(["-s", &device.id, "push"])
         .arg(&source)
@@ -815,6 +817,13 @@ fn push_file_blocking(
         &q_succ,
     ])?;
     println!("[bridge-tauri] push_file done file={file_name} device={}", device.id);
+
+    // Trigger Taby celebration directly over USB
+    if queue_total > 0 && queue_success + 1 >= queue_total {
+        send_taby_trigger(&config, "task_completed", "TRANSFER SELESAI", "Semua antrean berhasil ditransfer!", 5000);
+    } else {
+        send_taby_trigger(&config, "confirmation", "FILE TERKIRIM", &format!("{file_name} siap"), 3000);
+    }
 
     // Post-transfer action: "delete" (permanently delete) or "backup" (move to BACKUP folder)
     let mode = cleanup_mode.as_deref().unwrap_or("backup");
