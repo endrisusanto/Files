@@ -85,6 +85,10 @@ class MainActivity : Activity() {
     @Volatile private var lastUsbRelaySuccessTime = 0L
     private var lastWsAttempt = 0L
 
+    companion object {
+        @Volatile var instance: MainActivity? = null
+    }
+
     private val tabyReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent == null) return
@@ -97,11 +101,29 @@ class MainActivity : Activity() {
                     val withConfetti = intent.getBooleanExtra("confetti", false) ||
                         anim in listOf("task_completed", "trophy", "perfect_day_01", "perfect_day_02", "perfect_day_03", "yeah", "thumbs_up", "confirmation", "2a3d7c56.gif", "3bbde2ff.gif", "ad8326e3.gif")
                     runOnUiThread {
+                        if (!isTabyMode) {
+                            setTabyMode(true)
+                        }
                         if (::tabyView.isInitialized) {
+                            tabyView.visibility = View.VISIBLE
                             tabyView.playExpression(anim, title, subtext, duration)
                         }
                         if (withConfetti) {
                             triggerCelebrationConfetti(if (duration > 0) duration else 4000L)
+                        }
+                    }
+                }
+                "com.example.bridge.ADB_PUSH_PROGRESS" -> {
+                    val speed = intent.getStringExtra("speed") ?: ""
+                    val percent = intent.getIntExtra("percent", 0)
+                    val file = intent.getStringExtra("file") ?: ""
+                    runOnUiThread {
+                        if (!isTabyMode) {
+                            setTabyMode(true)
+                        }
+                        if (::tabyView.isInitialized) {
+                            tabyView.visibility = View.VISIBLE
+                            tabyView.setAdbPushProgress(speed, percent, file)
                         }
                     }
                 }
@@ -120,6 +142,16 @@ class MainActivity : Activity() {
                     }
                 }
             }
+        }
+    }
+
+    fun onSambaUploadCompleted(fileName: String) {
+        runOnUiThread {
+            if (isTabyMode && ::tabyView.isInitialized) {
+                tabyView.visibility = View.VISIBLE
+                tabyView.setTransferProgress("100%", 100, fileName)
+            }
+            triggerCelebrationConfetti(4000L)
         }
     }
 
@@ -593,10 +625,11 @@ class MainActivity : Activity() {
             addView(confettiView, FrameLayout.LayoutParams(-1, -1))
         }
 
-        setContentView(mainContainer)
+        instance = this
 
         val tabyFilter = IntentFilter().apply {
             addAction("com.example.bridge.TABY_TRIGGER")
+            addAction("com.example.bridge.ADB_PUSH_PROGRESS")
             addAction("com.example.bridge.SET_TABY_MODE")
             addAction("com.example.bridge.SET_TABY_CONFIG")
         }
@@ -1225,16 +1258,24 @@ class MainActivity : Activity() {
                                     val duration = json.optLong("duration_ms", json.optLong("duration", 0L))
                                     val withConfetti = json.optBoolean("confetti", false) ||
                                         anim in listOf("task_completed", "trophy", "perfect_day_01", "perfect_day_02", "perfect_day_03", "yeah", "thumbs_up", "confirmation", "2a3d7c56.gif", "3bbde2ff.gif", "ad8326e3.gif")
-                                    if (::tabyView.isInitialized) {
-                                        tabyView.playExpression(anim, title, subtext, duration)
-                                    }
-                                    if (withConfetti) {
-                                        triggerCelebrationConfetti(if (duration > 0) duration else 4000L)
+                                    runOnUiThread {
+                                        if (!isTabyMode) {
+                                            setTabyMode(true)
+                                        }
+                                        if (::tabyView.isInitialized) {
+                                            tabyView.visibility = View.VISIBLE
+                                            tabyView.playExpression(anim, title, subtext, duration)
+                                        }
+                                        if (withConfetti) {
+                                            triggerCelebrationConfetti(if (duration > 0) duration else 4000L)
+                                        }
                                     }
                                 }
                                 "set_taby_mode" -> {
                                     val enabled = json.optBoolean("enabled", true)
-                                    setTabyMode(enabled)
+                                    runOnUiThread {
+                                        setTabyMode(enabled)
+                                    }
                                 }
                                 "set_taby_config" -> {
                                     if (::tabyView.isInitialized) {

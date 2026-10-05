@@ -166,6 +166,8 @@ class BridgeService : Service() {
                     if (!file.exists()) continue
                     Log.i(tag, "Upload worker started file=${file.absolutePath}")
                     retry(3) { upload(file) }
+                    currentProgress = 100
+                    MainActivity.instance?.onSambaUploadCompleted(file.name)
                     if (file.exists() && !file.delete()) throw IllegalStateException("uploaded but failed to delete ${file.absolutePath}")
                     val metaFile = File(file.parentFile, file.name + ".meta")
                     if (metaFile.exists()) {
@@ -179,7 +181,7 @@ class BridgeService : Service() {
                 getSystemService(NotificationManager::class.java).notify(2, notification("Upload failed: ${t.message}"))
             } finally {
                 currentFile = ""
-                currentProgress = 0
+                currentProgress = 100
                 if (localDir.listFiles()?.filter { it.isFile && (it.name.endsWith(".md5") || it.name.endsWith(".zip") || it.name.endsWith(".txt")) }?.isEmpty() == true) {
                     queueTotal = 0
                     queueSuccess = 0

@@ -779,6 +779,8 @@ fn push_file_blocking(
                 }
                 let percent = ((remote_size as f64 / total_size as f64) * 100.0) as u8;
                 let percent = std::cmp::min(99, percent);
+                let speed_str = if last_speed_bps > 0 { format!("{:.2} MB/s", (last_speed_bps as f64) / (1024.0 * 1024.0)) } else { "".to_string() };
+                send_taby_push_progress(&device_id, &speed_str, percent, &file_name_clone);
                 let _ = app_handle.emit("transfer", TransferProgress {
                     file: file_name_clone.clone(),
                     percent,
@@ -797,6 +799,7 @@ fn push_file_blocking(
         eprintln!("[bridge-tauri] adb push failed file={file_name} error={err_msg}");
         return Err(format!("adb push failed: {}", err_msg));
     }
+    send_taby_push_progress(&device.id, "100%", 100, &file_name);
     let _ = app.emit("transfer", TransferProgress { file: file_name.clone(), percent: 100, message: "push complete".into(), speed_bps: 0 });
     let escaped_file = shell_escape(&file_name);
     let q_tot = queue_total.to_string();
@@ -1339,6 +1342,30 @@ async fn native_install_android_apk_usb(
     .map_err(|e| e.to_string())?
 }
 
+fn send_taby_push_progress(device_id: &str, speed_text: &str, percent: u8, file_name: &str) {
+    let pct_str = percent.to_string();
+    let _ = adb(&[
+        "-s",
+        device_id,
+        "shell",
+        "am",
+        "broadcast",
+        "-a",
+        "com.example.bridge.ADB_PUSH_PROGRESS",
+        "-p",
+        "com.example.bridge",
+        "--es",
+        "speed",
+        speed_text,
+        "--ei",
+        "percent",
+        &pct_str,
+        "--es",
+        "file",
+        file_name,
+    ]);
+}
+
 fn send_taby_trigger(config: &Config, anim: &str, title: &str, subtext: &str, duration_ms: u64) {
     let devices = if let Ok(cache) = config.devices_cache.lock() {
         cache.clone()
@@ -1347,7 +1374,7 @@ fn send_taby_trigger(config: &Config, anim: &str, title: &str, subtext: &str, du
     };
     let selected_fp = config.selected_fingerprint.lock().ok().and_then(|fp| fp.clone());
     let targets: Vec<DeviceInfo> = if let Some(ref fp) = selected_fp {
-        let filtered: Vec<DeviceInfo> = devices.iter().filter(|d| &d.fingerprint == fp).cloned().collect();
+        let filtered: Vec<DeviceInfo> = devices.iter().filter(|d| &d.fingerprint == fp || &d.id == fp).cloned().collect();
         if filtered.is_empty() { devices } else { filtered }
     } else {
         devices
@@ -1363,6 +1390,8 @@ fn send_taby_trigger(config: &Config, anim: &str, title: &str, subtext: &str, du
             "broadcast",
             "-a",
             "com.example.bridge.TABY_TRIGGER",
+            "-p",
+            "com.example.bridge",
             "--es",
             "anim",
             anim,
@@ -1387,7 +1416,7 @@ fn set_taby_mode_remote(config: &Config, enabled: bool) {
     };
     let selected_fp = config.selected_fingerprint.lock().ok().and_then(|fp| fp.clone());
     let targets: Vec<DeviceInfo> = if let Some(ref fp) = selected_fp {
-        let filtered: Vec<DeviceInfo> = devices.iter().filter(|d| &d.fingerprint == fp).cloned().collect();
+        let filtered: Vec<DeviceInfo> = devices.iter().filter(|d| &d.fingerprint == fp || &d.id == fp).cloned().collect();
         if filtered.is_empty() { devices } else { filtered }
     } else {
         devices
@@ -1402,6 +1431,8 @@ fn set_taby_mode_remote(config: &Config, enabled: bool) {
             "broadcast",
             "-a",
             "com.example.bridge.SET_TABY_MODE",
+            "-p",
+            "com.example.bridge",
             "--ez",
             "enabled",
             if enabled { "true" } else { "false" },
