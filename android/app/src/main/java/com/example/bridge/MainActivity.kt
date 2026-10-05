@@ -625,6 +625,7 @@ class MainActivity : Activity() {
             addView(confettiView, FrameLayout.LayoutParams(-1, -1))
         }
 
+        setContentView(mainContainer)
         instance = this
 
         val tabyFilter = IntentFilter().apply {
