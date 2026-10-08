@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FireFiles — Diagram Arsitektur &amp; Workflow</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: hsl(240 8% 8%);
+    --panel: hsl(240 6% 12%);
+    --panel2: hsl(240 7% 15%);
+    --line: hsl(240 6% 22%);
+    --txt: hsl(240 6% 92%);
+    --mut: hsl(240 5% 62%);
+    --acc: hsl(28 90% 60%);
+    --ok: hsl(158 64% 52%);
+    --warn: hsl(38 92% 58%);
+    --err: hsl(0 72% 60%);
+    --info: hsl(210 80% 62%);
+    --line-arrow: hsl(240 6% 38%);
+  }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: radial-gradient(1200px 700px at 12% -8%, hsl(24 88% 50% / 0.10), transparent 60%),
+                radial-gradient(900px 600px at 96% 4%, hsl(210 80% 55% / 0.08), transparent 60%), var(--bg);
+    color: var(--txt);
+    padding: 32px 20px 72px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  code {
+    font-size: 11.5px; background: hsl(240 8% 16%); border: 1px solid hsl(240 8% 24%);
+    padding: 1.5px 6px; border-radius: 6px; color: hsl(240 6% 82%); white-space: nowrap;
+  }
+
+  /* ---------- header ---------- */
+  .hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+  .hero h1 { font-size: 27px; font-weight: 800; letter-spacing: -0.4px; }
+  .hero h1 span { color: var(--acc); }
+  .hero p { font-size: 13.5px; color: var(--mut); max-width: 720px; margin-top: 6px; }
+  .hero .meta { font-size: 12px; color: var(--mut); text-align: right; }
+  .hero .meta b { color: var(--txt); font-size: 17px; display: block; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 18px 0 0; font-size: 11.5px; color: var(--mut); }
+  .legend .k { display: flex; align-items: center; gap: 7px; }
+  .sw { width: 22px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+  .sw.usb { background: var(--info); }
+  .sw.smb { background: var(--ok); }
+  .sw.ws  { background: var(--acc); }
+  .sw.rel { background: repeating-linear-gradient(90deg, var(--mut) 0 6px, transparent 6px 12px); height: 2px; }
+
+  /* ---------- card ---------- */
+  .card {
+    background: linear-gradient(180deg, hsl(240 6% 13%), var(--panel));
+    border: 1px solid var(--line); border-radius: 18px;
+    padding: 22px 24px; margin-top: 22px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35), inset 0 1px 0 hsl(240 8% 20% / .6);
+  }
+  .card > h2 {
+    font-size: 12.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--acc); display: flex; align-items: center; gap: 10px;
+  }
+  .card > h2 .n {
+    width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center;
+    background: hsl(28 90% 55% / .16); border: 1px solid hsl(28 80% 50% / .45); color: var(--acc);
+    font-size: 11.5px; letter-spacing: 0;
+  }
+  .card .sub { font-size: 12.5px; color: var(--mut); margin: 6px 0 18px; }
+
+  /* ---------- pills ---------- */
+  .pill {
+    display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .07em;
+    text-transform: uppercase; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line);
+    background: hsl(240 6% 16%); color: var(--mut); white-space: nowrap;
+  }
+  .pill.ok { color: var(--ok); border-color: hsl(158 55% 40% / .55); background: hsl(158 60% 40% / .12); }
+  .pill.warn { color: var(--warn); border-color: hsl(38 75% 45% / .55); background: hsl(38 80% 45% / .12); }
+  .pill.err { color: var(--err); border-color: hsl(0 60% 48% / .55); background: hsl(0 60% 45% / .12); }
+  .pill.acc { color: var(--acc); border-color: hsl(28 75% 48% / .55); background: hsl(28 80% 48% / .12); }
+  .pill.info { color: var(--info); border-color: hsl(210 65% 48% / .55); background: hsl(210 70% 48% / .12); }
+  /* ---------- node boxes ---------- */
+  .node {
+    border: 1px solid var(--line); border-radius: 14px; padding: 14px 15px;
+    background: linear-gradient(180deg, var(--panel2), hsl(240 6% 11%));
+    position: relative; overflow: hidden;
+  }
+  .node::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--a, var(--line)); }
+  .node .t { font-size: 13.5px; font-weight: 800; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .node .s { font-size: 11.5px; color: var(--mut); margin-top: 4px; }
+  .node .m { font-size: 11px; color: hsl(240 6% 72%); margin-top: 8px; display: grid; gap: 3px; }
+  .node .m div { display: flex; gap: 7px; align-items: baseline; }
+  .node .m i { font-style: normal; color: var(--mut); min-width: 58px; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; flex: 0 0 auto; }
+  .node.desk { --a: var(--info); } .node.desk .t { color: hsl(210 85% 74%); }
+  .node.andr { --a: var(--ok); } .node.andr .t { color: hsl(158 62% 64%); }
+  .node.cloud { --a: var(--acc); } .node.cloud .t { color: hsl(30 92% 70%); }
+  .node.smbx { --a: hsl(275 65% 62%); } .node.smbx .t { color: hsl(275 72% 78%); }
+  .node.svc { --a: var(--warn); } .node.svc .t { color: hsl(40 92% 68%); }
+
+  /* ---------- architecture grid ---------- */
+  .arch { display: grid; grid-template-columns: minmax(0,1fr) 200px minmax(0,1fr); align-items: center; }
+  .conn { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 0 12px; }
+  .ln { position: relative; width: 100%; height: 2px; background: var(--line-arrow); }
+  .ln::before, .ln::after { content: ""; position: absolute; top: 50%; transform: translateY(-50%); width: 0; height: 0; border: 5px solid transparent; }
+  .ln::before { left: -1px; border-right-color: var(--line-arrow); }
+  .ln::after { right: -1px; border-left-color: var(--line-arrow); }
+  .ln.one::before { display: none; }
+  .ln.nohead::after { display: none; }
+  .ln.usb { background: var(--info); }
+  .ln.usb::before { border-right-color: var(--info); } .ln.usb::after { border-left-color: var(--info); }
+  .ln.smb { background: var(--ok); }
+  .ln.smb::before { border-right-color: var(--ok); } .ln.smb::after { border-left-color: var(--ok); }
+  .ln.ws { background: var(--acc); }
+  .ln.ws::before { border-right-color: var(--acc); } .ln.ws::after { border-left-color: var(--acc); }
+  .ln.dash { background: repeating-linear-gradient(90deg, var(--line-arrow) 0 6px, transparent 6px 12px); }
+  .conn .lbl, .vc .lbl { font-size: 10.5px; color: var(--mut); text-align: center; line-height: 1.4; }
+  .conn .lbl b, .vc .lbl b { color: hsl(240 6% 86%); font-weight: 700; }
+
+  .midrow { display: grid; grid-template-columns: minmax(0,1fr) 200px minmax(0,1fr); }
+  .vc { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 10px 12px; }
+  .vl { position: relative; width: 2px; height: 58px; background: var(--line-arrow); }
+  .vl::after { content: ""; position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border: 5px solid transparent; border-top-color: var(--line-arrow); }
+  .vl.up::after { bottom: auto; top: -1px; border-top-color: transparent; border-bottom-color: var(--line-arrow); }
+  .vl.usb { background: var(--info); } .vl.usb::after { border-top-color: var(--info); }
+  .vl.usb.up::after { border-bottom-color: var(--info); }
+  .vl.smb { background: var(--ok); } .vl.smb::after { border-top-color: var(--ok); }
+  .vl.smb.up::after { border-bottom-color: var(--ok); }
+  .vl.ws { background: var(--acc); } .vl.ws::after { border-top-color: var(--acc); }
+  .vl.ws.up::after { border-bottom-color: var(--acc); }
+  .vl.dash { background: repeating-linear-gradient(180deg, var(--line-arrow) 0 6px, transparent 6px 12px); }
+  /* ---------- numbered flow ---------- */
+  .steps { position: relative; display: grid; gap: 0; }
+  .step { position: relative; display: grid; grid-template-columns: 34px minmax(0,1fr); gap: 15px; padding-bottom: 16px; }
+  .step:last-child { padding-bottom: 0; }
+  .step:not(:last-child)::before { content: ""; position: absolute; left: 16px; top: 38px; bottom: 4px; width: 2px; background: var(--line); }
+  .num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 12.5px; font-weight: 800;
+    background: hsl(28 90% 55% / .14); border: 1px solid hsl(28 80% 50% / .45); color: var(--acc); z-index: 1; }
+  .num.usb { background: hsl(210 80% 55% / .14); border-color: hsl(210 70% 50% / .45); color: var(--info); }
+  .num.ok { background: hsl(158 60% 50% / .14); border-color: hsl(158 55% 45% / .45); color: var(--ok); }
+  .num.warn { background: hsl(38 85% 55% / .14); border-color: hsl(38 75% 50% / .45); color: var(--warn); }
+  .num.err { background: hsl(0 65% 55% / .14); border-color: hsl(0 60% 50% / .45); color: var(--err); }
+  .sbody { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: hsl(240 6% 13%); }
+  .sbody .st { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sbody .sd { font-size: 11.8px; color: var(--mut); margin-top: 5px; }
+  .sbody .sd b { color: hsl(240 6% 88%); font-weight: 700; }
+  .sbody .tags { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* ---------- grid / chain / lane / table ---------- */
+  .cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .cols3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+  .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .chip { border: 1px solid var(--line); background: hsl(240 6% 15%); border-radius: 9px; padding: 6px 10px; font-size: 11.5px; font-weight: 600; }
+  .chip.acc { border-color: hsl(28 70% 45% / .5); color: hsl(30 90% 72%); }
+  .chip.ok { border-color: hsl(158 55% 42% / .5); color: hsl(158 60% 68%); }
+  .chip.info { border-color: hsl(210 65% 45% / .5); color: hsl(210 80% 74%); }
+  .chip.warn { border-color: hsl(38 70% 45% / .5); color: hsl(40 90% 70%); }
+  .chip.err { border-color: hsl(0 60% 48% / .5); color: hsl(0 75% 74%); }
+  .to { color: var(--mut); font-size: 13px; font-weight: 700; }
+  .lane { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: hsl(240 6% 13%); }
+  .lane .lt { font-size: 11.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; display: flex; gap: 9px; align-items: center; margin-bottom: 12px; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tbl th { text-align: left; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); padding: 0 10px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .tbl td { padding: 9px 10px; border-bottom: 1px solid hsl(240 6% 17%); vertical-align: top; color: hsl(240 6% 84%); }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .tbl td.f { font-weight: 700; color: var(--txt); white-space: nowrap; }
+  .note { font-size: 11.5px; color: var(--mut); margin-top: 14px; padding: 11px 13px; border-left: 3px solid var(--acc); background: hsl(28 90% 50% / .07); border-radius: 0 10px 10px 0; }
+  .note b { color: hsl(240 6% 88%); }
+  .note.ok { border-left-color: var(--ok); background: hsl(158 60% 45% / .07); }
+  .note.warn { border-left-color: var(--warn); background: hsl(38 80% 50% / .07); }
+  footer { margin-top: 26px; font-size: 11.5px; color: var(--mut); display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+
+  @media (max-width: 900px) {
+    .arch, .midrow { grid-template-columns: minmax(0,1fr); }
+    .conn, .gapc { display: none; }
+  }
+  @media print {
+    body { background: #fff; color: #111; padding: 0; }
+    .card { box-shadow: none; border-color: #bbb; break-inside: avoid; }
+  }
+
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <h1>🔥 FireFiles — <span>Arsitektur &amp; Workflow</span></h1>
+      <p>Rantai transfer berkas otomatis: <b>PC staging</b> &rarr; <b>ADB push</b> &rarr; <b>Bridge APK</b> &rarr; <b>Samba</b>, dengan telemetri realtime ke <b>Cloud Web Monitor</b>. Diagram ini dibuat dari pembacaan kode <code>src/App.tsx</code>, <code>src-tauri/src/main.rs</code>, <code>android/.../BridgeService.kt</code>, <code>web-monitor/server.js</code>, dan <code>.github/workflows/release.yml</code>.</p>
+    </div>
+    <div class="meta">
+      versi aplikasi <b>0.1.209</b>
+      dev port <code>1420</code> · WS <code>1421</code> · monitor <code>8081</code>
+    </div>
+  </header>
+
+  <div class="legend">
+    <span class="k"><span class="sw usb"></span> USB / ADB (data + relay)</span>
+    <span class="k"><span class="sw smb"></span> SMB / Samba (upload cepat 5GHz)</span>
+    <span class="k"><span class="sw ws"></span> WebSocket / HTTPS cloud</span>
+    <span class="k"><span class="sw rel"></span> polling / heartbeat berkala</span>
+  </div>
+
+  <section class="card">
+    <h2><span class="n">1</span> Arsitektur Sistem — 4 Komponen Utama</h2>
+    <p class="sub">Desktop app adalah <b>orkestrator</b>: ia yang menjalankan ADB, mengatur antrean, dan me-relay telemetri HP ke cloud. HP tidak perlu disentuh saat transfer.</p>
+
+    <div class="arch">
+      <div class="node desk">
+        <div class="t">Windows / Linux Desktop <span class="pill info">Tauri 2 + Rust + React</span></div>
+        <div class="s">UI <code>src/App.tsx</code> + engine <code>src-tauri/src/main.rs</code>. Tray app, window close = hide (bukan quit).</div>
+        <div class="m">
+          <div><i>staging</i> <code>E:\SUBRO</code> (bisa diganti via <code>pick_source_dir</code>)</div>
+          <div><i>config</i> <code>%APPDATA%\FireFiles\config.json</code> / <code>~/.config/firefiles/</code></div>
+          <div><i>tugas</i> watcher file, ADB push, relay USB, heartbeat cloud</div>
+        </div>
+      </div>
+
+      <div class="conn">
+        <span class="ln usb"></span>
+        <span class="lbl"><b>USB ADB</b><br>push berkas · <code>adb reverse tcp:1421</code> · <code>start-foreground-service</code></span>
+      </div>
+
+      <div class="node andr">
+        <div class="t">Android Bridge APK <span class="pill ok">com.example.bridge</span></div>
+        <div class="s"><code>BridgeService</code> = foreground service dengan WakeLock + WifiLock, upload pakai SMBJ.</div>
+        <div class="m">
+          <div><i>buffer</i> <code>/sdcard/Android/data/com.example.bridge/files/SUBRO/</code></div>
+          <div><i>target</i> <code>smb://HOST/SHARE/</code> (SharedPreferences <code>smb_host</code>/<code>smb_share</code>)</div>
+          <div><i>tugas</i> upload ke Samba, kirim telemetri, widget + confetti Taby</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="midrow">
+      <div class="vc">
+        <span class="vl ws dash"></span>
+        <span class="lbl"><b>WS + POST /tauri</b><br>relay telemetri &amp; heartbeat host tiap siklus</span>
+      </div>
+      <div class="gapc"></div>
+      <div class="vc">
+        <span class="vl smb"></span>
+        <span class="lbl"><b>SMB2 over 5GHz hotspot</b><br>upload offline tanpa internet, guest auth</span>
+      </div>
+    </div>
+
+    <div class="arch">
+      <div class="node cloud">
+        <div class="t">Cloud Web Monitor <span class="pill acc">Node.js + Docker</span></div>
+        <div class="s"><code>web-monitor/server.js</code> — HTTP dashboard statis + WebSocket hand-written (tanpa library).</div>
+        <div class="m">
+          <div><i>port</i> HTTP <code>8080</code> (&rarr; host <code>8081</code>) · WS Android <code>1421/network</code></div>
+          <div><i>url</i> <code>https://files.endrisusanto.my.id/</code></div>
+          <div><i>state</i> <code>Map</code> clients · devices · tauri · androidSockets</div>
+        </div>
+      </div>
+
+      <div class="conn">
+        <span class="ln ws dash"></span>
+        <span class="lbl"><b>broadcast snapshot / telemetry</b><br>ke browser dashboard &amp; Monitor APK</span>
+      </div>
+
+      <div class="node smb">
+        <div class="t">Samba Storage Server <span class="pill warn">tujuan akhir</span></div>
+        <div class="s">Share tempat berkas tertata. Sumber kebenaran "sudah selesai" di UI desktop.</div>
+        <div class="m">
+          <div><i>mount</i> <code>/sambashare</code> (default <code>DEFAULT_SAMBA_DIR</code>)</div>
+          <div><i>default</i> <code>smb://192.168.10.15/SSD/</code></div>
+          <div><i>deteksi</i> <code>watch_samba()</code> &rarr; event <code>samba-files</code></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Catatan kode:</b> <code>SMB_HOST = "10.219.191.122"</code> dan <code>SMB_SHARE = "SSD"</code> masih di-hardcode sebagai konstanta default di <code>BridgeService.kt</code> (baris 34–35), meski bisa dioverride lewat remote command dari dashboard.
+    </div>
+  </section>
+  <section class="card">
+    <h2><span class="n">2</span> Workflow Inti — Satu Berkas dari PC sampai Samba</h2>
+    <p class="sub">Urutan lengkap yang dipicu saat sebuah file selesai diunduh di folder staging. Langkah 1–5 sisi desktop, 6–10 rantai eksekusi.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="num info" style="background:hsl(210 80% 55% / .14);border-color:hsl(210 70% 50% / .45);color:var(--info)">1</div>
+        <div class="sbody">
+          <div class="st">Berkas baru muncul di staging <code>E:\SUBRO</code></div>
+          <div class="sd"><code>watch_source()</code> pakai crate <code>notify</code> (event system) dengan debounce <b>200 ms</b>. Kalau event OS terlewat, <code>emit_loop()</code> polling tiap <b>5 detik</b> sebagai jaring pengaman.</div>
+          <div class="tags"><span class="pill info">filesystem watcher</span><span class="pill">emit &quot;files&quot;</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">2</div>
+        <div class="sbody">
+          <div class="st">Klasifikasi status berkas</div>
+          <div class="sd">Ekstensi <code>.part</code> / <code>.crdownload</code> / <code>.downloading</code> / <code>.tmp</code> &rarr; <b>downloading</b>. Gagal dibuka read (<code>file_is_available()</code>) &rarr; <b>locked</b>. Hanya <code>.md5</code> / <code>.zip</code> / <code>.txt</code> yang terbaca &rarr; <b>ready</b> dan boleh diantrekan.</div>
+          <div class="tags"><span class="pill warn">downloading</span><span class="pill err">locked</span><span class="pill ok">ready</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">3</div>
+        <div class="sbody">
+          <div class="st">React terima event &rarr; auto-push</div>
+          <div class="sd"><code>listen("files")</code> update state; bila <code>localStorage("auto_push") === "true"</code> maka <code>pushAllPending()</code> jalan sendiri. Antrean di-sort: file prioritas dulu (<code>priority_files</code>), lalu nama A-Z.</div>
+          <div class="tags"><span class="pill acc">auto_push ON</span><span class="pill">priority sort</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">4</div>
+        <div class="sbody">
+          <div class="st">Mutex anti-dobel &amp; ringkasan antrean</div>
+          <div class="sd"><code>isPushingRef.current</code> menggagalkan push kedua saat masih berjalan. UI menghitung <code>queue_total</code> &amp; <code>queue_success</code> (dari <code>inSamba || isStaged</code>) lalu mengirim keduanya ke Rust agar progres global akurat.</div>
+          <div class="tags"><span class="pill">invoke(&quot;push_file&quot;)</span><span class="pill err">skip bila sedang push</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num warn">5</div>
+        <div class="sbody">
+          <div class="st">Gerbang ganda sebelum push (proteksi HP)</div>
+          <div class="sd"><b>Double-buffering:</b> selama file staged di HP <b>≥ 3</b>, loop tunggu 2 detik per iterasi. <b>Storage guard:</b> ruang bebas HP harus <b>≥ 1 GB</b> (<code>MIN_FREE_KB</code>), kecuali <code>force_transfer</code> aktif. Ukuran file juga ditulis ke <code>.meta</code> supaya HP tahu total byte.</div>
+          <div class="tags"><span class="pill warn">max 3 staged</span><span class="pill warn">min 1 GB free</span><span class="pill">.meta size handshake</span></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num usb">6</div>
+        <div class="sbody">
+          <div class="st"><code>adb push</code> ke buffer HP + streaming progres</div>
+          <div class="sd">Perintah ADB dijalankan dengan <code>CREATE_NO_WINDOW</code> (Windows) dan stdout-nya dibaca baris per baris oleh <code>pipe_progress()</code>: regex mengambil persen, lalu <code>app.emit("transfer", {file, percent, speed_bps})</code> ke UI. React merender progress bar + kurva <code>NetworkChart</code>.</div>
+          <div class="tags"><span class="pill info">emit &quot;transfer&quot;</span><span class="pill">USB link</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num usb">7</div>
+        <div class="sbody">
+          <div class="st">Bangunkan BridgeService dari jarak jauh</div>
+          <div class="sd">Setelah push selesai, Rust memanggil <code>adb shell am start-foreground-service</code> dengan extras: nama file, <code>queue_total</code>, <code>queue_success</code>. HP langsung mulai upload tanpa interaksi pengguna.</div>
+          <div class="tags"><span class="pill info">start-foreground-service</span><span class="pill ok">service hidup (WakeLock)</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num ok">8</div>
+        <div class="sbody">
+          <div class="st">HP upload ke Samba via SMBJ</div>
+          <div class="sd"><code>BridgeService</code> membuka <code>SMBClient</code> &rarr; <code>connect(host)</code> &rarr; <code>authenticate(guest)</code> &rarr; <code>DiskShare.openFile()</code> lalu menyalin stream. Lalu lintas tetap di hotspot 5GHz lokal, jadi kecepatan maksimal meski internet mati.</div>
+          <div class="tags"><span class="pill ok">smb://host/share</span><span class="pill">progress byte per sample</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num ok">9</div>
+        <div class="sbody">
+          <div class="st">Verifikasi status sejati (anti false-complete)</div>
+          <div class="sd">Berkas dianggap tuntas hanya bila nama muncul di <code>sambaFiles</code> (hasil <code>watch_samba()</code>) <b>atau</b> di <code>phoneFiles</code> (di-poll <code>get_phone_files</code> tiap 5 detik). Cache UI tidak dipakai sebagai satu-satunya bukti.</div>
+          <div class="tags"><span class="pill ok">inSamba</span><span class="pill ok">isStaged</span><span class="pill err">bukan cache lock</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">10</div>
+        <div class="sbody">
+          <div class="st">Cleanup staging + rayakan selesai</div>
+          <div class="sd">Sesuai <code>post_transfer_action</code>: file di PC dipindah ke folder <code>BACKUP/</code> atau dihapus permanen. Taby di HP memicu animasi <code>FILE TERKIRIM</code>, dan <code>TRANSFER SELESAI</code> + confetti saat antrean kosong. Bila <code>auto_push</code> masih ON dan antrean belum habis, UI menjadwalkan <code>pushAllPending()</code> lagi setelah 1 detik.</div>
+          <div class="tags"><span class="pill acc">backup | delete</span><span class="pill acc">confetti</span><span class="pill">loop sampai bersih</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note ok">
+      <b>Ringkas satu baris:</b> <span class="mono">staging baru &rarr; klasifikasi ready &rarr; gerbang buffer/storage &rarr; adb push &rarr; service SMB &rarr; cek Samba/HP &rarr; cleanup + confetti</span>
+    </div>
+  </section>
+  <section class="card">
+    <h2><span class="n">3</span> Mesin Rust — 6 Thread Latar Belakang Saat App Hidup</h2>
+    <p class="sub">Semua di-<i>spawn</i> dari blok <code>.setup()</code> pada <code>fn main()</code>. Tiap thread punya interval sendiri dan mengirim event Tauri ke React.</p>
+
+    <table class="tbl">
+      <thead>
+        <tr><th>Thread / loop</th><th>Interval</th><th>Tugas</th><th>Output</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="f">watch_adb_devices()</td>
+          <td><span class="pill info">2 detik</span></td>
+          <td>Jalankan <code>adb devices -l</code>; bila daftar berubah &rarr; auto <code>adb reverse tcp:1421 tcp:1421</code>, scan detail tiap device paralel (fingerprint <code>getprop</code>, storage <code>df</code>, IP <code>wlan0</code>, APK via <code>pm list packages</code>), auto-pairing device bridge</td>
+          <td>event <code>devices</code> + <code>devices_cache</code></td>
+        </tr>
+        <tr>
+          <td class="f">watch_source()</td>
+          <td><span class="pill info">event · debounce 200 ms</span></td>
+          <td>Watcher <code>notify</code> pada folder staging; membangun ulang daftar file beserta statusnya</td>
+          <td>event <code>files</code></td>
+        </tr>
+        <tr>
+          <td class="f">watch_samba()</td>
+          <td><span class="pill info">event</span></td>
+          <td>Watcher pada mount Samba untuk mengenali berkas yang benar-benar sudah mendarat</td>
+          <td>event <code>samba-files</code></td>
+        </tr>
+        <tr>
+          <td class="f">emit_loop()</td>
+          <td><span class="pill warn">5 detik</span></td>
+          <td>Polling cadangan: selalu emit daftar staging + Samba walau event filesystem hilang (mis. remote share di Windows)</td>
+          <td><code>files</code>, <code>samba-files</code></td>
+        </tr>
+        <tr>
+          <td class="f">start_usb_relay()</td>
+          <td><span class="pill ok">blocking accept</span></td>
+          <td><code>TcpListener</code> di <code>0.0.0.0:1421</code>; membaca JSON per baris dari socket HP yang datang lewat <code>adb reverse</code></td>
+          <td>event <code>usb_telemetry</code></td>
+        </tr>
+        <tr>
+          <td class="f">watch_taby_assistant()</td>
+          <td><span class="pill warn">30 detik</span></td>
+          <td>Reminder workstation: greeting jam kerja, minum air, peregangan, makan siang, clock-out</td>
+          <td>trigger Taby ke HP</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="cols2" style="margin-top:16px">
+      <div class="lane">
+        <div class="lt"><span class="pill acc">Sisi React</span> listener + polling</div>
+        <div class="chain">
+          <span class="chip">listen devices / files / samba-files / transfer</span><span class="to">+</span>
+          <span class="chip warn">app_info 10 s</span><span class="to">+</span>
+          <span class="chip warn">get_phone_files 5 s</span><span class="to">+</span>
+          <span class="chip warn">refreshDevices 4 s</span>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lt"><span class="pill info">PersistedSettings</span> 14 field &rarr; config.json</div>
+        <div class="sd" style="font-size:11.8px;color:var(--mut)"><code>source_dir</code> · <code>samba_dir</code> · <code>auto_push</code> · <code>force_transfer</code> · <code>post_transfer_action</code> · <code>selected_fingerprint</code> · <code>theme</code> · <code>priority_files</code> · <code>user_unchecked_priority</code> · <code>desk_assistant_enabled</code> · <code>remind_drink_water_min</code> · <code>remind_stretch_min</code> · <code>lunch_time</code> · <code>work_start_time</code>/<code>work_end_time</code></div>
+      </div>
+    </div>
+
+    <div class="note warn">
+      <b>Perilaku tray:</b> menutup jendela hanya menyembunyikan app (<code>hide</code> + <code>prevent_exit</code>), transfer tetap jalan. Keluar penuh lewat menu tray.
+    </div>
+  </section>
+<!--APPEND3-->
+
+
+
+
+</div>
+</body>
+</html>
