@@ -100,4 +100,24 @@ class TabyAssistantView @JvmOverloads constructor(
             webView.evaluateJavascript("updateConfig('$safeJson');", null)
         }
     }
+
+    fun setRemoteCursor(normX: Float, normY: Float) {
+        handler.post {
+            webView.evaluateJavascript("setRemoteCursor($normX, $normY);", null)
+        }
+    }
+
+    override fun onGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        if (event.action == android.view.MotionEvent.ACTION_HOVER_MOVE) {
+            val w = width.toFloat()
+            val h = height.toFloat()
+            if (w > 0 && h > 0) {
+                val nx = (event.x / w) * 2f - 1f
+                val ny = (event.y / h) * 2f - 1f
+                setRemoteCursor(nx, ny)
+            }
+        }
+        return super.onGenericMotionEvent(event)
+    }
 }
+

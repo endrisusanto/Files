@@ -1,0 +1,15 @@
+startup_message off
+vbell off
+altscreen on
+defscrollback 5000
+caption splitonly "%{.bW}%-w%{.rW}%n %t%{-}%+w%=%{.bW}%h"
+splitwindow
+focus down
+splitwindow
+focus down
+splitwindow
+focus down
+screen -t desktop  0 bash -c "echo 'desktop pane - start with: scripts/splits.sh --dev'; tail -F -n 200 /home/endri-pro/Videos/Files/logs/desktop.log"
+screen -t android  1 bash -c "if command -v adb >/dev/null && adb get-state >/dev/null 2>&1; then adb logcat -v time -s BridgeService:V MainActivity:V MonitorActivity:V com.example.bridge:V 2>&1 | tee -a /home/endri-pro/Videos/Files/logs/android.log; else tail -F -n 200 /home/endri-pro/Videos/Files/logs/android.log; fi"
+screen -t monitor  2 bash -c "if command -v docker >/dev/null; then docker compose -f /home/endri-pro/Videos/Files/docker-compose.yml logs -f --tail=200 bridge-monitor 2>&1 | tee -a /home/endri-pro/Videos/Files/logs/monitor.log; else tail -F -n 200 /home/endri-pro/Videos/Files/logs/monitor.log; fi"
+screen -t graphify 3 bash -c "/home/endri-pro/Videos/Files/scripts/graphify_watch.sh 2>&1 | tee -a /home/endri-pro/Videos/Files/logs/graphify.log"

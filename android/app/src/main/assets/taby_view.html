@@ -33,32 +33,59 @@
       align-items: center;
       justify-content: center;
       background-color: #000000;
-      touch-action: manipulation;
+      touch-action: none;
+      perspective: 800px;
+      overflow: hidden;
     }
 
     .gif-container {
       width: 100%;
       height: 100%;
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
       pointer-events: none;
+      transform-style: preserve-3d;
+      will-change: transform;
+      transition: transform 0.08s ease-out;
     }
 
     .taby-gif {
+      position: absolute;
       width: auto;
       height: 100%;
       max-width: 100%;
       object-fit: contain;
       background-color: #000000;
-      transform: rotate(270deg) scale(1.35);
-      transition: transform 0.2s ease;
+      opacity: 0;
+      transition: opacity 0.22s ease-in-out;
+      pointer-events: none;
+      will-change: opacity, transform;
     }
 
+    .taby-gif.active {
+      opacity: 1;
+    }
+
+    /* Rotation and scaling presets */
     .rot-0 { transform: rotate(0deg); }
     .rot-90 { transform: rotate(90deg) scale(1.35); }
     .rot-180 { transform: rotate(180deg); }
     .rot-270 { transform: rotate(270deg) scale(1.35); }
+
+    /* Interactive squish bounce when tapped */
+    @keyframes squishBounce {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.08, 0.92); }
+      60%  { transform: scale(0.95, 1.05); }
+      85%  { transform: scale(1.02, 0.98); }
+      100% { transform: scale(1); }
+    }
+
+    .gif-container.squish {
+      animation: squishBounce 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
 
     /* Minimal Distraction-Free UI Layer with Auto Fade */
     .ui-layer {
@@ -75,7 +102,7 @@
       pointer-events: auto;
     }
 
-    /* Top Left Status Dot Only */
+    /* Top Left Status Dot */
     .top-dot-badge {
       position: absolute;
       top: 16px;
@@ -84,6 +111,7 @@
       height: 28px;
       background: rgba(22, 27, 34, 0.7);
       backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 50%;
       display: flex;
@@ -105,7 +133,7 @@
       50% { opacity: 0.4; transform: scale(0.85); }
     }
 
-    /* Top Right Minimal Exit X Button */
+    /* Top Right Exit Button */
     .exit-btn-minimal {
       position: absolute;
       top: 16px;
@@ -114,6 +142,7 @@
       height: 28px;
       background: rgba(22, 27, 34, 0.7);
       backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.1);
       color: #8b949e;
       font-size: 13px;
@@ -131,7 +160,7 @@
       border-color: #f85149;
     }
 
-    /* Top Center Minimal Badge */
+    /* Top Center HUD Badge */
     .hud-overlay {
       position: absolute;
       top: 16px;
@@ -152,6 +181,7 @@
       background: rgba(22, 27, 34, 0.85);
       border: 1px solid rgba(56, 139, 253, 0.4);
       backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       padding: 4px 12px;
       border-radius: 12px;
       text-align: center;
@@ -164,9 +194,11 @@
 </head>
 <body>
 
-  <div class="desk-stage" id="stage" onclick="onStageTap()">
-    <div class="gif-container">
-      <img id="tabyImage" class="taby-gif rot-270" src="taby/5e63dbe6.gif" alt="Taby Face" />
+  <div class="desk-stage" id="stage">
+    <!-- Double-buffered container for flicker-free GIF transitions and 2.5D head/gaze tilt -->
+    <div class="gif-container" id="gifContainer">
+      <img id="tabyImgA" class="taby-gif rot-270 active" src="taby/5e63dbe6.gif" alt="Taby Face A" />
+      <img id="tabyImgB" class="taby-gif rot-270" src="taby/5e63dbe6.gif" alt="Taby Face B" />
     </div>
 
     <!-- Minimal Overlay Layer (auto fades) -->
@@ -191,11 +223,18 @@
   </div>
 
   <script>
-    const tabyImg = document.getElementById("tabyImage");
+    const stage = document.getElementById("stage");
+    const gifContainer = document.getElementById("gifContainer");
+    const imgA = document.getElementById("tabyImgA");
+    const imgB = document.getElementById("tabyImgB");
     const uiLayer = document.getElementById("uiLayer");
     const hudOverlay = document.getElementById("hudOverlay");
     const hudMain = document.getElementById("hudMain");
     const hudText = document.getElementById("hudText");
+
+    let activeBuffer = "A"; // Tracks which buffer is currently visible
+    let currentRot = Number(localStorage.getItem("taby_rotation")) || 270;
+    let gazeTrackingEnabled = true;
 
     const ANIM_MAP = {
       "angry_01_loop": "342748ab.gif",
@@ -299,7 +338,6 @@
       "day_planned", "wow"
     ]);
 
-    // Build IDLE_PLAYLIST dynamically from ANIM_MAP excluding WORK and SUCCESS
     const IDLE_PLAYLIST = Object.keys(ANIM_MAP).filter(key => !WORK_KEYS.has(key) && !SUCCESS_KEYS.has(key));
 
     let idleTimer = null;
@@ -308,6 +346,24 @@
     let fadeTimer = null;
     let isTransferring = false;
     let isTemporaryTriggerActive = false;
+
+    // --- Double-Buffered Flicker-Free GIF Switcher ---
+    function switchGif(fileName) {
+      const targetSrc = "taby/" + fileName;
+      const currentImg = activeBuffer === "A" ? imgA : imgB;
+      const nextImg = activeBuffer === "A" ? imgB : imgA;
+
+      if (currentImg.getAttribute("src") === targetSrc && currentImg.classList.contains("active")) {
+        return; // Already playing
+      }
+
+      nextImg.onload = () => {
+        nextImg.classList.add("active");
+        currentImg.classList.remove("active");
+        activeBuffer = activeBuffer === "A" ? "B" : "A";
+      };
+      nextImg.src = targetSrc;
+    }
 
     function shuffle(array) {
       const arr = [...array];
@@ -328,7 +384,7 @@
       }
       const animKey = shuffledIdleList[idleIndex++] || "idle_01_loop";
       const file = ANIM_MAP[animKey] || "5e63dbe6.gif";
-      tabyImg.src = "taby/" + file;
+      switchGif(file);
       hudText.textContent = "STANDBY";
       
       const nextDuration = 5000 + Math.floor(Math.random() * 3000);
@@ -359,8 +415,121 @@
       }
     }
 
-    function onStageTap() {
+    // --- Interactive 2.5D Gaze & Head Tilt Engine ---
+    let targetLookX = 0;
+    let targetLookY = 0;
+    let currentLookX = 0;
+    let currentLookY = 0;
+    let isTrackingCursor = false;
+    let cursorIdleTimer = null;
+    let gazeAnimId = null;
+
+    function updateGaze() {
+      if (!gazeTrackingEnabled) {
+        gifContainer.style.transform = "";
+        gazeAnimId = null;
+        return;
+      }
+
+      const dx = targetLookX - currentLookX;
+      const dy = targetLookY - currentLookY;
+
+      // Smooth lerp (spring damping factor: 0.14)
+      currentLookX += dx * 0.14;
+      currentLookY += dy * 0.14;
+
+      const tiltY = currentLookX * 13; // Max 13 deg yaw
+      const tiltX = -currentLookY * 13; // Max 13 deg pitch
+      const shiftX = currentLookX * 16; // Max 16px translation
+      const shiftY = currentLookY * 16;
+
+      gifContainer.style.transform = `perspective(700px) rotateX(${tiltX.toFixed(2)}deg) rotateY(${tiltY.toFixed(2)}deg) translate3d(${shiftX.toFixed(1)}px, ${shiftY.toFixed(1)}px, 0)`;
+
+      if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001 || isTrackingCursor) {
+        gazeAnimId = requestAnimationFrame(updateGaze);
+      } else {
+        gazeAnimId = null;
+      }
+    }
+
+    function startGazeLoop() {
+      if (!gazeAnimId) {
+        gazeAnimId = requestAnimationFrame(updateGaze);
+      }
+    }
+
+    function setCursorCoords(nx, ny) {
+      if (!gazeTrackingEnabled) return;
+      nx = Math.max(-1, Math.min(1, nx));
+      ny = Math.max(-1, Math.min(1, ny));
+
+      // Rotate coordinates to align with screen display rotation
+      const rad = (-currentRot * Math.PI) / 180;
+      const rotX = nx * Math.cos(rad) - ny * Math.sin(rad);
+      const rotY = nx * Math.sin(rad) + ny * Math.cos(rad);
+
+      targetLookX = rotX;
+      targetLookY = rotY;
+      isTrackingCursor = true;
+
+      startGazeLoop();
+
+      if (cursorIdleTimer) clearTimeout(cursorIdleTimer);
+      cursorIdleTimer = setTimeout(() => {
+        // Return to center when cursor/touch is idle
+        targetLookX = 0;
+        targetLookY = 0;
+        isTrackingCursor = false;
+        startGazeLoop();
+      }, 2500);
+    }
+
+    // Public API for remote cursor (from PC WebSocket or Android Bridge)
+    window.setRemoteCursor = function(normX, normY) {
+      setCursorCoords(Number(normX) || 0, Number(normY) || 0);
+    };
+
+    // Pointer & Touch Event Listeners on Stage
+    stage.addEventListener("pointermove", (e) => {
+      const rect = stage.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        const ny = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+        setCursorCoords(nx, ny);
+      }
+    });
+
+    stage.addEventListener("pointerdown", (e) => {
+      const rect = stage.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        const ny = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+        setCursorCoords(nx, ny);
+      }
+      onStageTap(e);
+    });
+
+    stage.addEventListener("pointerleave", () => {
+      targetLookX = 0;
+      targetLookY = 0;
+      isTrackingCursor = false;
+      startGazeLoop();
+    });
+
+    function onStageTap(e) {
       showUiBriefly(3500);
+
+      // Squish bounce effect
+      gifContainer.classList.remove("squish");
+      void gifContainer.offsetWidth; // Force reflow
+      gifContainer.classList.add("squish");
+
+      // Random friendly reaction when not transferring
+      if (!isTransferring && !isTemporaryTriggerActive) {
+        const reactions = ["wow", "blush", "thumbs_up", "yeah", "circle"];
+        const rand = reactions[Math.floor(Math.random() * reactions.length)];
+        playExpression(rand, "INTERACTION", "", 2000);
+      }
     }
 
     function playExpression(animKey, title, subtext, durationMs) {
@@ -370,7 +539,7 @@
       }
 
       const file = ANIM_MAP[animKey] || (animKey.endsWith(".gif") ? animKey : (ANIM_MAP["idle"] || "5e63dbe6.gif"));
-      tabyImg.src = "taby/" + file;
+      switchGif(file);
 
       if (title) {
         hudText.textContent = title;
@@ -440,12 +609,11 @@
       }
     }
 
-    let currentRot = Number(localStorage.getItem("taby_rotation")) || 270;
-
     function setRotation(deg) {
       currentRot = deg;
       localStorage.setItem("taby_rotation", String(deg));
-      tabyImg.className = "taby-gif rot-" + deg;
+      imgA.className = "taby-gif rot-" + deg + (activeBuffer === "A" ? " active" : "");
+      imgB.className = "taby-gif rot-" + deg + (activeBuffer === "B" ? " active" : "");
     }
 
     function updateConfig(configJson) {
@@ -456,6 +624,12 @@
         }
         if (cfg.hud_visible !== undefined) {
           hudOverlay.style.display = cfg.hud_visible ? "flex" : "none";
+        }
+        if (cfg.gaze_tracking !== undefined) {
+          gazeTrackingEnabled = !!cfg.gaze_tracking;
+          if (!gazeTrackingEnabled) {
+            gifContainer.style.transform = "";
+          }
         }
         if (cfg.map && typeof cfg.map === "object") {
           Object.assign(ANIM_MAP, cfg.map);
@@ -472,7 +646,7 @@
       }
     }
 
-    // Initialize with default 270 rotation and start idle loop
+    // Initialize with default rotation and start idle cycle
     setRotation(currentRot);
     startIdleLoop();
   </script>

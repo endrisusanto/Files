@@ -1,0 +1,11 @@
+/home/endri-pro/Videos/Files/.github/workflows/release.yml
+/home/endri-pro/Videos/Files/README.md
+/home/endri-pro/Videos/Files/android/app/src/main/assets/taby_view.html
+/home/endri-pro/Videos/Files/docker-compose.yml
+/home/endri-pro/Videos/Files/firefiles_improvement_report.html
+/home/endri-pro/Videos/Files/firefiles_workflow_diagram.html
+/home/endri-pro/Videos/Files/index.html
+/home/endri-pro/Videos/Files/taby_preview.html
+/home/endri-pro/Videos/Files/web-monitor/README.md
+/home/endri-pro/Videos/Files/web-monitor/public/index.html
+/home/endri-pro/Videos/Files/web-monitor/public/taby_preview.html

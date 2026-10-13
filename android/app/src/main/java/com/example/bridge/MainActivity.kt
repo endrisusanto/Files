@@ -1,7 +1,9 @@
 package com.example.bridge
 
 import android.Manifest
+import android.animation.ValueAnimator
 import android.app.Activity
+import android.view.animation.DecelerateInterpolator
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -139,6 +141,15 @@ class MainActivity : Activity() {
                     runOnUiThread {
                         if (::tabyView.isInitialized) {
                             tabyView.updateConfig(config)
+                        }
+                    }
+                }
+                "com.example.bridge.TABY_CURSOR" -> {
+                    val x = intent.getFloatExtra("x", 0f)
+                    val y = intent.getFloatExtra("y", 0f)
+                    runOnUiThread {
+                        if (::tabyView.isInitialized) {
+                            tabyView.setRemoteCursor(x, y)
                         }
                     }
                 }
@@ -640,6 +651,7 @@ class MainActivity : Activity() {
             addAction("com.example.bridge.ADB_PUSH_PROGRESS")
             addAction("com.example.bridge.SET_TABY_MODE")
             addAction("com.example.bridge.SET_TABY_CONFIG")
+            addAction("com.example.bridge.TABY_CURSOR")
         }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(tabyReceiver, tabyFilter, Context.RECEIVER_EXPORTED)
@@ -684,10 +696,17 @@ class MainActivity : Activity() {
     private fun setTabyMode(enabled: Boolean) {
         isTabyMode = enabled
         if (::tabyView.isInitialized) {
-            tabyView.visibility = if (enabled) View.VISIBLE else View.GONE
             if (enabled) {
+                tabyView.alpha = 0f
+                tabyView.visibility = View.VISIBLE
+                tabyView.animate().alpha(1f).setDuration(240).start()
                 tabyView.playExpression("idle_01_loop", "STANDBY · IDLE", "", 0)
                 updatePowerSavingBrightness(true)
+            } else {
+                tabyView.animate().alpha(0f).setDuration(200).withEndAction {
+                    tabyView.visibility = View.GONE
+                }.start()
+                updatePowerSavingBrightness(false)
             }
         }
         getSharedPreferences("bridge", Context.MODE_PRIVATE).edit()
@@ -1290,6 +1309,12 @@ class MainActivity : Activity() {
                                         tabyView.updateConfig(json.toString())
                                     }
                                 }
+                                // ponytail: route cursor coordinates from PC WebSocket to taby in 4 lines
+                                "cursor" -> {
+                                    val x = json.optDouble("x", 0.0).toFloat()
+                                    val y = json.optDouble("y", 0.0).toFloat()
+                                    if (::tabyView.isInitialized) tabyView.setRemoteCursor(x, y)
+                                }
                                 "refresh" -> {
                                     appendLog("Remote command: refresh")
                                     refreshStatus("Remote refresh triggered")
@@ -1516,10 +1541,25 @@ class MainActivity : Activity() {
     }
 
     class RingProgressView(context: Context) : View(context) {
+        private var animatedProgress: Float = 0f
+        private var animator: ValueAnimator? = null
+
         var progress: Int = 0
             set(value) {
-                field = value
-                postInvalidate()
+                val target = value.coerceIn(0, 100).toFloat()
+                if (field != value) {
+                    field = value
+                    animator?.cancel()
+                    animator = ValueAnimator.ofFloat(animatedProgress, target).apply {
+                        duration = 260
+                        interpolator = DecelerateInterpolator()
+                        addUpdateListener {
+                            animatedProgress = it.animatedValue as Float
+                            postInvalidate()
+                        }
+                        start()
+                    }
+                }
             }
         
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1547,16 +1587,16 @@ class MainActivity : Activity() {
             paint.color = Color.parseColor("#27272a")
             canvas.drawCircle(cx, cy, r, paint)
             
-            // Draw progress arc
-            paint.color = if (progress >= 100) Color.parseColor("#16a34a") else Color.parseColor("#2563eb")
+            // Draw progress arc with smooth animatedProgress
+            paint.color = if (animatedProgress >= 99.5f) Color.parseColor("#16a34a") else Color.parseColor("#2563eb")
             val rect = RectF(cx - r, cy - r, cx + r, cy + r)
-            canvas.drawArc(rect, -90f, (progress * 3.6f), false, paint)
+            canvas.drawArc(rect, -90f, (animatedProgress * 3.6f), false, paint)
             
             // Draw text
             val density = resources.displayMetrics.density
             textPaint.textSize = 10f * density
             textPaint.color = Color.WHITE
-            canvas.drawText("$progress%", cx, cy - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint)
+            canvas.drawText("${animatedProgress.toInt()}%", cx, cy - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint)
         }
     }
 

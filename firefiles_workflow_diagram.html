@@ -444,7 +444,242 @@
       <b>Perilaku tray:</b> menutup jendela hanya menyembunyikan app (<code>hide</code> + <code>prevent_exit</code>), transfer tetap jalan. Keluar penuh lewat menu tray.
     </div>
   </section>
-<!--APPEND3-->
+  <section class="card">
+    <h2><span class="n">4</span> Dual-Path Telemetri — USB Relay vs Langsung ke Cloud</h2>
+    <p class="sub">Fitur kunci: transfer berkas berjalan di WiFi 5GHz (cepat, boleh offline), sementara status tetap terkendali lewat dua jalur terpisah.</p>
+
+    <div class="cols3">
+      <div class="lane">
+        <div class="lt"><span class="pill info">Path A</span> USB relay</div>
+        <div class="chain">
+          <span class="chip ok">BridgeService</span><span class="to">&rarr;</span>
+          <span class="chip">socket <code>localhost:1421</code></span><span class="to">&rarr;</span>
+          <span class="chip info">adb reverse</span><span class="to">&rarr;</span>
+          <span class="chip info">TcpListener PC</span><span class="to">&rarr;</span>
+          <span class="chip info">event <code>usb_telemetry</code></span><span class="to">&rarr;</span>
+          <span class="chip acc">React</span><span class="to">&rarr;</span>
+          <span class="chip acc">WS cloud</span>
+        </div>
+        <div class="sd" style="font-size:11.5px;color:var(--mut);margin-top:10px">JSON per baris. Tidak butuh internet di HP, tetap jalan saat HP hanya menempel ke hotspot lokal.</div>
+      </div>
+
+      <div class="lane">
+        <div class="lt"><span class="pill ok">Path B</span> WebSocket langsung</div>
+        <div class="chain">
+          <span class="chip ok">BridgeService</span><span class="to">&rarr;</span>
+          <span class="chip">wss <code>/network</code></span><span class="to">&rarr;</span>
+          <span class="chip acc"><code>attachAndroid()</code></span><span class="to">&rarr;</span>
+          <span class="chip acc">Map <code>devices</code></span><span class="to">&rarr;</span>
+          <span class="chip acc">broadcast <code>telemetry</code></span>
+        </div>
+        <div class="sd" style="font-size:11.5px;color:var(--mut);margin-top:10px">Dipakai saat HP punya akses cloud; server menyimpan 60 sampel terakhir per device untuk grafik.</div>
+      </div>
+
+      <div class="lane">
+        <div class="lt"><span class="pill warn">Path C</span> heartbeat host PC</div>
+        <div class="chain">
+          <span class="chip info">React</span><span class="to">&rarr;</span>
+          <span class="chip">POST <code>/tauri</code></span><span class="to">&rarr;</span>
+          <span class="chip acc">Map <code>tauri</code></span><span class="to">&rarr;</span>
+          <span class="chip acc">broadcast <code>tauri</code></span>
+        </div>
+        <div class="sd" style="font-size:11.5px;color:var(--mut);margin-top:10px">Menandai host <code>ENDRI-S02</code>/<code>ENDRI-S03</code> online. Host &gt; 30 detik tanpa heartbeat dibuang; dicek tiap 10 detik.</div>
+      </div>
+    </div>
+
+    <div class="lane" style="margin-top:14px">
+      <div class="lt"><span class="pill err">Arah balik</span> remote command dari dashboard / Monitor APK</div>
+      <div class="chain">
+        <span class="chip">kirim <code>{type:"command", target, command}</code></span><span class="to">&rarr;</span>
+        <span class="chip acc">routing server</span><span class="to">&rarr;</span>
+        <span class="chip ok"><code>androidSockets.get(target)</code></span><span class="to">/</span>
+        <span class="chip info">client dengan <code>tauriId === target</code></span><span class="to">&rarr;</span>
+        <span class="chip warn">Upload All · rescan · ganti host/share</span>
+      </div>
+      <div class="sd" style="font-size:11.5px;color:var(--mut);margin-top:10px"><code>target === "all"</code> &rarr; difanarkan ke semua socket Android dan semua client Tauri.</div>
+    </div>
+  </section>
+  <section class="card">
+    <h2><span class="n">5</span> Internal Web Monitor — WebSocket Ditulis Tangan</h2>
+    <p class="sub"><code>web-monitor/server.js</code> tidak memakai <code>ws</code> maupun <code>socket.io</code>: handshake dan framing dibuat manual, sehingga image Docker sangat kecil.</p>
+
+    <div class="cols2">
+      <div class="lane">
+        <div class="lt"><span class="pill acc">Siklus koneksi</span></div>
+        <div class="chain">
+          <span class="chip"><code>http.createServer()</code></span><span class="to">&rarr;</span>
+          <span class="chip">event <code>upgrade</code></span><span class="to">&rarr;</span>
+          <span class="chip">path <code>/network</code> ?</span><span class="to">&rarr;</span>
+          <span class="chip ok">attachAndroid()</span><span class="to">/</span>
+          <span class="chip info">attachBrowser()</span>
+        </div>
+        <div class="sd" style="font-size:11.5px;color:var(--mut);margin-top:10px"><code>handshake()</code> = SHA-1 atas <code>sec-websocket-key</code> + GUID <code>258EAFA5-E914-47DA-95CA-C5AB0DC85B11</code>, lalu balasan <code>101 Switching Protocols</code>. Port kedua (<code>WS_PORT</code> 1421) khusus menerima Android.</div>
+      </div>
+
+      <div class="lane">
+        <div class="lt"><span class="pill acc">Framing 3 ukuran payload</span></div>
+        <table class="tbl">
+          <tbody>
+            <tr><td class="f">kurang 126 byte</td><td>header 2 byte <code>[0x81, len]</code></td></tr>
+            <tr><td class="f">maks 65 535</td><td>marker <code>126</code> + <code>writeUInt16BE</code></td></tr>
+            <tr><td class="f">di atas itu</td><td>marker <code>127</code> + <code>writeBigUInt64BE</code> (BigInt)</td></tr>
+          </tbody>
+        </table>
+        <div class="sd" style="font-size:11.5px;color:var(--mut);margin-top:10px"><code>attachWebSocket()</code> memelihara buffer, memecah frame, membuka mask, dan menjawab opcode ping/pong.</div>
+      </div>
+    </div>
+
+    <div class="cols2" style="margin-top:14px">
+      <div class="lane">
+        <div class="lt"><span class="pill info">State di memori</span></div>
+        <div class="chain">
+          <span class="chip">Set <code>clients</code> browser</span>
+          <span class="chip">Map <code>devices</code> HP</span>
+          <span class="chip">Map <code>tauri</code> host PC</span>
+          <span class="chip">Map <code>androidSockets</code></span>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lt"><span class="pill warn">Jenis pesan keluar</span></div>
+        <div class="chain">
+          <span class="chip acc">snapshot</span>
+          <span class="chip acc">telemetry</span>
+          <span class="chip acc">tauri</span>
+          <span class="chip err">command</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Deployment:</b> <code>docker-compose.yml</code> memetakan <code>8081:8080</code> (HTTP dashboard) dan <code>1421:1421</code> (WS Android) dengan <code>restart: unless-stopped</code>. Variabel <code>MONITOR_URL</code> di PC (via <code>setx</code>) menentukan endpoint heartbeat Tauri.
+    </div>
+  </section>
+  <section class="card">
+    <h2><span class="n">6</span> Pipeline Rilis — Lokal &rarr; GitHub Actions &rarr; Auto-Update</h2>
+    <p class="sub">Satu perintah <code>./scripts/release.sh [patch|minor|major]</code> memicu seluruh rantai build untuk 4 artefak sekaligus.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="num">1</div>
+        <div class="sbody">
+          <div class="st">release.sh — bump versi serentak di 6 tempat</div>
+          <div class="sd"><code>package.json</code> &rarr; <code>tauri.conf.json</code> &rarr; <code>Cargo.toml</code> &rarr; <code>android/app/build.gradle</code> (<code>versionCode = major*10000 + minor*100 + patch</code>) &rarr; <code>APP_VERSION</code> di <code>App.tsx</code> &rarr; <code>CURRENT_MONITOR_VERSION</code> di dashboard. Perubahan yang belum di-commit dibungkus lebih dulu sebagai <code>chore: update before release</code>.</div>
+          <div class="tags"><span class="pill warn">guard: tag sudah ada &rarr; exit 1</span><span class="pill">validasi cargo check</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num">2</div>
+        <div class="sbody">
+          <div class="st">Commit &rarr; tag <code>vX.Y.Z</code> &rarr; push tag</div>
+          <div class="sd">Tag <code>v*</code> adalah satu-satunya pemicu workflow <code>release.yml</code> (<code>on: push: tags: "v*"</code>) dengan permission <code>contents: write</code>.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num usb">3</div>
+        <div class="sbody">
+          <div class="st">Job <code>build</code> (matrix) dan job <code>apk</code> berjalan paralel</div>
+          <div class="sd"><b>windows-latest</b>: <code>tauri build --bundles msi,nsis</code>. <b>ubuntu-22.04</b>: pasang WebKit2GTK/AppIndicator lalu <code>--bundles deb,rpm</code>. Keduanya memakai <code>TAURI_SIGNING_PRIVATE_KEY</code> + password dari secrets. Job <b>apk</b>: Java 17 temurin, Gradle 8.9, SDK 35 / build-tools 34, lalu <code>:android:app:assembleRelease</code> menghasilkan bridge + monitor APK.</div>
+          <div class="tags"><span class="pill err">fail-fast: false</span><span class="pill">rename artefak per OS</span><span class="pill acc">upload-artifact</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num ok">4</div>
+        <div class="sbody">
+          <div class="st">Job <code>release</code> — gabung artefak &amp; terbitkan</div>
+          <div class="sd"><code>needs: [build, apk]</code> &rarr; <code>download-artifact</code> dengan <code>merge-multiple</code> &rarr; <code>gh release create vX.Y.Z artifacts/*</code>. Artefak updater (<code>latest.json</code>) ikut disalin agar installer lama bisa membaca rilis baru.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num" style="background:hsl(275 65% 55% / .16);border-color:hsl(275 55% 50% / .5);color:hsl(275 72% 78%)">5</div>
+        <div class="sbody">
+          <div class="st">Klien mengecek dirinya sendiri — <code>UpdateModal</code></div>
+          <div class="sd">Endpoint <code>.../releases/latest/download/latest.json</code> di-fetch, versi dibandingkan dengan <code>compareVersions()</code>. Bila lebih baru: unduh &rarr; verifikasi signature pubkey minisign (<code>createUpdaterArtifacts: true</code>) &rarr; install &rarr; relaunch. Progres di-stream lewat event <code>update_progress</code> dengan fase <code>checking / downloading / verifying / installing / relaunching</code>.</div>
+          <div class="tags"><span class="pill ok">minisign verify</span><span class="pill acc">update in-app</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="card">
+    <h2><span class="n">7</span> Pohon Keputusan — Boleh Di-push atau Tidak</h2>
+    <p class="sub">Logika ini yang membuat sistem aman terhadap berkas yang sedang diunduh dan penyimpanan HP yang hampir penuh.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="num warn">?</div>
+        <div class="sbody">
+          <div class="st">Ekstensi <code>.part</code> / <code>.crdownload</code> / <code>.downloading</code> / <code>.tmp</code>?</div>
+          <div class="sd"><b>Ya</b> &rarr; status <span class="pill warn">downloading</span>, dilewatkan total. <b>Tidak</b> &rarr; lanjut ke gerbang berikutnya.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num err">?</div>
+        <div class="sbody">
+          <div class="st">Gagal dibuka untuk baca (<code>file_is_available()</code>)?</div>
+          <div class="sd"><b>Ya</b> &rarr; <span class="pill err">locked</span>: browser downloader masih memegang file, tidak akan di-<code>adb push</code> (menghindari file lock / korup). <b>Tidak</b> &rarr; <span class="pill ok">ready</span>.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">?</div>
+        <div class="sbody">
+          <div class="st">Ekstensi tertarik <code>.md5</code> / <code>.zip</code> / <code>.txt</code> dan belum ada di Samba / belum staged?</div>
+          <div class="sd">Hanya ini yang masuk <code>pendingFiles()</code>. Sudah ada di <code>sambaFiles</code> atau sudah staged di <code>phoneFiles</code> &rarr; dianggap selesai dan dilewati, kecuali <code>force_transfer</code> dinyalakan.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num warn">?</div>
+        <div class="sbody">
+          <div class="st">Buffer HP &lt; 3 file <b>dan</b> ruang bebas &ge; 1 GB?</div>
+          <div class="sd"><b>Tidak</b> &rarr; tunggu 2 detik, ulangi loop (double-buffering). <b>Ya</b> &rarr; eksekusi push. Storage guard bisa dilompati lewat sakelar <code>force_transfer</code>.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num ok">OK</div>
+        <div class="sbody">
+          <div class="st">Push, aktifkan service, lalu bersihkan staging</div>
+          <div class="sd"><code>adb push</code> + <code>.meta</code> &rarr; <code>start-foreground-service</code> &rarr; SMB upload &rarr; verifikasi &rarr; <code>backup</code> atau <code>delete</code> sesuai <code>post_transfer_action</code>.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">8</span> Titik Lemah yang Terlihat dari Kode</h2>
+    <p class="sub">Bukan bagian arsitektur, tapi temuan saat membaca source — berguna kalau mau di-follow-up.</p>
+    <div class="cols2">
+      <div class="lane">
+        <div class="lt"><span class="pill warn">Perlu perhatian</span></div>
+        <div class="chain">
+          <span class="chip err">SMB_HOST / SMB_SHARE hardcode di BridgeService.kt:34-35</span>
+          <span class="chip err">devices_cache = Arc&lt;Mutex&gt; yang dibaca banyak thread</span>
+          <span class="chip err">adb.exe dicari dari PATH; gagal bila platform-tools tidak ada</span>
+          <span class="chip err">push() sinkron per-file: satu gagal menghentikan sisanya</span>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lt"><span class="pill ok">Sudah baik</span></div>
+        <div class="chain">
+          <span class="chip ok">fallback emit_loop 5 s</span>
+          <span class="chip ok">isPushingRef anti-dobel</span>
+          <span class="chip ok">verifikasi fisik Samba + HP</span>
+          <span class="chip ok">stale cleanup 30 s di server</span>
+          <span class="chip ok">updater dengan signature check</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Diagram arsitektur FireFiles · dibuat dari sumber: <code>src-tauri/src/main.rs</code>, <code>src/App.tsx</code>, <code>src/components/UpdateModal.tsx</code>, <code>android/app/src/main/java/com/example/bridge/BridgeService.kt</code>, <code>web-monitor/server.js</code>, <code>.github/workflows/release.yml</code>, <code>scripts/release.sh</code></span>
+    <span>Self-contained · tanpa library eksternal · aman dibuka offline &amp; di-print (Ctrl+P)</span>
+  </footer>
+
+
+
+
 
 
 
