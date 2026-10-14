@@ -1545,6 +1545,137 @@ fn stretch_interval_min_calc(min: u32) -> u64 {
     min as u64 * 60
 }
 
+// ponytail: Win32 global mouse cursor and keyboard tracking for Taby Assistant
+#[cfg(target_os = "windows")]
+fn get_win_mouse() -> Option<(f32, f32)> {
+    #[repr(C)]
+    struct POINT { x: i32, y: i32 }
+    extern "system" {
+        fn GetCursorPos(lpPoint: *mut POINT) -> i32;
+        fn GetSystemMetrics(nIndex: i32) -> i32;
+    }
+    unsafe {
+        let mut pt = POINT { x: 0, y: 0 };
+        if GetCursorPos(&mut pt) != 0 {
+            let cx = GetSystemMetrics(0); // SM_CXSCREEN
+            let cy = GetSystemMetrics(1); // SM_CYSCREEN
+            if cx > 0 && cy > 0 {
+                let norm_x = (pt.x as f32 / cx as f32) * 2.0 - 1.0;
+                let norm_y = (pt.y as f32 / cy as f32) * 2.0 - 1.0;
+                return Some((norm_x.clamp(-1.0, 1.0), norm_y.clamp(-1.0, 1.0)));
+            }
+        }
+    }
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_win_mouse() -> Option<(f32, f32)> {
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn is_win_typing() -> bool {
+    extern "system" {
+        fn GetAsyncKeyState(vKey: i32) -> i16;
+    }
+    // Check common typing keys: Backspace (0x08), Tab (0x09), Enter (0x0D), Space (0x20), 0-9 (0x30..=0x39), A-Z (0x41..=0x5A)
+    for k in [0x08, 0x09, 0x0D, 0x20] {
+        if unsafe { (GetAsyncKeyState(k) as u16 & 0x8000) != 0 } {
+            return true;
+        }
+    }
+    for k in 0x30..=0x5A {
+        if unsafe { (GetAsyncKeyState(k) as u16 & 0x8000) != 0 } {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_win_typing() -> bool {
+    false
+}
+
+fn send_taby_cursor(config: &Config, x: f32, y: f32) {
+    let devices = if let Ok(cache) = config.devices_cache.lock() {
+        cache.clone()
+    } else {
+        vec![]
+    };
+    let selected_fp = config.selected_fingerprint.lock().ok().and_then(|fp| fp.clone());
+    let targets: Vec<DeviceInfo> = if let Some(ref fp) = selected_fp {
+        let filtered: Vec<DeviceInfo> = devices.iter().filter(|d| &d.fingerprint == fp || &d.id == fp).cloned().collect();
+        if filtered.is_empty() { devices } else { filtered }
+    } else {
+        devices
+    };
+
+    let x_str = format!("{:.2}", x);
+    let y_str = format!("{:.2}", y);
+    for dev in targets {
+        let _ = adb(&[
+            "-s",
+            &dev.id,
+            "shell",
+            "am",
+            "broadcast",
+            "-a",
+            "com.example.bridge.TABY_CURSOR",
+            "-p",
+            "com.example.bridge",
+            "--ef",
+            "x",
+            &x_str,
+            "--ef",
+            "y",
+            &y_str,
+        ]);
+    }
+}
+
+// ponytail: single thread monitoring OS mouse movements and keyboard typing
+fn watch_windows_input(app: AppHandle) {
+    let config = app.state::<Config>().inner().clone();
+    thread::spawn(move || {
+        use std::time::Instant;
+        let mut last_x = 0.0f32;
+        let mut last_y = 0.0f32;
+        let mut last_cursor_send = Instant::now();
+        let mut last_typing_trigger = Instant::now() - Duration::from_secs(10);
+        let mut is_typing_active = false;
+
+        loop {
+            thread::sleep(Duration::from_millis(70));
+
+            // 1. Mouse Cursor Tracking
+            if let Some((mx, my)) = get_win_mouse() {
+                let dx = (mx - last_x).abs();
+                let dy = (my - last_y).abs();
+                // Send if moved significantly (> 0.04) and throttled to max ~10 broadcasts/sec
+                if (dx > 0.04 || dy > 0.04) && last_cursor_send.elapsed() >= Duration::from_millis(90) {
+                    last_x = mx;
+                    last_y = my;
+                    last_cursor_send = Instant::now();
+                    send_taby_cursor(&config, mx, my);
+                }
+            }
+
+            // 2. Keyboard Typing Detection
+            if is_win_typing() {
+                if !is_typing_active || last_typing_trigger.elapsed() >= Duration::from_millis(2500) {
+                    is_typing_active = true;
+                    last_typing_trigger = Instant::now();
+                    send_taby_trigger(&config, "working_laptop_loop", "TYPING...", "Focus working on PC", 3200);
+                }
+            } else if is_typing_active && last_typing_trigger.elapsed() >= Duration::from_millis(3200) {
+                is_typing_active = false;
+            }
+        }
+    });
+}
+
 fn start_usb_relay(app: AppHandle) {
     thread::spawn(move || {
         let listener = match std::net::TcpListener::bind("0.0.0.0:1421") {
@@ -1654,6 +1785,8 @@ fn main() {
             watch_samba(app.handle().clone());
             watch_adb_devices(app.handle().clone());
             watch_taby_assistant(app.handle().clone());
+            // ponytail: start Windows OS mouse and keyboard input watcher
+            watch_windows_input(app.handle().clone());
             Ok(())
         })
         .build(tauri::generate_context!())
