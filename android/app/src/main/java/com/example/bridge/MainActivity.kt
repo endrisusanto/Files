@@ -981,7 +981,7 @@ class MainActivity : Activity() {
                     if (fStatus.startsWith("Pushing to Phone")) {
                         val re = Regex("""\((\d+)%\)""")
                         val match = re.find(fStatus)
-                        phoneProgress = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        phoneProgress = match?.groupValues?.get(1)?.toIntOrNull() ?: (transferProgressMap[fName] ?: 0)
                     } else if (fStatus == "Staged on Phone") {
                         phoneProgress = 100
                     } else if (fStatus.startsWith("Uploading to Samba")) {
@@ -1540,25 +1540,14 @@ class MainActivity : Activity() {
         private fun mbps(bytes: Long) = "%.2f".format(bytes / 1024.0 / 1024.0)
     }
 
+    // ponytail: direct solid progress painting without 0-reset glitch on dynamic row recreation
     class RingProgressView(context: Context) : View(context) {
-        private var animatedProgress: Float = 0f
-        private var animator: ValueAnimator? = null
-
         var progress: Int = 0
             set(value) {
-                val target = value.coerceIn(0, 100).toFloat()
-                if (field != value) {
-                    field = value
-                    animator?.cancel()
-                    animator = ValueAnimator.ofFloat(animatedProgress, target).apply {
-                        duration = 260
-                        interpolator = DecelerateInterpolator()
-                        addUpdateListener {
-                            animatedProgress = it.animatedValue as Float
-                            postInvalidate()
-                        }
-                        start()
-                    }
+                val clamped = value.coerceIn(0, 100)
+                if (field != clamped) {
+                    field = clamped
+                    postInvalidate()
                 }
             }
         
@@ -1587,16 +1576,16 @@ class MainActivity : Activity() {
             paint.color = Color.parseColor("#27272a")
             canvas.drawCircle(cx, cy, r, paint)
             
-            // Draw progress arc with smooth animatedProgress
-            paint.color = if (animatedProgress >= 99.5f) Color.parseColor("#16a34a") else Color.parseColor("#2563eb")
+            // Draw progress arc
+            paint.color = if (progress >= 100) Color.parseColor("#16a34a") else Color.parseColor("#2563eb")
             val rect = RectF(cx - r, cy - r, cx + r, cy + r)
-            canvas.drawArc(rect, -90f, (animatedProgress * 3.6f), false, paint)
+            canvas.drawArc(rect, -90f, (progress * 3.6f), false, paint)
             
             // Draw text
             val density = resources.displayMetrics.density
             textPaint.textSize = 10f * density
             textPaint.color = Color.WHITE
-            canvas.drawText("${animatedProgress.toInt()}%", cx, cy - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint)
+            canvas.drawText("$progress%", cx, cy - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint)
         }
     }
 

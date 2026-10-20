@@ -338,7 +338,33 @@
       "day_planned", "wow"
     ]);
 
-    const IDLE_PLAYLIST = Object.keys(ANIM_MAP).filter(key => !WORK_KEYS.has(key) && !SUCCESS_KEYS.has(key));
+    // ponytail: exclude unwanted animations from idle loop as requested
+    const EXCLUDED_IDLE_KEYS = new Set([
+      "review",
+      "taby_response_ready_loop",
+      "taby_response_ready_in",
+      "day_planned",
+      "working_laptop_normal_loop",
+      "workspaces_in",
+      "workspaces_loop",
+      "task_page",
+      "lockin",
+      "listening_loop",
+      "listening_in",
+      "listening_music_loop",
+      "disappointed",
+      "hello_disappointed",
+      "delete_01",
+      "blush",
+      "circle"
+    ]);
+
+    const IDLE_PLAYLIST = Object.keys(ANIM_MAP).filter(key => 
+      !WORK_KEYS.has(key) && 
+      !SUCCESS_KEYS.has(key) && 
+      !EXCLUDED_IDLE_KEYS.has(key) && 
+      !key.startsWith("angry")
+    );
 
     let idleTimer = null;
     let idleIndex = 0;
@@ -526,7 +552,7 @@
 
       // Random friendly reaction when not transferring
       if (!isTransferring && !isTemporaryTriggerActive) {
-        const reactions = ["wow", "blush", "thumbs_up", "yeah", "circle"];
+        const reactions = ["wow", "thumbs_up", "yeah"];
         const rand = reactions[Math.floor(Math.random() * reactions.length)];
         playExpression(rand, "INTERACTION", "", 2000);
       }

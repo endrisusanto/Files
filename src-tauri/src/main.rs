@@ -484,16 +484,29 @@ fn file_is_available(path: &Path) -> bool {
     OpenOptions::new().read(true).open(path).is_ok()
 }
 
+// ponytail: fast 1s responsive scan for source & samba folders ensuring immediate UI updates
 fn emit_loop(app: AppHandle) {
     let config = app.state::<Config>().inner().clone();
-    thread::spawn(move || loop {
-        if let Err(e) = app.emit("files", bridge_files(&source_dir(&config))) {
-            eprintln!("[bridge-tauri] emit files error: {}", e);
+    thread::spawn(move || {
+        let mut last_files_sig = Vec::<(String, u64, String)>::new();
+        let mut last_samba_sig = Vec::<(String, u64, String)>::new();
+        loop {
+            let cur_files = bridge_files(&source_dir(&config));
+            let files_sig: Vec<(String, u64, String)> = cur_files.iter().map(|f| (f.name.clone(), f.size, f.status.clone())).collect();
+            if files_sig != last_files_sig {
+                last_files_sig = files_sig;
+                let _ = app.emit("files", cur_files);
+            }
+
+            let cur_samba = bridge_files(&samba_dir(&config));
+            let samba_sig: Vec<(String, u64, String)> = cur_samba.iter().map(|f| (f.name.clone(), f.size, f.status.clone())).collect();
+            if samba_sig != last_samba_sig {
+                last_samba_sig = samba_sig;
+                let _ = app.emit("samba-files", cur_samba);
+            }
+
+            thread::sleep(Duration::from_millis(1000));
         }
-        if let Err(e) = app.emit("samba-files", bridge_files(&samba_dir(&config))) {
-            eprintln!("[bridge-tauri] emit samba-files error: {}", e);
-        }
-        thread::sleep(Duration::from_secs(5));
     });
 }
 
@@ -502,13 +515,20 @@ fn watch_source(app: AppHandle) {
     thread::spawn(move || {
         let (tx, rx) = channel();
         let Ok(mut watcher) = recommended_watcher(tx) else { return };
-        let dir = source_dir(&config);
-        if watcher.watch(&dir, RecursiveMode::NonRecursive).is_err() {
-            return;
-        }
+        let mut watched_dir = source_dir(&config);
+        let _ = watcher.watch(&watched_dir, RecursiveMode::NonRecursive);
+
         while rx.recv().is_ok() {
-            thread::sleep(Duration::from_millis(200));
+            thread::sleep(Duration::from_millis(80));
             while rx.try_recv().is_ok() {}
+
+            let cur_dir = source_dir(&config);
+            if cur_dir != watched_dir {
+                let _ = watcher.unwatch(&watched_dir);
+                let _ = watcher.watch(&cur_dir, RecursiveMode::NonRecursive);
+                watched_dir = cur_dir;
+            }
+
             let _ = app.emit("files", bridge_files(&source_dir(&config)));
         }
     });
@@ -519,13 +539,20 @@ fn watch_samba(app: AppHandle) {
     thread::spawn(move || {
         let (tx, rx) = channel();
         let Ok(mut watcher) = recommended_watcher(tx) else { return };
-        let dir = samba_dir(&config);
-        if watcher.watch(&dir, RecursiveMode::NonRecursive).is_err() {
-            return;
-        }
+        let mut watched_dir = samba_dir(&config);
+        let _ = watcher.watch(&watched_dir, RecursiveMode::NonRecursive);
+
         while rx.recv().is_ok() {
-            thread::sleep(Duration::from_millis(200));
+            thread::sleep(Duration::from_millis(80));
             while rx.try_recv().is_ok() {}
+
+            let cur_dir = samba_dir(&config);
+            if cur_dir != watched_dir {
+                let _ = watcher.unwatch(&watched_dir);
+                let _ = watcher.watch(&cur_dir, RecursiveMode::NonRecursive);
+                watched_dir = cur_dir;
+            }
+
             let _ = app.emit("samba-files", bridge_files(&samba_dir(&config)));
         }
     });
